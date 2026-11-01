@@ -174,7 +174,9 @@ export default function ProjectDetailPage() {
   if (projectQuery.error || !project) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-start justify-center gap-5 p-6">
-        <h1 className="text-3xl font-black">This project didn&apos;t load.</h1>
+        <h1 className="text-3xl font-black">
+          {projectQuery.error ? "This project didn't load." : "Project not found"}
+        </h1>
         <Button asChild variant="outline">
           <Link href="/projects">
             <ArrowLeft className="size-4" />

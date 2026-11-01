@@ -46,7 +46,7 @@ export default function GlobalError({
               </Button>
               <Button asChild variant="outline">
                 {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- global-error replaces the root layout and the client router may be what failed; a full document load is the point. */}
-                <a href="/">Home page</a>
+                <a href="/">Go home</a>
               </Button>
             </>
           }

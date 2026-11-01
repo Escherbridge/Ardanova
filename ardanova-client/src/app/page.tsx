@@ -163,7 +163,7 @@ export default async function Home() {
                 <div className="grid gap-8 border-t border-black/70 pt-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                   <p className="max-w-2xl text-lg leading-relaxed md:text-xl">
                     People who find a problem fund it, build it, and share in
-                    what it becomes.
+                    what it becomes, on agreed terms.
                   </p>
                   <div className="flex flex-wrap gap-3">
                     <Button asChild size="lg">

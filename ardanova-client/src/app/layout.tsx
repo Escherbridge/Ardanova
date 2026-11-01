@@ -13,7 +13,8 @@ export const metadata: Metadata = {
     default: "ArdaNova",
     template: "%s — ArdaNova",
   },
-  description: "Find a problem. Fund it. Build it. Share in what it becomes.",
+  description:
+    "Plan shared work, record decisions, and reconcile contributor rights in one reviewable project workspace.",
   keywords: [
     "shared projects",
     "project coordination",
@@ -30,14 +31,16 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     title: "ArdaNova",
-    description: "Find a problem. Fund it. Build it. Share in what it becomes.",
+    description:
+      "Find a problem. Fund it. Build it. Share in what it becomes, on agreed terms.",
     siteName: "ArdaNova",
   },
   twitter: {
     // No share image ships yet; "summary_large_image" without one renders a broken card.
     card: "summary",
     title: "ArdaNova",
-    description: "Find a problem. Fund it. Build it. Share in what it becomes.",
+    description:
+      "Find a problem. Fund it. Build it. Share in what it becomes, on agreed terms.",
   },
 };
 

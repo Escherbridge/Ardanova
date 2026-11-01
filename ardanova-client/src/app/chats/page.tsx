@@ -471,6 +471,7 @@ export default function ChatsPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => void refetchConversations()}
+                  aria-label="Try again to load conversations"
                 >
                   Try again
                 </Button>
@@ -662,6 +663,7 @@ export default function ChatsPage() {
                   <Button
                     type="button"
                     onClick={() => void refetchConversation()}
+                    aria-label="Try again to load this conversation"
                   >
                     Try again
                   </Button>
@@ -671,7 +673,7 @@ export default function ChatsPage() {
                     onClick={() => setSelectedChatId(null)}
                   >
                     <ArrowLeft className="size-4" aria-hidden="true" />
-                    Back
+                    Back to chats
                   </Button>
                 </div>
               </div>
@@ -695,7 +697,7 @@ export default function ChatsPage() {
                   onClick={() => setSelectedChatId(null)}
                 >
                   <ArrowLeft className="size-4" aria-hidden="true" />
-                  Back
+                  Back to chats
                 </Button>
               </div>
             </div>
@@ -767,6 +769,7 @@ export default function ChatsPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => void refetchConversation()}
+                    aria-label="Try again to refresh details"
                   >
                     Try again
                   </Button>
@@ -844,6 +847,7 @@ export default function ChatsPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => void refetchMessages()}
+                      aria-label="Try again to load messages"
                     >
                       Try again
                     </Button>

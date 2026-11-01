@@ -223,7 +223,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             href="/"
           >
             <ArrowLeft aria-hidden="true" className="size-4" />
-            Home page
+            Go home
           </Link>
         </div>
       </section>

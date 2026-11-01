@@ -45,7 +45,9 @@ export default function EditProjectPage() {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-start justify-center gap-5 p-6">
         <AlertCircle className="text-destructive size-10" aria-hidden="true" />
-        <h1 className="font-mono text-2xl font-bold">Project not found</h1>
+        <h1 className="font-mono text-2xl font-bold">
+          {projectQuery.error ? "This project didn't load." : "Project not found"}
+        </h1>
         <Button asChild variant="outline">
           <Link href="/projects">
             <ArrowLeft className="size-4" />

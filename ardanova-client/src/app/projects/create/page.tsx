@@ -1359,7 +1359,7 @@ export default function CreateProjectPage() {
                       htmlFor="project-summary"
                       className="mb-2 block text-sm font-medium"
                     >
-                      One-line summary
+                      One-line summary (optional)
                     </label>
                     <input
                       type="text"
@@ -1393,8 +1393,7 @@ export default function CreateProjectPage() {
                           id="project-summary-help"
                           className="text-muted-foreground text-sm"
                         >
-                          Shown on cards and in search. Optional, but read
-                          first.
+                          Shown on cards and in search.
                         </p>
                       )}
                       <span className="text-muted-foreground shrink-0 text-xs">

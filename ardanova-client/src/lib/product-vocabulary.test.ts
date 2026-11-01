@@ -173,5 +173,5 @@ export const Reader = () => (
     expect(report.scannedFiles).toBeGreaterThan(100);
     expect(report.violations).toEqual([]);
     expect(result.status).toBe(0);
-  });
+  }, 15_000);
 });

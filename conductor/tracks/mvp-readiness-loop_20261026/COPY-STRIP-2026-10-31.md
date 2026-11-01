@@ -4,7 +4,7 @@ track: mvp-readiness-loop_20261026
 date: 2026-10-31
 lane: copy
 base: 9a40e43
-status: draft-for-owner
+status: approved-with-changes-applied
 ---
 
 # Copy strip — 2026-10-31
@@ -51,9 +51,9 @@ status: draft-for-owner
 | File:line | Before | After |
 | --- | --- | --- |
 | `app/layout.tsx:13` | title `ArdaNova — Shared project workspace` | `ArdaNova` |
-| `app/layout.tsx:17` | `Plan shared work, record decisions, and reconcile contributor rights in one reviewable project workspace.` | `Find a problem. Fund it. Build it. Share in what it becomes.` |
-| `app/layout.tsx:33,35` | OG `ArdaNova — Shared project workspace` / `Where people who find a problem fund it, build it, and share in what it becomes.` | `ArdaNova` / same line as description |
-| `app/layout.tsx:41,43` | Twitter `ArdaNova — Shared project workspace` / `A reviewable workspace for shared work, decisions, and contributor rights.` | `ArdaNova` / same line as description |
+| `app/layout.tsx:17` | `Plan shared work, record decisions, and reconcile contributor rights in one reviewable project workspace.` | *(unchanged — restored verbatim in review round 2: it carries the rights qualifier)* |
+| `app/layout.tsx:33,35` | OG `ArdaNova — Shared project workspace` / `Where people who find a problem fund it, build it, and share in what it becomes.` | `ArdaNova` / `Find a problem. Fund it. Build it. Share in what it becomes, on agreed terms.` |
+| `app/layout.tsx:41,43` | Twitter `ArdaNova — Shared project workspace` / `A reviewable workspace for shared work, decisions, and contributor rights.` | `ArdaNova` / `Find a problem. Fund it. Build it. Share in what it becomes, on agreed terms.` |
 | `app/error.tsx:23` | `ERROR / PAGE FAILED TO LOAD` | `ERROR` |
 | `app/error.tsx:24` | `This page could not be shown.` | `This page didn't load.` |
 | `app/error.tsx:28` | `Something went wrong while loading it.` (+ safety sentence) | *(first sentence deleted; safety sentence kept verbatim)* |
@@ -61,11 +61,11 @@ status: draft-for-owner
 | `app/not-found.tsx:13` | `404 / NOT FOUND` | `404` |
 | `app/not-found.tsx:14` | `There is no page at this address.` | `Page not found.` |
 | `app/not-found.tsx:17` | `The link may be mistyped, or the record it pointed to was moved or removed.` (+ safety sentence) | *(deleted; `Nothing you have saved has changed.` kept)* |
-| `app/not-found.tsx:24,27` | `Go to your dashboard` / `Back to the home page` | `Open dashboard` / `Home page` |
+| `app/not-found.tsx:24,27` | `Go to your dashboard` / `Back to the home page` | `Open dashboard` / `Go home` |
 | `app/global-error.tsx:27` | `ERROR / ARDANOVA IS UNAVAILABLE` | `ERROR` |
 | `app/global-error.tsx:28` | `ArdaNova could not start this page.` | `This page didn't load.` |
 | `app/global-error.tsx:32` | `The application stopped before this page could load.` (+ anti-double-submit sentence) | *(deleted; safety sentence kept verbatim)* |
-| `app/global-error.tsx:50` | `Back to the home page` | `Home page` |
+| `app/global-error.tsx:50` | `Back to the home page` | `Go home` |
 
 ### Sign-in and auth error
 
@@ -80,7 +80,7 @@ status: draft-for-owner
 | `app/auth/signin/page.tsx:146` | `Continue with Google to create your ArdaNova profile.` (+ consent sentence) | *(first sentence deleted — the button says it; consent sentence kept verbatim)* |
 | `app/auth/signin/page.tsx:147` | `Continue with the Google account connected to your ArdaNova workspace.` | `Use the Google account you joined with.` |
 | `app/auth/signin/page.tsx:199` | `You'll continue to Google in a new authentication step, then return to this ArdaNova workspace. Creating an account and signing in use the same secure provider flow.` | *(deleted)* |
-| `app/auth/signin/page.tsx:241` | `Return to the public site` | `Home page` |
+| `app/auth/signin/page.tsx:241` | `Return to the public site` | `Go home` |
 | `app/auth/error/page.tsx:39-41` | `Pause. / Keep the work safe.` | `Pause.` |
 
 ### Landing — `/` (logged-out; one brand line kept in the hero)
@@ -90,7 +90,7 @@ status: draft-for-owner
 | `app/page.tsx:161` | `SOCIAL LAYER FOR DOING` | *(deleted — eyebrow stack)* |
 | `app/page.tsx:163` | `BUILD TOGETHER / GOVERN TOGETHER` | *(deleted)* |
 | `app/page.tsx:169` | Badge `Social media for doing—not doom-scrolling` | *(deleted)* |
-| `app/page.tsx:180-183` | `Not an endless feed. ArdaNova is where people who find a problem fund it, build it, and share in what it becomes—with decisions, contributions, and agreed terms visible for review.` | `People who find a problem fund it, build it, and share in what it becomes.` **(P8-17)** |
+| `app/page.tsx:180-183` | `Not an endless feed. ArdaNova is where people who find a problem fund it, build it, and share in what it becomes—with decisions, contributions, and agreed terms visible for review.` | `People who find a problem fund it, build it, and share in what it becomes, on agreed terms.` **(P8-17)** — the rights qualifier travels with the claim |
 | `app/page.tsx:229` | `01 / THE SOLUTIONARY LOOP` | `01 / METHOD` (matches the nav label; the band above already names the loop) |
 | `app/page.tsx:236-239` | `Start with lived context, shape a proposal people can inspect, and keep learning with those affected. Every iteration can move forward, return to discovery, or end in a documented stop.` | *(deleted — the three cards say it)* |
 | `app/page.tsx:27` | `Begin with affected people, lived context, evidence, constraints, and open questions—not whatever happens to be trending.` | `Start with the people it affects.` |
@@ -132,13 +132,13 @@ status: draft-for-owner
 | `app/dashboard/page.tsx:407` | `YOUR PROJECT RECORDS` | `YOUR PROJECTS` |
 | `app/dashboard/page.tsx:410,412` | `Loading your project records…` / `Your project records are unavailable right now.` | `Loading your projects…` / `Your projects are unavailable right now.` |
 | `app/dashboard/page.tsx:414` | `You have not started a project yet. Begin with a problem you have seen.` | `No projects yet.` (the column's `Create project` button is the action) |
-| `app/dashboard/page.tsx:451` | `Complete a bounded task, review the evidence, and change the plan.` (+ award sentence) | *(first sentence deleted; `A task state does not imply an award has been reconciled.` kept verbatim)* |
+| `app/dashboard/page.tsx:451` | `Complete a bounded task, review the evidence, and change the plan.` (+ award sentence) | *(first sentence deleted; `A task state does not imply an award has been reconciled.` kept verbatim and moved directly above `View your tasks`)* |
 | `app/dashboard/page.tsx:457` | `WORK ASSIGNED TO YOU` | `ASSIGNED TO YOU` |
 | `app/dashboard/page.tsx:476` | `No task records are currently assigned to you.` | `Nothing assigned to you.` |
 | `app/dashboard/page.tsx:500` | `Open assigned work` | `View your tasks` |
 | `app/dashboard/page.tsx:511` | `COORDINATE` | *(deleted)* |
-| `app/dashboard/page.tsx:514` | `Review windows, not attention traps.` | `Coming up` |
-| `app/dashboard/page.tsx:518-519` | `Proposals remain proposals until the recorded process resolves them. Events are shown as scheduled, not as attendance or consent.` | *(deleted — see owner rulings)* |
+| `app/dashboard/page.tsx:514` | `Review windows, not attention traps.` | `Proposals and events` (open-for-voting proposals are not "coming up") |
+| `app/dashboard/page.tsx:518-519` | `Proposals remain proposals until the recorded process resolves them. Events are shown as scheduled, not as attendance or consent.` | *(unchanged — restored verbatim in review round 2: consent and proposal-state copy)* |
 | `app/dashboard/page.tsx:528` | `GOVERNANCE` (eyebrow over `Active proposals`) | *(deleted)* |
 | `app/dashboard/page.tsx:541` | `No active proposals are recorded.` | `No active proposals.` |
 | `app/dashboard/page.tsx:579` | `WORKING SESSIONS` (eyebrow over `Upcoming events`) | *(deleted)* |
@@ -251,18 +251,19 @@ status: draft-for-owner
 | `app/chats/page.tsx:331,334` | `More conversations could not be loaded.` | `More conversations didn't load.` |
 | `app/chats/page.tsx:352,356` | `Earlier messages could not be loaded.` | `Earlier messages didn't load.` |
 | `app/chats/page.tsx:471-474` | `Conversations could not be loaded` / `This is a connection or service error, not an empty inbox.` | `Conversations didn't load.` |
-| `app/chats/page.tsx:483` | `Retry conversations` | `Try again` |
+| `app/chats/page.tsx:483` | `Retry conversations` | `Try again`, accessible name `Try again to load conversations` |
 | `app/chats/page.tsx:496-501` | `No matching conversations` / `No conversations available` + `Change the search or filter to widen the list.` / `Start a direct conversation when you have something concrete to move forward.` | `No matches.` / `No conversations yet.` |
 | `app/chats/page.tsx:640` | `A USEFUL CONVERSATION STARTS WITH INTENT` | *(deleted)* |
 | `app/chats/page.tsx:646-647` | `Coordinate the next decision, share context, or invite someone into the work.` | *(deleted)* |
 | `app/chats/page.tsx:677` | `Conversation could not be loaded` | `Conversation didn't load.` |
 | `app/chats/page.tsx:680` | `The conversation service returned an error.` (+ access sentence) | *(deleted; `Access has not been inferred or changed.` kept verbatim)* |
-| `app/chats/page.tsx:689` | `Retry conversation` | `Try again` |
-| `app/chats/page.tsx:720` | `Back to conversations` | `Back` |
-| `app/chats/page.tsx:776` | `Retry details` | `Try again` |
+| `app/chats/page.tsx:689` | `Retry conversation` | `Try again`, accessible name `Try again to load this conversation` |
+| `app/chats/page.tsx:720` | `Back to conversations` | `Back to chats` |
+| `app/chats/page.tsx:697` | `Back` (conversation-error panel, same destination) | `Back to chats` |
+| `app/chats/page.tsx:776` | `Retry details` | `Try again`, accessible name `Try again to refresh details` |
 | `app/chats/page.tsx:785-786` | `Current conversation details could not be refreshed. The list snapshot may be stale.` | `Details didn't refresh and may be out of date.` |
 | `app/chats/page.tsx:863-867` | `Messages could not be loaded` / `This is a service error, not an empty conversation. No message history is shown until the request succeeds.` | `Messages didn't load.` |
-| `app/chats/page.tsx:874` | `Retry messages` | `Try again` |
+| `app/chats/page.tsx:874` | `Retry messages` | `Try again`, accessible name `Try again to load messages` |
 | `app/chats/page.tsx:885-889` | `Start with the next useful thing` / `Share the problem, ask a precise question, or name the decision this conversation can move forward.` | `No messages yet.` |
 
 ### Profile — `/dashboard/profile`, `/dashboard/profile/[id]`, `/settings/profile`
@@ -310,14 +311,14 @@ status: draft-for-owner
 | File:line | Before | After |
 | --- | --- | --- |
 | `app/projects/[slug]/page.tsx:179` | `PROJECT UNAVAILABLE` | *(deleted)* |
-| `app/projects/[slug]/page.tsx:182` | `We could not open this project` | `This project didn't load.` |
+| `app/projects/[slug]/page.tsx:182` | `We could not open this project` | `This project didn't load.` on a query error / `Project not found` when the record is absent |
 | `app/projects/[slug]/page.tsx:185-186` | `The project may not exist, or its API record did not match the current project contract.` | *(deleted)* |
 | `app/projects/[slug]/page.tsx:199` | `Creator name unavailable` | `Unknown creator` |
 | `app/projects/[slug]/page.tsx:299,303` | `Votes recorded` / `Views recorded` | `Votes` / `Views` |
 | `app/projects/[slug]/board/page.tsx:552` | `BOARD COULD NOT BE LOADED` | `Board didn't load.` |
 | `app/projects/[slug]/board/page.tsx:582` | `Back to Projects` | `Back to projects` |
 | `app/projects/[slug]/board/page.tsx:769` | `No tasks found. Create one to get started.` | `No tasks here.` |
-| `app/projects/[slug]/edit/page.tsx:50` | `This project could not be loaded, or it no longer exists.` | *(deleted — heading says `Project not found`)* |
+| `app/projects/[slug]/edit/page.tsx:49-50` | `Project not found` (for both cases) + `This project could not be loaded, or it no longer exists.` | `This project didn't load.` on a query error / `Project not found` when absent; sentence deleted |
 | `app/projects/[slug]/edit/page.tsx:72` | `Only the project's creator can revise its Basic Info here.` | `Only its creator can.` |
 | `app/projects/[slug]/edit/page.tsx:97-104` | `Edit Project` / `Revise the problem, solution, and details for {title}.` | `Edit project` / `{title}` |
 
@@ -387,7 +388,8 @@ status: draft-for-owner
 | `app/projects/create/page.tsx:1207` | `Define a problem, shape a solution, then make the work actionable.` | *(deleted)* |
 | `app/projects/create/page.tsx:1323` | `Project Overview` | `Overview` |
 | `app/projects/create/page.tsx:1379` | placeholder `The one sentence someone reads before deciding to care` | `One sentence` |
-| `app/projects/create/page.tsx:1398` | `Shown on cards and in search results. Optional, but it is the first thing anyone reads.` | `Shown on cards and in search. Optional, but read first.` |
+| `app/projects/create/page.tsx:1398` | `Shown on cards and in search results. Optional, but it is the first thing anyone reads.` | `Shown on cards and in search.` |
+| `app/projects/create/page.tsx:1365` | label `One-line summary` | `One-line summary (optional)` (optionality moved from the help line to the label) |
 | `app/projects/create/page.tsx:1417` | `Problem Definition` | `Problem` |
 | `app/projects/create/page.tsx:1441` | placeholder `Describe the problem you're solving. What is the issue? Who does it affect?` | `What is wrong, and who does it affect?` |
 | `app/projects/create/page.tsx:1475` | `Who are the primary beneficiaries?` | `Who benefits?` |
@@ -568,8 +570,8 @@ Mechanical, not copy: every `didn't` that landed in raw JSX text is written `did
 | `app/page.tsx:325-327` | `Platform records do not automatically create legal ownership, equity, or payment rights. …` | Legal |
 | `app/page.tsx:356-357` | `A draft stays private until you publish it. Nova cannot fund, pay, or vote.` | Consent and money boundary |
 | `app/page.tsx:54-55` | Trust cue `Ownership and decision authority come from documented terms, never from activity, membership, or a balance alone.` | Rights |
-| `app/dashboard/page.tsx:283-285` | `Participation is not proof of ownership. Governance credentials, project utility, and economic rights remain separate, reviewable records.` | Rights (see owner rulings) |
-| `app/dashboard/page.tsx:452` | `A task state does not imply an award has been reconciled.` | Money state (its first sentence was cut) |
+| `app/dashboard/page.tsx:283-285` | `Participation is not proof of ownership. Governance credentials, project utility, and economic rights remain separate, reviewable records.` | Rights (kept in place — review round 2 ruling) |
+| `app/dashboard/page.tsx:452` | `A task state does not imply an award has been reconciled.` | Money state (its first sentence was cut; moved directly above `View your tasks`) |
 | `app/projects/page.tsx:262` | `Totals are not shown because this page of projects could not be loaded.` | Money-figure caveat; stat labels `Funding recorded` / `Supporters recorded` also kept |
 | `app/projects/[slug]/page.tsx:308,328,343-350` | `Current funding`, `Funding record`, the `Commerce enabled` box | Money and rights |
 | `app/projects/create/page.tsx` | Every funding, stake, account-setup and recovery string (600-647, 969-1144, 1235-1240, 1928-1996, 2457-2583, 3121-3413, 3697, 3878-3894); the step names (line 647's money validation names the `Basic Info` step) | Money, KYC, and the recovery line `It will not create a duplicate project.` |
@@ -598,23 +600,34 @@ Short uppercase state labels (`NO SPRINTS`, `NO MILESTONES YET`, `SELECT A SPRIN
 
 ---
 
-## Owner rulings wanted
+## Review round 2 (coordinator: APPROVE WITH CHANGES) — resolutions
 
-1. **The dashboard's consent-adjacent line was cut.** `Events are shown as scheduled, not as attendance or consent.` (`app/dashboard/page.tsx:519`) was a sentence-long subhead, so I deleted it with its sibling. It mentions consent but captures none. Confirm, or I restore it.
-2. **New trust cue on the landing page.** `Progress over engagement — …not popularity or time spent scrolling` was false under SR-03-D2. I replaced it with `Decisions stay recorded / Proposals, votes, and outcomes stay on the record.` Confirm that claim, or delete the cue and let the grid run to two.
-3. **Nova is benched but still advertised.** The landing keeps its `#nova` section and nav link, and the dashboard's primary button is still `Open Nova Studio`. Demoting them is a structural change outside this lane.
-4. **The dashboard rights disclaimer now stands alone.** `Participation is not proof of ownership…` qualified a `Share in what you build` line that is gone. It is kept as rights copy. Keep, move, or cut?
-5. **Optional Žižek line for the archetype.** `/projects` empty state: `No projects yet.` could become `Plenty of problems. No projects yet.` It would echo the landing line, so pick one page, not both.
-6. **P8-17 is not fully closed.** `server/api/routers/post.ts:11` is behind the money-branch exclusion.
+| Item | Resolution |
+| --- | --- |
+| HIGH-1 rights qualifier | The hero line and the OG and Twitter descriptions now end `…share in what it becomes, on agreed terms.` The main meta description (`layout.tsx:16`) is restored verbatim (`…reconcile contributor rights…`). A claim's qualifier travels with the claim. |
+| MED-2 | `Proposals remain proposals until the recorded process resolves them. Events are shown as scheduled, not as attendance or consent.` is restored verbatim under the dashboard heading, which is now `Proposals and events`. |
+| MED-3 | Project detail and project edit split their error headings. A query error shows `This project didn't load.`, an absent record shows `Project not found` (the `guilds/[slug]` pattern). |
+| LOW-4 | `A task state does not imply an award has been reconciled.` moved, wording unchanged, to directly above `View your tasks`. |
+| LOW-7 | The four chats retry buttons keep the visible text `Try again` and gain accessible names: `Try again to load conversations` / `…to load this conversation` / `…to refresh details` / `…to load messages`. **Deviation:** the review suggested `Retry conversations` etc. Under WCAG 2.5.3 (Label in Name, level A) the accessible name must contain the visible text, or a voice-control user saying "click Try again" gets no match. So each name starts with the visible words. |
+| LOW-8 | `Home page` → `Go home` (sign-in, global-error, not-found). Both chats `Back` buttons return to the list (`setSelectedChatId(null)`), so both now read `Back to chats`. `Optional, but read first.` was cut, leaving `Shown on cards and in search.`. The label lacked any optional marker, so it became `One-line summary (optional)`. `Sign in to create a guild` was **left**: it is the only text on an otherwise empty page above a `Sign in` button, so shortening it would lose the purpose. |
+| Test timeout | `lib/vocabulary/vocabulary.test.ts` repo-wide scan: 5 s → 15 s. The sibling repo-wide scan in `lib/product-vocabulary.test.ts` ("reports the real client tree as clean") then timed out the same way and got the same 15 s. No assertion changed in either file. |
+| Rulings | `Problems are not in short supply.` stays; no second Žižek line; `Participation is not proof of ownership…` stays in place. |
+
+### Still open for the owner
+
+1. **The new trust cue needs confirming.** `Decisions stay recorded / Proposals, votes, and outcomes stay on the record.` replaced the cue that SR-03-D2 made false. Confirm the claim, or delete the cue.
+2. **Nova is benched but still advertised.** The landing page keeps its `#nova` section and nav link, and the dashboard still offers `Open Nova Studio`. Removing them is a structural change outside this lane.
+3. **P8-17 is not fully closed.** `server/api/routers/post.ts:11` ("there is no global feed") sits behind the money-branch exclusion.
 
 ---
 
-## Verification
+## Verification (after review round 2)
 
 | Check | Result |
 | --- | --- |
 | `npx tsc --noEmit` | exit 0 |
-| `npm run lint` | 1 error, 4 warnings, all pre-existing in files this branch does not touch (`app/api/auth/[...nextauth]/route.ts` `unbound-method`; unused vars in `lib/api`, `lib/contracts`, `server/api`). The 38 `no-unescaped-entities` errors this pass introduced are fixed. |
-| `npx vitest run` | 691 / 692 passed, 71 / 72 files. The one failure is `lib/vocabulary/vocabulary.test.ts` "repo-wide chain vocabulary" **timing out at 5 s** under parallel load. Re-run in isolation with `product-vocabulary.test.ts`: 17 / 17 passed. |
+| `npx eslint` on the 11 files touched in round 2 | exit 0 |
+| `npm run lint` (full, round 1) | 1 error, 4 warnings, all pre-existing in files this branch does not touch (`app/api/auth/[...nextauth]/route.ts` `unbound-method`; unused vars in `lib/api`, `lib/contracts`, `server/api`). The 38 `no-unescaped-entities` errors round 1 introduced are fixed. |
+| `npx vitest run` | **692 / 692 passed, 72 / 72 files** |
 | Excluded-file check | `git diff --name-only 9a40e43` contains no hard-excluded path and no money or verification surface |
-| Copy-asserting tests | None asserted changed copy, so no test was edited |
+| Copy-asserting tests | None asserted changed copy. The only test edits are the two timeouts. |

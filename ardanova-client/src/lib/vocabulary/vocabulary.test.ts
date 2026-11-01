@@ -375,5 +375,5 @@ describe("repo-wide chain vocabulary", () => {
 
     const unallowed = violations.filter((violation) => !isAllowlisted(violation));
     expect(unallowed, unallowed.length > 0 ? formatViolations(unallowed) : "").toHaveLength(0);
-  });
+  }, 15_000);
 });

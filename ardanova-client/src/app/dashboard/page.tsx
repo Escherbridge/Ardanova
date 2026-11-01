@@ -411,10 +411,6 @@ export default function DashboardPage() {
               </div>
               <RefreshCw className="size-6 shrink-0" aria-hidden="true" />
             </div>
-            <p className="text-primary-foreground mt-3 text-sm leading-relaxed">
-              A task state does not imply an award has been reconciled.
-            </p>
-
             <div className="mt-6 flex-1">
               <p className="text-primary-foreground mb-2 font-mono text-[0.68rem] font-semibold tracking-[0.12em] uppercase">
                 Assigned to you
@@ -455,6 +451,9 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-6">
+              <p className="text-primary-foreground mb-3 text-sm leading-relaxed">
+                A task state does not imply an award has been reconciled.
+              </p>
               <Button
                 asChild
                 variant="outline"
@@ -470,8 +469,12 @@ export default function DashboardPage() {
       <section aria-labelledby="coordinate-title">
         <div className="border-foreground mb-5 flex flex-col justify-between gap-3 border-b pb-5 sm:flex-row sm:items-end">
           <h2 id="coordinate-title" className="text-3xl sm:text-4xl">
-            Coming up
+            Proposals and events
           </h2>
+          <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
+            Proposals remain proposals until the recorded process resolves them.
+            Events are shown as scheduled, not as attendance or consent.
+          </p>
         </div>
 
         <div className="border-foreground grid border lg:grid-cols-2">
