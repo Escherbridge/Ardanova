@@ -596,7 +596,9 @@ public partial class ${table.name}
         content += `    public virtual ICollection<${remoteEp.tableName}> ${relationName} { get; set; } = new List<${remoteEp.tableName}>();\n\n`;
       } else if (localEp.relation === "1" && remoteEp.relation === "1") {
         // One-to-One
-        const localFieldDef = table.fields.find((field) => field.name === fkField);
+        const localFieldDef = table.fields.find(
+          (field) => field.name === fkField,
+        );
         const hasFk = localFieldDef !== undefined && !localFieldDef.pk;
         let relationName = fkField?.endsWith("Id")
           ? fkField.slice(0, -2)

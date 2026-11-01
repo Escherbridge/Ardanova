@@ -162,9 +162,10 @@ disagree.
 
 The hold columns mirror the node; they are not a source. `IsNodeHeld` (a non-null `holdId`) is
 the single predicate every payout path reads, which is why every row that predates this design
+
 - all of them, since no allocation on record was ever committed - is unpayable rather than
-payable-by-default. Backfilling those columns would turn historical reservations into awards
-nothing backs.
+  payable-by-default. Backfilling those columns would turn historical reservations into awards
+  nothing backs.
 
 A backlog reservation (`pbiId` set, no recipient) commits nothing on the node: there is no
 person to hold units for yet, so it can never be paid out. Only an award accepted from a bid
