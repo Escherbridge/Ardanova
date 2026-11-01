@@ -18,6 +18,8 @@ export interface ApiResponse<T> {
   code?: string;
   /** The `intentId` a money refusal names (a payment held for review), verbatim; absent otherwise. */
   intentId?: string;
+  /** The `conflictId` a 409 body names (e.g. the existing HELP_WANTED post a duplicate ask collided with), verbatim; absent otherwise. */
+  conflictId?: string;
 }
 
 export interface PagedResult<T> {
@@ -168,16 +170,18 @@ function failed<T>(status: number, errorText: string): ApiResponse<T> {
   recordApiFailure({ status, message: error });
   const code = readApiErrorField(errorText, "code");
   const intentId = readApiErrorField(errorText, "intentId");
+  const conflictId = readApiErrorField(errorText, "conflictId");
   return {
     error,
     status,
     ...(code === undefined ? {} : { code }),
     ...(intentId === undefined ? {} : { intentId }),
+    ...(conflictId === undefined ? {} : { conflictId }),
   };
 }
 
-/** A string field a JSON error body carries (money routes' `MoneyRefusal`: `code`, `intentId`), if any. */
-function readApiErrorField(errorText: string, field: "code" | "intentId"): string | undefined {
+/** A string field a JSON error body carries (money routes' `MoneyRefusal`: `code`, `intentId`; a 409's `conflictId`), if any. */
+function readApiErrorField(errorText: string, field: "code" | "intentId" | "conflictId"): string | undefined {
   try {
     const parsed: unknown = JSON.parse(errorText);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {

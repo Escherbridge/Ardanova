@@ -42,6 +42,13 @@ export interface TaskProject {
   slug: string;
 }
 
+/** The HELP_WANTED asker a task card's "Message" action opens a draft chat with (plan §2). */
+export interface TaskHelpWanted {
+  postId: string;
+  askerId: string;
+  askerName?: string | null;
+}
+
 export interface Task {
   id: string;
   projectId: string;
@@ -68,6 +75,8 @@ export interface Task {
   assignedToId?: string | null;
   assignedTo?: TaskUser | null;
   project?: TaskProject | null;
+  /** Set only when a HELP_WANTED post names this task; absent otherwise or before K1/K2 ship it. */
+  helpWanted?: TaskHelpWanted | null;
 }
 
 export interface TaskCommerceView {
