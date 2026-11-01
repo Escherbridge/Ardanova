@@ -85,7 +85,7 @@ export default function SprintsTab({ projectId, canManage }: SprintsTabProps) {
         <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
         <div className="flex-1">
           <p className="text-destructive font-mono text-sm font-bold">
-            FAILED TO LOAD SPRINTS
+            Sprints didn't load.
           </p>
           <p className="text-muted-foreground mt-1 text-xs">{error.message}</p>
         </div>
@@ -109,11 +109,10 @@ export default function SprintsTab({ projectId, canManage }: SprintsTabProps) {
       <div className="border-border bg-card border-2 p-8 text-center">
         <Zap className="text-muted-foreground mx-auto mb-2 size-8" />
         <p className="text-muted-foreground font-mono text-sm">
-          NO SPRINTS AVAILABLE
+          NO SPRINTS YET
         </p>
         <p className="text-muted-foreground mt-1 text-xs">
-          Create milestones and epics in the Roadmap tab first, then add
-          sprints.
+          Add milestones and epics in Roadmap first.
         </p>
       </div>
     );
@@ -149,9 +148,6 @@ export default function SprintsTab({ projectId, canManage }: SprintsTabProps) {
             <Zap className="text-muted-foreground mb-2 size-8" />
             <p className="text-muted-foreground font-mono text-sm">
               SELECT A SPRINT
-            </p>
-            <p className="text-muted-foreground mt-1 text-xs">
-              Choose a sprint from the sidebar to view details.
             </p>
           </div>
         )}
@@ -231,7 +227,7 @@ function MilestoneAccordion({
               role="alert"
             >
               <p className="text-destructive text-[10px]">
-                Epics could not be loaded: {epicsError.message}
+                Epics didn't load: {epicsError.message}
               </p>
               <Button
                 type="button"
@@ -316,7 +312,7 @@ function EpicAccordion({
               role="alert"
             >
               <p className="text-destructive text-[10px]">
-                Sprints could not be loaded: {sprintsError.message}
+                Sprints didn't load: {sprintsError.message}
               </p>
               <Button
                 type="button"
@@ -489,7 +485,7 @@ function SprintDetail({
           <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
           <div>
             <p className="text-destructive font-mono text-sm font-bold">
-              SPRINT WORK COULD NOT BE LOADED
+              Sprint work didn't load.
             </p>
             <p className="text-muted-foreground mt-1 text-xs">
               {workError?.message ?? "Unknown error"}
@@ -756,9 +752,6 @@ function SprintDetail({
         <div className="border-border bg-card border-2 p-8 text-center">
           <p className="text-muted-foreground font-mono text-sm">
             NO ITEMS IN THIS SPRINT
-          </p>
-          <p className="text-muted-foreground mt-1 text-xs">
-            Add features and backlog items to plan this sprint.
           </p>
         </div>
       )}

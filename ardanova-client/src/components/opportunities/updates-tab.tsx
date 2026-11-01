@@ -209,12 +209,12 @@ export default function UpdatesTab({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Bell className="text-muted-foreground h-5 w-5" />
-          <h2 className="text-xl font-semibold">Opportunity Updates</h2>
+          <h2 className="text-xl font-semibold">Updates</h2>
         </div>
         {isOwner && !isFormOpen && (
           <Button onClick={() => setIsFormOpen(true)} size="sm">
             <Plus className="mr-2 h-4 w-4" />
-            Post Update
+            Post update
           </Button>
         )}
       </div>
@@ -223,7 +223,7 @@ export default function UpdatesTab({
       {isOwner && isFormOpen && (
         <Card className="bg-card border-border border-2">
           <CardHeader>
-            <CardTitle>Post a New Update</CardTitle>
+            <CardTitle>New update</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -255,7 +255,7 @@ export default function UpdatesTab({
                   id="content"
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  placeholder="Share progress, announcements, or news about this opportunity..."
+                  placeholder="What's new?"
                   rows={4}
                   className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   required
@@ -271,7 +271,7 @@ export default function UpdatesTab({
                   ) : (
                     <>
                       <Send className="mr-2 h-4 w-4" />
-                      Post Update
+                      Post update
                     </>
                   )}
                 </Button>
@@ -316,12 +316,7 @@ export default function UpdatesTab({
         <Card className="bg-card border-border border-2">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Bell className="text-muted-foreground mb-4 h-12 w-12" />
-            <h3 className="mb-2 text-lg font-semibold">No updates yet</h3>
-            <p className="text-muted-foreground max-w-sm text-center text-sm">
-              {isOwner
-                ? "Share progress and announcements with applicants by posting updates."
-                : "Check back later for updates from the opportunity owner."}
-            </p>
+            <h3 className="text-lg font-semibold">No updates yet.</h3>
           </CardContent>
         </Card>
       )}

@@ -172,11 +172,8 @@ export function MembersTab({ guildId, isOwner, canManage }: MembersTabProps) {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Users className="size-5" />
-                Guild Members
+                Members
               </CardTitle>
-              <CardDescription>
-                People who are part of this guild
-              </CardDescription>
             </div>
             {canManage && (
               <Button
@@ -324,11 +321,9 @@ export function MembersTab({ guildId, isOwner, canManage }: MembersTabProps) {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Mail className="size-5" />
-              Pending Invitations
+              Pending invitations
             </CardTitle>
-            <CardDescription>
-              Sent, but not yet accepted. These people are not members yet.
-            </CardDescription>
+            <CardDescription>Not members until they accept.</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">
@@ -352,10 +347,9 @@ export function MembersTab({ guildId, isOwner, canManage }: MembersTabProps) {
       <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Invite New Member</DialogTitle>
+            <DialogTitle>Invite a member</DialogTitle>
             <DialogDescription>
-              Invite someone by the email on their ArdaNova account. They join
-              only when they accept it from their guild invitations.
+              Use their account email. They join once they accept.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleInviteMember}>
@@ -508,10 +502,7 @@ export function MembersTab({ guildId, isOwner, canManage }: MembersTabProps) {
       {/* Member Roles Info */}
       <Card>
         <CardHeader>
-          <CardTitle>Member Roles</CardTitle>
-          <CardDescription>
-            Understanding guild member roles and permissions
-          </CardDescription>
+          <CardTitle>Roles</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">

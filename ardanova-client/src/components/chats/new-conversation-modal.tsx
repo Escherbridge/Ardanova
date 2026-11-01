@@ -88,9 +88,9 @@ export function NewConversationModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageCircle className="text-primary size-5" />
-            New Message
+            New message
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="sr-only">
             Search for a user to start a conversation
           </DialogDescription>
         </DialogHeader>
@@ -143,25 +143,20 @@ export function NewConversationModal({
               className="border-destructive bg-destructive/10 my-3 space-y-3 border-2 p-4"
               role="alert"
             >
-              <p className="text-foreground font-bold">
-                People could not be loaded
-              </p>
-              <p className="text-muted-foreground text-sm">
-                This is a service error, not an empty directory.
-              </p>
+              <p className="text-foreground font-bold">People didn't load.</p>
               <button
                 type="button"
                 onClick={() => void refetchUsers()}
                 className="border-foreground min-h-11 border-2 px-3 text-sm font-bold"
               >
-                Retry search
+                Try again
               </button>
             </div>
           ) : sortedUsers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8">
               <User className="text-muted-foreground mb-2 size-8" />
               <p className="text-muted-foreground text-sm">
-                {searchQuery ? "No users found" : "No users available"}
+                {searchQuery ? "No matches." : "No people yet."}
               </p>
             </div>
           ) : (

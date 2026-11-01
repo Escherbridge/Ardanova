@@ -293,14 +293,13 @@ export default function OverviewTab({
               <div className="bg-neon-green/20 border-neon-green/30 flex h-8 w-8 items-center justify-center rounded-lg border">
                 <Vote className="text-neon-green size-4" />
               </div>
-              Cast Your Vote
+              Cast your vote
             </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleVote} className="space-y-4">
               <p className="text-muted-foreground text-sm">
-                Select your voting choice and optionally provide a reason. Your
-                vote is final and cannot be changed.
+                Your vote is final and cannot be changed.
               </p>
 
               {/* Vote Options */}
@@ -345,7 +344,7 @@ export default function OverviewTab({
                     id="voteReason"
                     value={voteReason}
                     onChange={(e) => setVoteReason(e.target.value)}
-                    placeholder="Share why you voted this way..."
+                    placeholder="Why this choice?"
                     className="border-border bg-background text-foreground focus:ring-primary min-h-[80px] w-full resize-y rounded border px-3 py-2 focus:ring-2 focus:outline-none"
                   />
                 </div>

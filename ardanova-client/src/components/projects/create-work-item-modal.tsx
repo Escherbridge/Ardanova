@@ -404,7 +404,7 @@ export default function CreateWorkItemModal({
                 level === "sprint"
                   ? "Sprint goal..."
                   : level === "task"
-                    ? "Describe the task in detail..."
+                    ? "What does done look like?"
                     : "Optional description..."
               }
               required={level === "task"}

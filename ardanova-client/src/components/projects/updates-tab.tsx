@@ -157,12 +157,12 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Bell className="text-muted-foreground h-5 w-5" />
-          <h2 className="text-xl font-semibold">Project Updates</h2>
+          <h2 className="text-xl font-semibold">Updates</h2>
         </div>
         {isOwner && !isFormOpen && (
           <Button onClick={() => setIsFormOpen(true)} size="sm">
             <Plus className="mr-2 h-4 w-4" />
-            New Update
+            New update
           </Button>
         )}
       </div>
@@ -171,7 +171,7 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
       {isOwner && isFormOpen && (
         <Card>
           <CardHeader>
-            <CardTitle>Post a New Update</CardTitle>
+            <CardTitle>New update</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -203,7 +203,7 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
                   id="content"
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  placeholder="Share your progress, achievements, or news..."
+                  placeholder="What changed?"
                   rows={4}
                   className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   required
@@ -258,7 +258,7 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
         <Card className="border-destructive">
           <CardContent className="pt-6">
             <p className="text-destructive text-sm">
-              Failed to load updates: {error.message}
+              Updates didn't load: {error.message}
             </p>
           </CardContent>
         </Card>
@@ -269,12 +269,7 @@ export default function UpdatesTab({ projectId, isOwner }: UpdatesTabProps) {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Bell className="text-muted-foreground mb-4 h-12 w-12" />
-            <h3 className="mb-2 text-lg font-semibold">No updates yet</h3>
-            <p className="text-muted-foreground max-w-sm text-center text-sm">
-              {isOwner
-                ? "Share your progress with supporters by posting your first update."
-                : "Check back later for project updates from the team."}
-            </p>
+            <h3 className="text-lg font-semibold">No updates yet.</h3>
           </CardContent>
         </Card>
       )}

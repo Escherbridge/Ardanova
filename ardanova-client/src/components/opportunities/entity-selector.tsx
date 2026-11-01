@@ -38,12 +38,12 @@ const entityConfig: Record<
   guild: {
     label: "Guild",
     variant: "neon-purple" as const,
-    description: "Post opportunity on behalf of your guild",
+    description: "On behalf of your guild",
   },
   project: {
     label: "Project",
     variant: "neon" as const,
-    description: "Post opportunity for your project",
+    description: "For your project",
   },
 };
 
@@ -84,12 +84,7 @@ export default function EntitySelector({ onSelect }: EntitySelectorProps) {
   if (!selectedType) {
     return (
       <div className="space-y-4">
-        <div>
-          <h3 className="mb-2 text-lg font-bold">Select Entity Type</h3>
-          <p className="text-muted-foreground text-sm">
-            Choose which entity will be posting this opportunity
-          </p>
-        </div>
+        <h3 className="text-lg font-bold">Post as</h3>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {(
@@ -192,10 +187,10 @@ export default function EntitySelector({ onSelect }: EntitySelectorProps) {
           role="alert"
         >
           <h4 className="text-destructive mb-2 text-lg font-semibold">
-            {config.label}s could not be loaded
+            {config.label}s didn't load.
           </h4>
           <p className="text-muted-foreground text-sm">
-            Try again before choosing who will own this opportunity.
+            Try again before choosing an owner.
           </p>
         </Card>
       ) : entities.length === 0 ? (

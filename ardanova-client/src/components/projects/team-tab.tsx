@@ -254,8 +254,8 @@ function InviteMemberDialog({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Invite Member as {formatRoleName(role)}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle>Invite as {formatRoleName(role)}</DialogTitle>
+          <DialogDescription className="sr-only">
             Search for a user to invite to this project
           </DialogDescription>
         </DialogHeader>
@@ -337,7 +337,7 @@ function InviteMemberDialog({
                   </div>
                 ) : availableUsers.length === 0 ? (
                   <div className="text-muted-foreground py-4 text-center text-sm">
-                    No matching users found
+                    No matches.
                   </div>
                 ) : (
                   availableUsers.map((user) => (
@@ -431,7 +431,7 @@ function InviteMemberDialog({
               <textarea
                 value={inviteMessage}
                 onChange={(e) => setInviteMessage(e.target.value)}
-                placeholder="Add a personal message to the invitation..."
+                placeholder="A short note"
                 className="border-border bg-background text-foreground focus:ring-primary min-h-[60px] w-full resize-y rounded border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
               />
             </div>
@@ -703,7 +703,7 @@ export default function TeamTab({
           <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
           <div>
             <p className="text-destructive font-mono text-sm font-bold">
-              TEAM COULD NOT BE LOADED
+              Team didn't load.
             </p>
             <p className="text-muted-foreground mt-1 text-xs">
               {teamError?.message ?? "Unknown error"}
@@ -764,9 +764,6 @@ export default function TeamTab({
                 <Users className="size-5" />
                 Team & Roles
               </CardTitle>
-              <CardDescription>
-                Team positions, members, and open opportunities
-              </CardDescription>
             </div>
             {!isOwner && !isCurrentUserMember && (
               <Button
@@ -1209,11 +1206,7 @@ export default function TeamTab({
       {showApplicationForm && !isOwner && !isCurrentUserMember && (
         <Card>
           <CardHeader>
-            <CardTitle>Apply to Join Project</CardTitle>
-            <CardDescription>
-              Tell the project owner why you&apos;d like to join and what you
-              can contribute
-            </CardDescription>
+            <CardTitle>Apply to join</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleApply} className="space-y-4">
@@ -1222,7 +1215,7 @@ export default function TeamTab({
                   htmlFor="roleTitle"
                   className="mb-1.5 block text-sm font-medium"
                 >
-                  Desired Role Title *
+                  Desired role *
                 </label>
                 <input
                   id="roleTitle"
@@ -1240,13 +1233,13 @@ export default function TeamTab({
                   htmlFor="message"
                   className="mb-1.5 block text-sm font-medium"
                 >
-                  Application Message * (min 20 characters)
+                  Message * (min. 20 characters)
                 </label>
                 <textarea
                   id="message"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Explain why you want to join this project and what you can contribute..."
+                  placeholder="What would you bring?"
                   className="border-border bg-background text-foreground focus:ring-primary min-h-[100px] w-full resize-y rounded border px-3 py-2 focus:ring-2 focus:outline-none"
                   required
                   minLength={20}
@@ -1275,13 +1268,13 @@ export default function TeamTab({
                   htmlFor="experience"
                   className="mb-1.5 block text-sm font-medium"
                 >
-                  Experience (Optional)
+                  Experience (optional)
                 </label>
                 <textarea
                   id="experience"
                   value={experience}
                   onChange={(e) => setExperience(e.target.value)}
-                  placeholder="Briefly describe your relevant experience..."
+                  placeholder="Relevant experience"
                   className="border-border bg-background text-foreground focus:ring-primary min-h-[80px] w-full resize-y rounded border px-3 py-2 focus:ring-2 focus:outline-none"
                 />
               </div>
@@ -1459,10 +1452,7 @@ export default function TeamTab({
       {isOwner && (
         <Card>
           <CardHeader>
-            <CardTitle>Pending Applications</CardTitle>
-            <CardDescription>
-              Review applications from people who want to join your project
-            </CardDescription>
+            <CardTitle>Pending applications</CardTitle>
           </CardHeader>
           <CardContent>
             {applicationsLoading ? (
@@ -1471,7 +1461,7 @@ export default function TeamTab({
               </div>
             ) : pendingApplications.length === 0 ? (
               <div className="text-muted-foreground py-8 text-center">
-                No pending applications
+                No pending applications.
               </div>
             ) : (
               <div className="space-y-4">

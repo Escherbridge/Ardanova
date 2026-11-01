@@ -196,7 +196,7 @@ export default function TasksTab({ projectId, isOwner }: TasksTabProps) {
         <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
         <div className="flex-1">
           <p className="text-destructive font-mono text-sm font-bold">
-            FAILED TO LOAD TASKS
+            Tasks didn't load.
           </p>
           <p className="text-muted-foreground mt-1 text-xs">{error.message}</p>
         </div>

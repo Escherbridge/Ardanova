@@ -124,7 +124,7 @@ export function ProfileEditor() {
   if (profile.error || !profile.data) {
     return (
       <QueryErrorState
-        title="Your profile could not be loaded"
+        title="Your profile didn't load."
         error={profile.error}
         onRetry={() => void profile.refetch()}
       />
@@ -239,7 +239,7 @@ export function ProfileEditor() {
         <CardContent className="space-y-4">
           {profile.data.skills.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              Add the skills you want project leads to find you for.
+              Add skills project leads can find you by.
             </p>
           ) : (
             <ul className="space-y-2">

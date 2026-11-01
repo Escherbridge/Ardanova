@@ -264,10 +264,7 @@ export function ReviewsTab({
       {showReviewForm && !isOwner && (
         <Card>
           <CardHeader>
-            <CardTitle>Write a Review</CardTitle>
-            <CardDescription>
-              Share your experience working with this guild
-            </CardDescription>
+            <CardTitle>Write a review</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmitReview} className="space-y-4">
@@ -288,7 +285,7 @@ export function ReviewsTab({
                   id="content"
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  placeholder="Share your thoughts about working with this guild..."
+                  placeholder="How was it?"
                   rows={4}
                   className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                   required
@@ -331,12 +328,7 @@ export function ReviewsTab({
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <MessageSquare className="text-muted-foreground mb-4 h-12 w-12" />
-            <h3 className="mb-2 text-lg font-semibold">No reviews yet</h3>
-            <p className="text-muted-foreground max-w-sm text-center text-sm">
-              {isOwner
-                ? "Your guild doesn't have any reviews yet. Encourage clients to share their experiences."
-                : "Be the first to review this guild and share your experience."}
-            </p>
+            <h3 className="text-lg font-semibold">No reviews yet.</h3>
           </CardContent>
         </Card>
       )}
