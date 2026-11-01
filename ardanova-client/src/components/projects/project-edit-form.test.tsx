@@ -17,11 +17,7 @@ import {
 
 import { api } from "~/trpc/react";
 
-import {
-  buildEditFormData,
-  ProjectEditForm,
-  type ProjectEditFormData,
-} from "./project-edit-form";
+import { ProjectEditForm } from "./project-edit-form";
 import type { ProjectDto } from "~/lib/contracts/project-contract";
 
 vi.mock("server-only", () => ({}));
@@ -67,47 +63,64 @@ function jsonResponse(status: number, body: unknown) {
   );
 }
 
-function projectFromApi(overrides: Partial<ProjectDto> = {}): ProjectDto {
-  return {
-    id: "project-1",
-    title: "Reopen the corner cafe as a co-op",
-    slug: "corner-cafe-co-op",
-    description: "Members buy, staff and run the cafe together.",
-    problemStatement: "The block lost its only place to meet.",
-    solution: "A member-owned cafe with a shared kitchen.",
-    categories: [],
-    hashtags: ["construction", "barn-raising"],
-    status: "DRAFT",
-    fundingGoal: null,
-    fundingGoalUnit: "USD",
-    currentFunding: 0,
-    supportersCount: 0,
-    votesCount: 0,
-    viewsCount: 0,
-    featured: false,
-    tags: null,
-    images: null,
-    videos: null,
-    documents: null,
-    mediaPaths: "[]",
-    targetAudience: null,
-    expectedImpact: null,
-    timeline: null,
-    projectType: "TEMPORARY",
-    duration: null,
-    createdAt: "2026-10-26T12:00:00Z",
-    updatedAt: "2026-10-26T12:00:00Z",
-    publishedAt: null,
-    fundedAt: null,
-    completedAt: null,
-    commerceEnabled: false,
-    storefrontDescription: null,
-    createdById: "user-1",
-    createdBy: null,
-    assignedGuildId: null,
-    ...overrides,
-  } as ProjectDto;
-}
+/**
+ * .NET ProjectDto for a project created before hashtags: the sector CONSTRUCTION plus a custom "Other" category
+ * ("Community Garden") in `categories`, the free tag in `tags`, and `hashtags` derived by ProjectHashtagDisplay
+ * (SECTOR + PROJECT_TYPE as "#slug"; the custom category fails Hashtags.Normalize, so it is not there).
+ */
+const legacyProject = {
+  id: "project-1",
+  title: "Reopen the corner cafe as a co-op",
+  slug: "corner-cafe-co-op",
+  description: "Members buy, staff and run the cafe together.",
+  summary: null,
+  problemStatement: "The block lost its only place to meet.",
+  solution: "A member-owned cafe with a shared kitchen.",
+  categories: ["CONSTRUCTION", "Community Garden"],
+  hashtags: ["#construction", "#temporary"],
+  status: "PUBLISHED",
+  fundingGoal: null,
+  fundingGoalUnit: "USD",
+  currentFunding: 0,
+  supportersCount: 0,
+  votesCount: 0,
+  viewsCount: 0,
+  featured: false,
+  tags: "barn-raising",
+  images: null,
+  videos: null,
+  documents: null,
+  mediaPaths: "[]",
+  targetAudience: null,
+  expectedImpact: null,
+  timeline: null,
+  projectType: "TEMPORARY",
+  duration: null,
+  createdAt: "2026-10-26T12:00:00Z",
+  updatedAt: "2026-10-26T12:00:00Z",
+  publishedAt: "2026-10-26T12:00:00Z",
+  fundedAt: null,
+  completedAt: null,
+  commerceEnabled: false,
+  storefrontDescription: null,
+  createdById: "user-1",
+  createdBy: { id: "user-1", name: "Ada", image: null },
+  assignedGuildId: null,
+} satisfies ProjectDto;
+
+/** .NET TaxonomyTermDto rows: slugs are the stored codes (uppercase), exactly as the taxonomy migration seeds them. */
+const taxonomy = [
+  ["CONSTRUCTION", "SECTOR", "Construction"],
+  ["HOSPITALITY", "SECTOR", "Hospitality"],
+  ["TEMPORARY", "PROJECT_TYPE", "Temporary"],
+].map(([slug, kind, label], sortOrder) => ({
+  slug,
+  kind,
+  label,
+  description: null,
+  parentSlug: null,
+  sortOrder,
+}));
 
 /** Renders `ui` under a real tRPC client whose HTTP requests the real routers answer in-process. */
 function renderSignedIn(ui: ReactNode) {
@@ -142,30 +155,34 @@ function renderSignedIn(ui: ReactNode) {
   );
 }
 
+/** The body of the one PUT the form sent, read the way .NET reads it. */
+async function savedBody() {
+  await waitFor(() => expect(pushRoute).toHaveBeenCalled());
+  const puts = dotNetApi.mock.calls.filter(
+    ([url, init]) =>
+      url.includes("/api/projects/project-1") && init?.method === "PUT",
+  );
+  expect(puts).toHaveLength(1);
+  return JSON.parse(puts[0]![1]!.body as string) as Record<string, unknown>;
+}
+
+/** Every chip under the hashtag field, in order, as a reader sees it. */
+const chipTexts = () =>
+  Array.from(screen.getByText("#construction").parentElement!.children).map(
+    (chip) => chip.textContent,
+  );
+
 beforeEach(() => {
+  pushRoute.mockReset();
   vi.stubGlobal("fetch", dotNetApi);
   dotNetApi.mockImplementation((url, init) => {
     const method = init?.method ?? "GET";
     if (url.includes("/api/enums/ProjectDuration")) {
       return jsonResponse(200, ["ONE_TWO_WEEKS", "ONGOING"]);
     }
-    if (url.includes("/api/taxonomy")) {
-      return jsonResponse(200, [
-        {
-          slug: "construction",
-          kind: "SECTOR",
-          label: "Construction",
-          description: null,
-          parentSlug: null,
-          sortOrder: 0,
-        },
-      ]);
-    }
-    if (url.includes("/api/projects/project-1") && method === "GET") {
-      return jsonResponse(200, projectFromApi());
-    }
+    if (url.includes("/api/taxonomy")) return jsonResponse(200, taxonomy);
     if (url.includes("/api/projects/project-1") && method === "PUT") {
-      return jsonResponse(200, projectFromApi({ hashtags: ["roofing"] }));
+      return jsonResponse(200, legacyProject);
     }
     return jsonResponse(404, { error: "not found" });
   });
@@ -176,67 +193,76 @@ afterEach(() => {
 });
 afterAll(() => vi.unstubAllEnvs());
 
-describe("buildEditFormData (SR-03 Phase 3 Lane I prefill)", () => {
-  it("prefills the hashtags field from ProjectDto.Hashtags", () => {
-    const data: ProjectEditFormData = buildEditFormData(
-      projectFromApi({ hashtags: ["carpentry", "mutual-aid"] }),
-    );
-    expect(data.hashtags).toEqual(["carpentry", "mutual-aid"]);
-  });
-
-  it("prefills an empty array for a project with no hashtags yet", () => {
-    const data = buildEditFormData(projectFromApi({ hashtags: [] }));
-    expect(data.hashtags).toEqual([]);
-  });
-});
-
-describe("ProjectEditForm (SR-03 Phase 3 Lane I)", () => {
-  it("renders the project's hashtags as chips and caps the title input at 200 chars", async () => {
-    renderSignedIn(
-      <ProjectEditForm
-        project={projectFromApi({ hashtags: ["construction", "barn-raising"] })}
-      />,
-    );
-
-    expect(await screen.findByText("#construction")).not.toBeNull();
-    expect(screen.getByText("#barn-raising")).not.toBeNull();
-
-    const titleInput = screen.getByDisplayValue(
-      "Reopen the corner cafe as a co-op",
-    );
-    expect((titleInput as HTMLInputElement).maxLength).toBe(200);
-  });
-
-  it("submitting sends only hashtags, never categories, projectType or tags", async () => {
-    renderSignedIn(
-      <ProjectEditForm
-        project={projectFromApi({ hashtags: ["construction"] })}
-      />,
-    );
+describe("ProjectEditForm: the hashtag field shows everything a hashtags write replaces", () => {
+  it("shows derived and free tags once each as #tag, and the custom category as a fixed chip", async () => {
+    renderSignedIn(<ProjectEditForm project={legacyProject} />);
 
     await screen.findByText("#construction");
+    expect(chipTexts()).toEqual([
+      "#construction",
+      "#temporary",
+      "#barn-raising",
+      "Community Garden",
+    ]);
+    expect(screen.queryByText(/##/)).toBeNull();
+    // Editable chips carry a remove button; the custom category, which no hashtag can spell, does not.
+    expect(
+      screen.getByRole("button", { name: "Remove #barn-raising hashtag" }),
+    ).not.toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Remove .*Community Garden/ }),
+    ).toBeNull();
+    expect(
+      (
+        screen.getByDisplayValue(
+          "Reopen the corner cafe as a co-op",
+        ) as HTMLInputElement
+      ).maxLength,
+    ).toBe(200);
+  });
 
+  it("editing only the title saves without hashtags, so the free tag and the custom category are untouched", async () => {
+    renderSignedIn(<ProjectEditForm project={legacyProject} />);
+    await screen.findByText("#barn-raising");
+
+    fireEvent.change(screen.getByLabelText(/Project Title/), {
+      target: { value: "Reopen the corner cafe" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
 
-    await waitFor(() => {
-      const putCall = dotNetApi.mock.calls.find(
-        ([url, init]) =>
-          url.includes("/api/projects/project-1") && init?.method === "PUT",
-      );
-      expect(putCall).toBeDefined();
-    });
+    const body = await savedBody();
+    expect(body.title).toBe("Reopen the corner cafe");
+    // Absent hashtags is the API's "leave categories, projectType and tags alone".
+    expect(body).not.toHaveProperty("hashtags");
+    expect(body).not.toHaveProperty("categories");
+    expect(body).not.toHaveProperty("projectType");
+    expect(body).not.toHaveProperty("tags");
+  });
 
-    const putCall = dotNetApi.mock.calls.find(
-      ([url, init]) =>
-        url.includes("/api/projects/project-1") && init?.method === "PUT",
-    )!;
-    const body = JSON.parse(putCall[1]!.body as string) as Record<
-      string,
-      unknown
-    >;
-    expect(body.hashtags).toEqual(["construction"]);
-    expect(body.categories).toBeUndefined();
-    expect(body.projectType).toBeUndefined();
-    expect(body.tags).toBeUndefined();
+  it("an edited field sends the full canonical set, never a duplicate, and leaves the custom category to the API", async () => {
+    renderSignedIn(<ProjectEditForm project={legacyProject} />);
+    await screen.findByText("#temporary");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove #temporary hashtag" }),
+    );
+    const input = screen.getByLabelText("Add hashtags");
+    // Already there, typed the way the API stores it: not added twice.
+    fireEvent.change(input, { target: { value: "#Construction" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    // A taxonomy suggestion is offered and added in the same canonical form.
+    fireEvent.change(input, { target: { value: "hosp" } });
+    fireEvent.click(
+      await screen.findByRole("button", { name: /#hospitality/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    const body = await savedBody();
+    expect(body.hashtags).toEqual([
+      "construction",
+      "barn-raising",
+      "hospitality",
+    ]);
+    expect(body).not.toHaveProperty("categories");
   });
 });

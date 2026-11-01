@@ -155,4 +155,56 @@ describe("AppTopbar notification bell (plan §4)", () => {
     );
     await screen.findByRole("button", { name: "Notifications, 1 unread" });
   });
+
+  it("Mark all read marks the two shown rows read and leaves a notice no screen lists unread", async () => {
+    // An escrow notice: unread, and shown nowhere in the bell.
+    const escrow = notificationDto({
+      id: "n-escrow",
+      type: "ESCROW_FUNDED",
+      title: "Escrow funded",
+      message: "Escrow for Frame the east wall is funded",
+      actionUrl: "/tasks/task-t",
+    });
+    const stored = [reply, pickedUp, escrow];
+    let unread = stored;
+    // NotificationsController.MarkAsRead answers the row it marked.
+    const markRead = (id: string) => () => {
+      unread = unread.filter((notification) => notification.id !== id);
+      const row = stored.find((notification) => notification.id === id)!;
+      return {
+        body: { ...row, isRead: true, readAt: "2026-11-01T09:05:00Z" },
+      };
+    };
+    const dotNet = fakeDotNetApi({
+      "GET /api/notifications/me/unread": () => ({ body: unread }),
+      "POST /api/notifications/n-reply/read": markRead("n-reply"),
+      "POST /api/notifications/n-picked-up/read": markRead("n-picked-up"),
+    });
+    vi.stubGlobal("fetch", dotNet.fetch);
+    renderOverRouter(
+      <AppTopbar user={{ id: "user-bea", name: "Bea Builder" }} />,
+      router,
+      createTRPCContext,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Notifications, 2 unread" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Mark all read" }));
+
+    await screen.findByText("Nothing new.");
+    await waitFor(() =>
+      expect(
+        dotNet.calls
+          .filter((call) => call.method === "POST")
+          .map((call) => call.path)
+          .sort(),
+      ).toEqual([
+        "/api/notifications/n-picked-up/read",
+        "/api/notifications/n-reply/read",
+      ]),
+    );
+    // Never the read-all route, so the escrow notice is still unread on the API.
+    expect(unread.map((notification) => notification.id)).toEqual(["n-escrow"]);
+  });
 });

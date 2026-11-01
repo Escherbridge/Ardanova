@@ -116,6 +116,76 @@ public sealed class MembershipListFlowTests : IAsyncLifetime
         mine.Value!.Select(guild => guild.Name).Should().Equal("Orchardists", "Timber framers");
     }
 
+    /// <summary>The picker's read is bounded: the most recently active <see cref="MembershipLists.Cap"/> projects, still by title.</summary>
+    [PostgresFact]
+    public async Task AProlificMembersProjectList_IsCappedAtTheMostRecentlyActive_AndStillByTitle()
+    {
+        const string prolific = "user-prolific";
+        var start = DateTime.UtcNow.AddDays(-10);
+        await using (var context = NewContext())
+        {
+            context.Users.Add(new User { id = prolific, email = $"{prolific}@example.test", name = prolific, createdAt = start, updatedAt = start });
+            // Project 000 is the least recently touched; the five oldest fall past the cap.
+            for (var index = 0; index < MembershipLists.Cap + 5; index++)
+            {
+                var project = NewProject($"project-p{index:000}", $"Plot {index:000}", prolific, ProjectStatus.PUBLISHED, start);
+                project.updatedAt = start.AddMinutes(index);
+                context.Projects.Add(project);
+            }
+            await context.SaveChangesAsync();
+        }
+
+        var mine = await Projects().GetMembershipsAsync(new ProjectViewer(prolific, IsAdmin: false));
+
+        var titles = mine.Value!.Select(project => project.Title).ToList();
+        titles.Should().HaveCount(MembershipLists.Cap);
+        titles.Should().NotContain(new[] { "Plot 000", "Plot 001", "Plot 002", "Plot 003", "Plot 004" });
+        titles.Should().BeInAscendingOrder(StringComparer.OrdinalIgnoreCase);
+        mine.Value![0].Should().BeEquivalentTo(new
+        {
+            Id = "project-p005",
+            Title = "Plot 005",
+            Slug = "project-p005",
+            Status = ProjectStatus.PUBLISHED,
+            Categories = new[] { "CONSTRUCTION" },
+        });
+    }
+
+    [PostgresFact]
+    public async Task AMembersGuildList_IsCappedAtTheMostRecentlyActive()
+    {
+        var start = DateTime.UtcNow.AddDays(-10);
+        await using (var context = NewContext())
+        {
+            for (var index = 0; index < MembershipLists.Cap + 5; index++)
+            {
+                var owner = $"user-owner-{index:000}";
+                context.Users.Add(new User { id = owner, email = $"{owner}@example.test", name = owner, createdAt = start, updatedAt = start });
+                var guild = NewGuild($"guild-g{index:000}", $"Guild {index:000}", owner, start);
+                guild.updatedAt = start.AddMinutes(index);
+                context.Guilds.Add(guild);
+                context.GuildMembers.Add(new GuildMember
+                {
+                    id = $"guild-member-g{index:000}-dee",
+                    guildId = guild.id,
+                    userId = Dee,
+                    role = GuildMemberRole.MEMBER,
+                    joinedAt = start,
+                });
+            }
+            await context.SaveChangesAsync();
+        }
+
+        var dees = await Guilds().GetMembershipsAsync(Dee);
+
+        var names = dees.Value!.Select(guild => guild.Name).ToList();
+        // 206 guilds: her own (last touched a month ago) and the five oldest joined ones fall past the cap.
+        names.Should().HaveCount(MembershipLists.Cap);
+        names.Should().NotContain(new[] { "Village cooks", "Guild 000", "Guild 001", "Guild 002", "Guild 003", "Guild 004" });
+        names.Should().Contain("Guild 005");
+        names.Should().BeInAscendingOrder(StringComparer.OrdinalIgnoreCase);
+    }
+
     private ProjectService Projects()
     {
         var context = NewContext();

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { httpLink } from "@trpc/client";
@@ -16,8 +16,10 @@ import {
 } from "vitest";
 
 import { feedCardSchema, type FeedCard } from "~/lib/contracts/feed-contract";
+import { feedCardFixture } from "~/lib/feed/card-fixture";
 import { api } from "~/trpc/react";
 
+import { FeedStream } from "./feed-stream";
 import { FieldNoteComposer } from "./field-note-composer";
 
 vi.mock("server-only", () => ({}));
@@ -46,7 +48,9 @@ const { taskRouter } = await import("~/server/api/routers/task");
 const { taxonomyRouter } = await import("~/server/api/routers/taxonomy");
 const { projectRouter } = await import("~/server/api/routers/project");
 const { guildRouter } = await import("~/server/api/routers/guild");
+const { feedRouter } = await import("~/server/api/routers/feed");
 const router = createTRPCRouter({
+  feed: feedRouter,
   post: postRouter,
   task: taskRouter,
   taxonomy: taxonomyRouter,
@@ -139,26 +143,33 @@ const projectDto = {
   assignedGuildId: null,
 };
 
-/** .NET GuildDto, as `GET /api/guilds/mine` lists it. */
+/** .NET ProjectMembershipDto, as `GET /api/projects/mine` lists a project. */
+function membershipOf(project: typeof projectDto) {
+  return {
+    id: project.id,
+    title: project.title,
+    slug: project.slug,
+    summary: project.summary,
+    status: project.status,
+    categories: project.categories,
+  };
+}
+
+/** A DRAFT project Bea leads: its cards stay hidden from outsiders until it is published. */
+const draftShed = {
+  ...projectDto,
+  id: "project-shed",
+  title: "Shed prototype",
+  slug: "shed-prototype",
+  status: "DRAFT",
+  publishedAt: null,
+};
+
+/** .NET GuildMembershipDto, as `GET /api/guilds/mine` lists it. */
 const guildDto = {
   id: "guild-g",
   name: "Timber framers",
   slug: "timber-framers",
-  description: "Joinery and frames.",
-  website: null,
-  email: "framers@example.org",
-  phone: null,
-  address: null,
-  logo: null,
-  portfolio: null,
-  specialties: null,
-  isVerified: false,
-  rating: null,
-  reviewsCount: 0,
-  projectsCount: 1,
-  createdAt: NOW,
-  updatedAt: NOW,
-  ownerId: "user-b",
 };
 
 /** .NET TaskDto. */
@@ -260,7 +271,8 @@ const createdFromRequest: DotNetRoute = ({ body }) => ({
 
 function serve(overrides: Record<string, DotNetRoute> = {}) {
   routes = {
-    "GET /api/projects/mine": () => ok([projectDto]),
+    "GET /api/projects/mine": () =>
+      ok([membershipOf(projectDto), membershipOf(draftShed)]),
     "GET /api/guilds/mine": () => ok([guildDto]),
     "GET /api/projects/project-p": () => ok(projectDto),
     "GET /api/taxonomy": () => ok(taxonomy),
@@ -421,34 +433,77 @@ describe("FieldNoteComposer: each prompt writes its post type (plan §1-§2)", (
   );
 });
 
+describe("FieldNoteComposer: who can read it follows the attachment without widening", () => {
+  it("a team-only note whose project is detached goes to Only you, never to Everyone", async () => {
+    renderSignedIn(<FieldNoteComposer author={author} />);
+    await screen.findByRole("option", { name: "Barn raising" });
+    pick("Attach", "project:project-p");
+    pick("Who can read", "PROJECT_MEMBERS");
+
+    pick("Attach", "");
+
+    expect(screen.getByLabelText<HTMLSelectElement>("Who can read").value).toBe(
+      "PRIVATE",
+    );
+    screen.getByText("Only you can read it.");
+    write(textbox("What moved?"), "Walls are up.");
+    fireEvent.click(button("Post update"));
+    await waitFor(() => expect(callsTo("POST", "/api/posts")).toHaveLength(1));
+    expect(callsTo("POST", "/api/posts")[0]?.body).toEqual({
+      content: "Walls are up.",
+      type: "POST",
+      visibility: "PRIVATE",
+    });
+  });
+
+  it("says a public note on a DRAFT project waits for it to be published", async () => {
+    renderSignedIn(<FieldNoteComposer author={author} />);
+    await screen.findByRole("option", { name: "Shed prototype" });
+
+    pick("Attach", "project:project-shed");
+    screen.getByText("Anyone can read it once the project is published.");
+
+    pick("Attach", "project:project-p");
+    screen.getByText("Anyone can read it.");
+  });
+});
+
 describe("FieldNoteComposer: Who can help? (HELP_WANTED)", () => {
   it("lists only open, unassigned tasks, refuses to publish without one, and sends the task", async () => {
+    const projectTasks = [
+      taskDto({
+        id: "task-open",
+        title: "Frame the east wall",
+        equityReward: 40,
+      }),
+      taskDto({
+        id: "task-taken",
+        title: "Order lumber",
+        status: "IN_PROGRESS",
+        assignedToId: "user-c",
+      }),
+      taskDto({
+        id: "task-done",
+        title: "Pour footings",
+        status: "COMPLETED",
+      }),
+      taskDto({
+        id: "task-blocked",
+        title: "File the permit",
+        status: "BLOCKED",
+      }),
+    ];
     serve({
-      "GET /api/tasks/search": () =>
+      // TaskService.SearchAsync(askableOnly): unassigned and not COMPLETED, filtered before the page is cut.
+      "GET /api/tasks/search": ({ query }) =>
         ok(
-          paged([
-            taskDto({
-              id: "task-open",
-              title: "Frame the east wall",
-              equityReward: 40,
-            }),
-            taskDto({
-              id: "task-taken",
-              title: "Order lumber",
-              status: "IN_PROGRESS",
-              assignedToId: "user-c",
-            }),
-            taskDto({
-              id: "task-done",
-              title: "Pour footings",
-              status: "COMPLETED",
-            }),
-            taskDto({
-              id: "task-blocked",
-              title: "File the permit",
-              status: "BLOCKED",
-            }),
-          ]),
+          paged(
+            query.get("askable") === "true"
+              ? projectTasks.filter(
+                  (task) => !task.assignedToId && task.status !== "COMPLETED",
+                )
+              : projectTasks,
+          ),
         ),
     });
     const published = vi.fn<(card: FeedCard) => void>();
@@ -466,9 +521,10 @@ describe("FieldNoteComposer: Who can help? (HELP_WANTED)", () => {
     // A public ask reaches Home and tag pages too, so the line no longer says "visiting this project".
     screen.getByText("Anyone can read it.");
     await screen.findByLabelText("Task");
-    expect(callsTo("GET", "/api/tasks/search")[0]?.query.get("projectId")).toBe(
-      "project-p",
-    );
+    const [taskSearch] = callsTo("GET", "/api/tasks/search");
+    expect(taskSearch?.query.get("projectId")).toBe("project-p");
+    // Asked of the API, so open tasks behind 100 finished ones still come back.
+    expect(taskSearch?.query.get("askable")).toBe("true");
     const offered = screen
       .getAllByRole("option")
       .map((option) => option.textContent);
@@ -583,7 +639,7 @@ describe("FieldNoteComposer: Who can help? (HELP_WANTED)", () => {
       expect(callsTo("PUT", "/api/posts/post-existing")[0]?.body).toEqual({
         content: "Framing the east wall Saturday, need three hands #carpentry",
       });
-      // Same id as the stream's copy, so mergeFeedPages shows the edit once, at the top.
+      // Same id as the stream's copy: mergeFeedPages keeps it at the top, showing the stream's (patched) copy.
       expect(published.mock.calls[0][0]).toMatchObject({
         id: "post-existing",
         body: "Framing the east wall Saturday, need three hands #carpentry",
@@ -591,6 +647,85 @@ describe("FieldNoteComposer: Who can help? (HELP_WANTED)", () => {
         task: { id: "task-1", state: "OPEN" },
       });
       expect(callsTo("POST", "/api/posts")).toHaveLength(1);
+    });
+
+    it("on the project's feed, the saved words replace the stream's copy at once, in its place", async () => {
+      vi.stubGlobal("IntersectionObserver", undefined);
+      serve({
+        "GET /api/tasks/search": () => ok(paged([taskDto({})])),
+        "POST /api/posts": () => ({
+          status: 409,
+          body: {
+            error: "This task already has an ask.",
+            code: "HELP_WANTED_EXISTS",
+            conflictId: "post-existing",
+            statusCode: 409,
+            traceId: "00-composer-test-00",
+          },
+        }),
+        "GET /api/posts/post-existing": () => ok(existingAsk("user-b")),
+        "PUT /api/posts/post-existing": ({ body }) =>
+          ok({ ...existingAsk("user-b"), content: body?.content }),
+        // .NET FeedPageDto: the stream already holds the ask, as it read it before the edit.
+        "GET /api/feed": () =>
+          ok({
+            items: [
+              feedCardFixture({
+                id: "post-existing",
+                postType: "HELP_WANTED",
+                body: "Framing the east wall Saturday, need two hands #carpentry",
+                hashtags: ["carpentry"],
+                task: { id: "task-1", state: "OPEN", assigneeName: null },
+              }),
+            ],
+            nextCursor: null,
+          }),
+      });
+      /** The project page's Feed tab: the composer, its leading cards, and the stream under it. */
+      function ProjectFeed() {
+        const [leading, setLeading] = useState<FeedCard[]>([]);
+        return (
+          <>
+            <FieldNoteComposer
+              projectId="project-p"
+              taskId="task-1"
+              author={author}
+              onPublished={(card) =>
+                setLeading((cards) => [
+                  card,
+                  ...cards.filter((earlier) => earlier.id !== card.id),
+                ])
+              }
+            />
+            <FeedStream scope="project:project-p" leadingCards={leading} />
+          </>
+        );
+      }
+      renderSignedIn(<ProjectFeed />);
+      await screen.findByText("Frame the east wall");
+      write(textbox("Who can help?"), "Anyone free Saturday?");
+      fireEvent.click(button("Ask for help"));
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Edit your ask" }),
+      );
+      write(
+        await screen.findByRole<HTMLTextAreaElement>("textbox", {
+          name: "Your ask",
+        }),
+        "Framing the east wall Saturday, need three hands #carpentry",
+      );
+      fireEvent.click(button("Save ask"));
+
+      await waitFor(() =>
+        expect(screen.getAllByRole("article")).toHaveLength(1),
+      );
+      await waitFor(() =>
+        expect(screen.getByRole("article").textContent).toContain(
+          "need three hands",
+        ),
+      );
+      // Patched in place: the feed was not read again to show it.
+      expect(callsTo("GET", "/api/feed")).toHaveLength(1);
     });
 
     it("when the existing ask is someone else's, points at the task instead of an edit that would be refused", async () => {

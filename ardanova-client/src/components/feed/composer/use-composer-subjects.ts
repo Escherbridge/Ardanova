@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 
+import type { ProjectStatus } from "~/lib/contracts/project-contract";
 import { api } from "~/trpc/react";
 
 import {
@@ -14,6 +15,8 @@ import {
 export interface AttachableProject {
   id: string;
   name: string;
+  /** A DRAFT's cards stay hidden from outsiders until publish; the audience line says so. */
+  status: ProjectStatus;
   card: CardProject;
 }
 
@@ -45,6 +48,7 @@ export function useAttachableSubjects(enabled: boolean) {
         (project): AttachableProject => ({
           id: project.id,
           name: project.title,
+          status: project.status,
           card: cardProjectOf(project),
         }),
       ),
@@ -65,15 +69,16 @@ function isAskable(task: { assignedToId?: string | null; status: string }) {
   return !task.assignedToId && task.status !== "COMPLETED";
 }
 
-/** The project's tasks for the help picker; read only in help mode, once a project is known. */
+/** The project's askable tasks for the help picker, filtered by the API before paging; read only in help mode. */
 export function useAskableTasks(projectId: string | null, enabled: boolean) {
   const tasks = api.task.getAll.useQuery(
-    { projectId: projectId ?? "", limit: 100 },
+    { projectId: projectId ?? "", askable: true, limit: 100 },
     { ...listOptions, enabled: enabled && Boolean(projectId) },
   );
   const all = tasks.data?.items ?? [];
   return {
     all,
+    // Kept client-side too: an API without the `askable` filter answers every task.
     askable: all.filter(isAskable),
     isLoading: tasks.isLoading && tasks.fetchStatus !== "idle",
     isError: tasks.isError,

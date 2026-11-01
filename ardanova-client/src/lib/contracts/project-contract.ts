@@ -125,6 +125,16 @@ export const projectDtoSchema = z.object({
   assignedGuildId: z.string().nullable(),
 });
 
+/** .NET ProjectMembershipDto: one row of GET /api/projects/mine (the composer's attach picker), no long text. */
+export const projectMembershipDtoSchema = z.object({
+  id: z.string().min(1),
+  title: z.string(),
+  slug: z.string(),
+  summary: z.string().nullable(),
+  status: projectStatusSchema,
+  categories: z.array(z.string()),
+});
+
 export const createProjectDtoSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
@@ -198,6 +208,7 @@ export const updateProjectMilestoneDtoSchema =
 
 export type ProjectCreatorDto = z.infer<typeof projectCreatorDtoSchema>;
 export type ProjectDto = z.infer<typeof projectDtoSchema>;
+export type ProjectMembershipDto = z.infer<typeof projectMembershipDtoSchema>;
 export type CreateProjectDto = z.infer<typeof createProjectDtoSchema>;
 export type UpdateProjectDto = z.infer<typeof updateProjectDtoSchema>;
 export type PagedProjectsDto = z.infer<typeof pagedProjectsDtoSchema>;

@@ -11,6 +11,7 @@ public interface ITaskService
     /// <summary>Every task on a project this viewer may see; a DRAFT project's tasks are as private as the draft.</summary>
     Task<Result<IReadOnlyList<TaskDto>>> GetAllAsync(ProjectViewer viewer, CancellationToken ct = default);
     Task<Result<PagedResult<TaskDto>>> GetPagedAsync(ProjectViewer viewer, int page, int pageSize, CancellationToken ct = default);
+    /// <param name="askableOnly">Only tasks nobody holds that are not COMPLETED: the ones a HELP_WANTED may name.</param>
     Task<Result<PagedResult<TaskDto>>> SearchAsync(
         ProjectViewer viewer,
         string? searchTerm,
@@ -20,6 +21,7 @@ public interface ITaskService
         string? projectId,
         int page,
         int pageSize,
+        bool askableOnly = false,
         CancellationToken ct = default);
     Task<Result<IReadOnlyList<TaskDto>>> GetByUserIdAsync(string userId, CancellationToken ct = default);
     Task<Result<IReadOnlyList<TaskDto>>> GetByProjectIdAsync(string projectId, CancellationToken ct = default);

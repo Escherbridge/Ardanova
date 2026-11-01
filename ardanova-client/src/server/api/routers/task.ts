@@ -175,6 +175,8 @@ export const taskRouter = createTRPCRouter({
         priority: TaskPriority.optional(),
         type: TaskType.optional(),
         projectId: z.string().optional(),
+        /** Only unassigned, not-COMPLETED tasks (the ask picker), filtered by .NET before the page is cut. */
+        askable: z.boolean().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -185,6 +187,7 @@ export const taskRouter = createTRPCRouter({
           priority: input.priority,
           taskType: input.type,
           projectId: input.projectId,
+          askable: input.askable,
           page: input.page,
           pageSize: input.limit,
         }),

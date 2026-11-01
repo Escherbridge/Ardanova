@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 
-import { FeedStream } from "~/components/feed";
+import { FeedStream, RecordNotes } from "~/components/feed";
 import { useSubjectFollow } from "~/lib/feed/use-subject-follow";
 
 /** One tag's stream under its `#tag` heading. */
@@ -16,6 +16,8 @@ export function TagFeed({ tag }: { tag: string }) {
         <span className="text-primary">#</span>
         {tag}
       </h1>
+      {/* A tag stream carries PROPOSAL and FUNDING cards too; the notes go above it, as on Home below lg. */}
+      <RecordNotes className="mb-6" />
       <FeedStream
         key={tag}
         scope={`tag:${tag}`}

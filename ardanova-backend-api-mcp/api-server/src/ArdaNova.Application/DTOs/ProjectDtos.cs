@@ -60,6 +60,18 @@ public record ProjectDto
     public string? AssignedGuildId { get; init; }
 }
 
+/// <summary>One row of GET /api/projects/mine: the composer's attach picker and a card's subject, no long text.</summary>
+public record ProjectMembershipDto
+{
+    public string Id { get; init; } = null!;
+    public string Title { get; init; } = null!;
+    public string Slug { get; init; } = null!;
+    public string? Summary { get; init; }
+    /// <summary>A DRAFT's cards are hidden from outsiders until publish, so the composer says when "Everyone" waits.</summary>
+    public ProjectStatus Status { get; init; }
+    public List<string> Categories { get; init; } = new();
+}
+
 public record CreateProjectDto
 {
     [JsonIgnore]

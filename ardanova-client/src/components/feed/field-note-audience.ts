@@ -49,16 +49,49 @@ export function audienceOptionsFor(
   return audienceOptionsByContext[context ?? "none"];
 }
 
+/** How far an audience reaches, narrowest first; a project's team and a guild's members are one rung. */
+const audienceReach: Record<FieldNoteAudience, number> = {
+  PRIVATE: 0,
+  PROJECT_MEMBERS: 1,
+  GUILD_MEMBERS: 1,
+  PUBLIC: 2,
+};
+
+/**
+ * The audience a note goes to: the chosen one when offered here, else the widest offered one that reaches no further,
+ * else (an ask cannot be private) the narrowest offered. Never silently wider than chosen. See ./composer/AGENTS.md §Audience.
+ */
+export function audienceWithin(
+  chosen: FieldNoteAudience,
+  offered: readonly FieldNoteAudience[],
+): FieldNoteAudience {
+  if (offered.includes(chosen)) return chosen;
+  const narrowestFirst = [...offered].sort(
+    (left, right) => audienceReach[left] - audienceReach[right],
+  );
+  const noWider = narrowestFirst.filter(
+    (audience) => audienceReach[audience] <= audienceReach[chosen],
+  );
+  return noWider.at(-1) ?? narrowestFirst[0] ?? "PRIVATE";
+}
+
 export function audienceLabel(audience: string): string {
   return audienceLabels[audience as FieldNoteAudience] ?? "Everyone";
 }
 
 /** Who can read a note: one line per audience, true wherever the note is written. */
-export function audienceDescription(audience: string): string {
-  return (
-    audienceDescriptions[audience as FieldNoteAudience] ??
-    audienceDescriptions.PUBLIC
-  );
+export function audienceDescription(
+  audience: string,
+  { projectIsDraft = false }: { projectIsDraft?: boolean } = {},
+): string {
+  const known: FieldNoteAudience =
+    audience in audienceDescriptions
+      ? (audience as FieldNoteAudience)
+      : "PUBLIC";
+  // A DRAFT project's cards are hidden from everyone off its team until it is published.
+  if (projectIsDraft && known === "PUBLIC")
+    return "Anyone can read it once the project is published.";
+  return audienceDescriptions[known];
 }
 
 /** Short, calendar-free age of a note, e.g. "4 min ago". */

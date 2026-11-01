@@ -26,7 +26,29 @@ SR-03 Phase 3, Lane H. Plan: `conductor/tracks/mvp-readiness-loop_20261026/SR-03
   link such as a DISCUSSION card's Reply (`?tab=comments`) still switches tabs.
 - **Leading cards** live in the page, above the tab switch, keyed by project id: a just-published post survives a
   tab switch, and in-app navigation to another project does not carry it over. A saved ask (same id) moves to the
-  top rather than appearing twice.
+  top rather than appearing twice; once the stream carries a leading post, its copy shows in that place
+  (`components/feed/AGENTS.md` §FeedStream).
+
+## Edit form
+
+`project-edit-form.tsx`'s one hashtag field sends `hashtags`, which .NET treats as a FULL REPLACEMENT of
+`categories`, `projectType` and `tags` (`ArdaNova.Application/Services/Implementations/AGENTS.md` §Project hashtags).
+Final-review H1: it used to prefill from `hashtags` alone, which never carries the free `tags` column, and send it on
+every save, so editing a title wiped every free tag.
+
+- **What the field shows = what the write replaces** (`projectHashtagFieldOf`): the derived `#sector`/`#type` chips
+  plus the free tags, canonical and without `#` (one form for state, chips, duplicate checks and the request body;
+  taxonomy slugs are uppercase codes, so suggestions are canonicalised too).
+- **Sent only when edited.** `hashtags` goes on the request only when the list differs from the prefill (order
+  included: the first PROJECT_TYPE tag wins). Omitted, the API leaves all three columns alone.
+- **Legacy text no hashtag can spell** (a custom "Other" category such as `Community Garden`, free text with a space)
+  shows as a fixed chip and is never sent. Decision: the API carries those tokens over on a hashtags write, because
+  they were never in the field to remove; removing one is not possible from this form (trigger to revisit: an owner
+  asks to drop one).
+- A tag-shaped custom category (`Solar`) is already a `#solar` chip; an edited save re-resolves it, so it moves from
+  `categories` to free `tags` unless it names a SECTOR. Nothing is lost, but `?category=Solar` stops matching it.
+- Over 10 chips (possible on an older project) blocks an edited save with an error rather than letting the API drop
+  the extras.
 
 ## Updates folded into Feed
 

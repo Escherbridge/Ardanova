@@ -10,6 +10,7 @@ using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Domain.Policies;
 using AutoMapper;
+using Microsoft.EntityFrameworkCore;
 using TaskStatus = ArdaNova.Domain.Models.Enums.TaskStatus;
 
 /// <summary>Who a project read is answered for. Drafts are private to their creator, project members and admins.</summary>
@@ -70,8 +71,8 @@ public interface IProjectVisibility
         string userId,
         CancellationToken ct = default);
 
-    /// <summary>The viewer's own team: projects they created or are a member of, by title. Anonymous reads none.</summary>
-    Task<Result<IReadOnlyList<ProjectDto>>> GetMembershipsAsync(
+    /// <summary>The viewer's own team: projects they created or are a member of (the most recently active <see cref="MembershipLists.Cap"/>), by title. Anonymous reads none.</summary>
+    Task<Result<IReadOnlyList<ProjectMembershipDto>>> GetMembershipsAsync(
         ProjectViewer viewer,
         CancellationToken ct = default);
 
@@ -452,21 +453,45 @@ public class ProjectService : IProjectService, IProjectVisibility
                 ProjectQueryFilters.VisibleTo(viewer).And(project => project.createdById == userId),
                 ct));
 
-    public async Task<Result<IReadOnlyList<ProjectDto>>> GetMembershipsAsync(
+    public async Task<Result<IReadOnlyList<ProjectMembershipDto>>> GetMembershipsAsync(
         ProjectViewer viewer,
         CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(viewer.UserId))
-            return Result<IReadOnlyList<ProjectDto>>.Success(Array.Empty<ProjectDto>());
+            return Result<IReadOnlyList<ProjectMembershipDto>>.Success(Array.Empty<ProjectMembershipDto>());
 
         var userId = viewer.UserId;
-        var projects = await ListVisibleAsync(
-            ProjectQueryFilters.VisibleTo(viewer).And(project =>
+        // Projected in SQL: the picker needs six columns, never the 20k-character text fields.
+        var rows = await _repository.Query()
+            .Where(ProjectQueryFilters.VisibleTo(viewer).And(project =>
                 project.createdById == userId
-                || project.ProjectMembers.Any(member => member.userId == userId)),
-            ct);
-        return Result<IReadOnlyList<ProjectDto>>.Success(
-            projects.OrderBy(project => project.Title, StringComparer.OrdinalIgnoreCase).ToList());
+                || project.ProjectMembers.Any(member => member.userId == userId)))
+            .OrderByDescending(project => project.updatedAt)
+            .ThenBy(project => project.id)
+            .Take(MembershipLists.Cap)
+            .Select(project => new
+            {
+                project.id,
+                project.title,
+                project.slug,
+                project.summary,
+                project.status,
+                project.categories,
+            })
+            .ToListAsync(ct);
+
+        return Result<IReadOnlyList<ProjectMembershipDto>>.Success(rows
+            .Select(row => new ProjectMembershipDto
+            {
+                Id = row.id,
+                Title = row.title,
+                Slug = row.slug,
+                Summary = row.summary,
+                Status = row.status,
+                Categories = row.categories.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(),
+            })
+            .OrderBy(project => project.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList());
     }
 
     public Task<Result<IReadOnlyList<ProjectDto>>> GetByStatusAsync(ProjectStatus status, CancellationToken ct = default)
@@ -652,12 +677,13 @@ public class ProjectService : IProjectService, IProjectVisibility
         // Categories/ProjectType/Tags - removing a tag clears what it derived, including
         // ProjectType resetting to the enum default when no PROJECT_TYPE tag remains. Absent
         // (null) leaves all three exactly as the legacy per-field branch below does today.
+        // A stored value no hashtag can spell is carried over: see AGENTS.md §Project hashtags.
         if (dto.Hashtags is not null)
         {
             var resolved = await ResolveHashtagsAsync(dto.Hashtags, ct);
-            project.categories = resolved.Categories;
+            project.categories = JoinTokens(resolved.Categories, NotSpellableAsHashtag(project.categories)) ?? string.Empty;
             project.projectType = resolved.ProjectType;
-            project.tags = resolved.Tags;
+            project.tags = JoinTokens(resolved.Tags, NotSpellableAsHashtag(project.tags));
         }
         else
         {
@@ -851,6 +877,23 @@ public class ProjectService : IProjectService, IProjectVisibility
             string.Join(",", resolved.SectorSlugs),
             projectType,
             resolved.UnresolvedTags.Count == 0 ? null : string.Join(",", resolved.UnresolvedTags));
+    }
+
+    /// <summary>The comma-delimited tokens of a stored column that <see cref="Hashtags.Normalize"/> rejects ("Community Garden").</summary>
+    private static IEnumerable<string> NotSpellableAsHashtag(string? column)
+        => (column ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(token => Hashtags.Normalize(token) is null);
+
+    /// <summary>A resolved comma-joined value plus carried-over tokens, each once in first-seen order; null when empty.</summary>
+    private static string? JoinTokens(string? resolved, IEnumerable<string> carried)
+    {
+        var tokens = (resolved ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Concat(carried)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        return tokens.Count == 0 ? null : string.Join(",", tokens);
     }
 }
 

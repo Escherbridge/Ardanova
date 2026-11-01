@@ -29,8 +29,10 @@ every type), so the number and the list can never disagree. Forbidden by plan §
 3. Opening an entry navigates (a real `Link`, so new-tab and middle-click work) and calls
    `notification.markAsRead` (→ `POST /api/notifications/{id}/read`, which the API refuses for another user's row).
    The entry leaves the list at once; a refusal restores it and toasts; either way the list is re-read from the API.
-4. "Mark all read" → `POST /api/notifications/me/read-all`. It marks every type read on the server; the bell only
-   ever showed two, so nothing visible is lost.
+4. "Mark all read" → `notification.markManyAsRead({ ids })` with exactly the rows the bell lists, one
+   `POST /api/notifications/{id}/read` each (.NET has no batch route). Final-review L3: it used to call
+   `POST /api/notifications/me/read-all`, which also marked escrow, KYC and governance notices read that no screen
+   shows, so they could never be seen unread anywhere. Trigger to revisit: a .NET batch route, or more than ~100 rows.
 
 ## Link guard
 

@@ -10,11 +10,7 @@ import { describeMutationError } from "~/components/ui/query-error-copy";
 import { cn } from "~/lib/utils";
 import { api } from "~/trpc/react";
 
-import {
-  isReturnLoop,
-  returnLoopsOf,
-  type ReturnLoopNotification,
-} from "./return-loops";
+import { returnLoopsOf, type ReturnLoopNotification } from "./return-loops";
 
 /** In-app only, no push: a quiet poll while the tab is open. See ./AGENTS.md §Data flow. */
 const POLL_INTERVAL_MS = 60_000;
@@ -52,12 +48,14 @@ export function NotificationBell() {
     onSettled: () => void utils.notification.getUnread.invalidate(),
   });
 
-  const markAllAsRead = api.notification.markAllAsRead.useMutation({
-    onMutate: async () => {
+  // Only the rows the bell shows: escrow, KYC or governance notices no screen lists stay unread.
+  const markShownAsRead = api.notification.markManyAsRead.useMutation({
+    onMutate: async ({ ids }) => {
       await utils.notification.getUnread.cancel();
       const previous = utils.notification.getUnread.getData();
+      const marked = new Set(ids);
       utils.notification.getUnread.setData(undefined, (current) =>
-        current?.filter((notification) => !isReturnLoop(notification)),
+        current?.filter((notification) => !marked.has(notification.id)),
       );
       return { previous };
     },
@@ -131,8 +129,13 @@ export function NotificationBell() {
             {count > 0 ? (
               <button
                 type="button"
-                disabled={markAllAsRead.isPending}
-                onClick={() => markAllAsRead.mutate()}
+                disabled={markShownAsRead.isPending}
+                onClick={() =>
+                  markShownAsRead.mutate({
+                    // The procedure's bound; a longer list clears in the next press.
+                    ids: items.slice(0, 100).map((item) => item.id),
+                  })
+                }
                 className="hover:text-foreground text-muted-foreground min-h-8 px-1 text-xs font-semibold underline-offset-4 hover:underline disabled:opacity-60"
               >
                 Mark all read

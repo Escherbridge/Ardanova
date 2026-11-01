@@ -24,6 +24,7 @@ writer). The public component is `FieldNoteComposer` in `../field-note-composer.
 ```ts
 interface FieldNoteComposerProps {
   projectId?: string; // fixes the note to this project (no attach picker); the pre-Phase-3 prop
+  projectStatus?: string; // the fixed project's status: PUBLIC on a DRAFT says it waits for publish
   guildId?: string; // fixes the note to this guild (no picker, no "Who can help?")
   mode?: "note" | "help"; // "help" opens on "Who can help?"; default: "help" when taskId is given, else "note"
   taskId?: string; // fixes the task an ask names (work-item modal)
@@ -55,8 +56,8 @@ interface FieldNoteComposerProps {
 - Help mode drops a guild attachment (`attachmentFor`) instead of sending it: an ask lives on a project's task.
 - `createInputFor` returns null for no words, or for an ask with no task, so the button is off and a keyboard submit
   (Ctrl/Cmd+Enter) sends nothing. A `taskId` is only ever sent with HELP_WANTED (the API refuses it elsewhere).
-- Tasks offered: the attached project's tasks with no assignee and not COMPLETED (`task.getAll`, 100 max). BLOCKED
-  counts: a stuck task is the likeliest ask.
+- Tasks offered: the attached project's tasks with no assignee and not COMPLETED (`task.getAll({ askable: true })`,
+  filtered by .NET before paging, 100 max). BLOCKED counts: a stuck task is the likeliest ask.
 
 ## Edit your ask
 
@@ -65,7 +66,9 @@ composer shows "Already asked." + **Edit your ask** (`data-existing-post-id`) in
 page, so the edit happens in place: one `post.getById`, the ask's words load into the sheet ("Your ask"), **Save ask**
 is `post.update`, and **Cancel** restores the draft that was there. If `author` is given and the ask is someone
 else's, it shows "Asked by someone else." + **Open task** instead. The notice belongs to its task: picking another task
-retires it. `onPublished` fires after a save with the same id, so `mergeFeedPages` shows the edit once, at the top.
+retires it. `onPublished` fires after a save with the same id, and the save also patches every cached feed copy of
+the post (`withCardPatched`), so `mergeFeedPages` (whose stream copy wins over a leading card) shows the edit once,
+at the top, without another feed read.
 
 ## Hashtag suggestions
 
@@ -81,7 +84,7 @@ retires it. `onPublished` fires after a save with the same id, so `mergeFeedPage
 
 Built only from facts the write returned plus what the composer already knows (picker lists; otherwise one
 `project.getById` / `guild.getById` read). `viewer.canClaim` is always false: the claim rule lives once, server-side
-(TaskClaimRule), and the next feed read replaces the local card. A HELP_WANTED card's task is `OPEN` with `paid` from
+(TaskClaimRule); once a feed read carries the post, `mergeFeedPages` shows the stream's copy in the card's place. A HELP_WANTED card's task is `OPEN` with `paid` from
 the picked task's `equityReward` (omitted when unknown).
 
 ## Audience
@@ -92,23 +95,34 @@ post shows on Home and tag pages as well as its subject's page, so it says who c
 read it.", not the old "Anyone visiting this project can read it."). PRIVATE reads "Only you can read it." because no
 screen changes a post's audience after publishing. The guild audience says "guild", matching the attach picker and nav.
 
+- **Never widened silently (final-review M1).** The chosen audience is kept as state; what is sent is
+  `audienceWithin(chosen, offered)`: the choice when offered, else the widest offered audience that reaches no further
+  (team → detached = Only you; team → guild = Guild members), else the narrowest offered (Only you → an ask = Project
+  team, since an ask cannot be private). It used to fall back to PUBLIC, so "Project team" then detaching published
+  to everyone. The picker shows the narrowed value, so nothing changes unseen.
+- **A DRAFT project (final-review M2).** Its cards stay hidden from outsiders until publish (`PostReadFilters
+  .OnAVisibleProject`), so PUBLIC on a draft reads "Anyone can read it once the project is published." The status comes
+  from the attach list's slim row, or the `projectStatus` prop where the page fixed the project (project page, work-item
+  modal).
+
 ## Attach list
 
 Every project and guild the writer belongs to: `project.getMyMemberships` → .NET `GET /api/projects/mine` (created
 or a `ProjectMember` row, drafts of their own team included, by title) and `guild.getMyMemberships` → `GET
 /api/guilds/mine` (owned or a `GuildMember` row, by name). Both routes are actor-only: .NET reads the signed actor
 and there is no userId parameter. These match who the API lets write into a project or guild, so the picker never
-offers a subject the post would be refused on. Proof: `MembershipListFlowTests` (real Postgres) and
-`server/api/routers/memberships.test.ts`.
+offers a subject the post would be refused on. Rows are slim (`ProjectMembershipDto`: id, title, slug, summary,
+status, categories; `GuildMembershipDto`: id, name, slug) and capped at the 200 most recently active (final-review
+M4). Proof: `MembershipListFlowTests` (real Postgres) and `server/api/routers/memberships.test.ts`.
 
 ## Reads
 
-| When                                                     | Reads                                                |
-| -------------------------------------------------------- | ---------------------------------------------------- |
-| Mounted without a fixed attachment                       | `project.getMyMemberships`, `guild.getMyMemberships` |
-| "Who can help?" with a project                           | `task.getAll({ projectId, limit: 100 })`             |
-| First `#`                                                | `taxonomy.getAll`                                    |
-| Publish with `onPublished`, subject not in a picker list | `project.getById` / `guild.getById`                  |
+| When                                                     | Reads                                                         |
+| -------------------------------------------------------- | ------------------------------------------------------------- |
+| Mounted without a fixed attachment                       | `project.getMyMemberships`, `guild.getMyMemberships`          |
+| "Who can help?" with a project                           | `task.getAll({ projectId, askable: true, limit: 100 })`       |
+| First `#`                                                | `taxonomy.getAll`                                             |
+| Publish with `onPublished`, subject not in a picker list | `project.getById` / `guild.getById`                           |
 
 The project page (fixed `projectId`) makes none of the first three until "Who can help?" or `#`; its `onPublished`
 names the project with one `project.getById` per publish. Escape inside the work-item modal closes an open `#` list
@@ -117,6 +131,8 @@ first, not the dialog: the modal's `onEscapeKeyDown` reads the textarea's `aria-
 
 ## Deferred
 
-- **Task list capped at 100** per project (one `task.getAll` page). Trigger: a project with >100 tasks.
+- **Task list capped at 100 askable tasks** per project (one `task.getAll` page, `askable=true` filtered by .NET
+  before the page is cut, final-review L4: it used to filter client-side after fetching the newest 100, so open tasks
+  behind 100 done ones never appeared). Trigger: a project with >100 open, unassigned tasks.
 - **No headline field.** The old composer's optional title is gone (the prompt frames the words); cards still render a
   title when a post has one.

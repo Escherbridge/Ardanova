@@ -28,6 +28,10 @@ Linked from the feed's help card (`feedRoutes.chatWith`) and the task page's **M
 - **Partial failure.** If get-or-create fails, nothing exists and the words stay in the draft. If it succeeds and the
   send fails, the (now real, empty) conversation opens with the words still in the box and "Your message was not sent."
 - The `with` value is consumed once per value (`consumedWithRef`), so "Back to chats" does not reopen the draft.
+- **One send at a time (final-review L2).** `draftSendInFlightRef` guards the first send: `isPending` only flips on
+  the next render, so a double Enter (or Enter + click) inside one render used to run two get-or-creates and send the
+  message twice. On success only the sent text leaves the box (`withoutSentText`); words typed while it was sending
+  stay. If the earlier text was edited mid-send it is all kept rather than guessed at.
 
 ## Deferred
 

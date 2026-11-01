@@ -13,6 +13,7 @@ import { runWithActorAssertion } from "~/server/actor-assertion";
 import {
   createProjectMilestoneDtoSchema,
   pagedProjectsDtoSchema,
+  projectMembershipDtoSchema,
   projectMilestoneDtoSchema,
   projectDtoSchema,
   projectDurationSchema,
@@ -467,7 +468,12 @@ export const projectRouter = createTRPCRouter({
         message: response.error,
       });
     }
-    return parseProjects(response.data ?? [], "Member projects response");
+    const memberships = z
+      .array(projectMembershipDtoSchema)
+      .safeParse(response.data ?? []);
+    if (!memberships.success)
+      throw invalidProjectContract("Member projects response");
+    return memberships.data;
   }),
 
   /** Projects linked to a user (public profile) */

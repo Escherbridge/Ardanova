@@ -72,9 +72,10 @@ public class TasksController : ControllerBase
         [FromQuery] string? projectId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10,
+        [FromQuery] bool askable = false,
         CancellationToken ct = default)
     {
-        var result = await _taskService.SearchAsync(Viewer, searchTerm, status, priority, taskType, projectId, page, pageSize, ct);
+        var result = await _taskService.SearchAsync(Viewer, searchTerm, status, priority, taskType, projectId, page, pageSize, askable, ct);
         return ToActionResult(result);
     }
 

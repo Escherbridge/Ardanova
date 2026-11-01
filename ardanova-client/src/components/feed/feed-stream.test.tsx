@@ -183,14 +183,34 @@ describe("FeedStream", () => {
     screen.getByRole("navigation", { name: "Sectors" });
   });
 
-  it("keeps a just-published card first and shows the stream's copy of it only once", async () => {
+  it("keeps a just-published ask first, once, but shows the stream's copy: picked up since it was posted", async () => {
+    const ask = (task: FeedKitCard["task"]) =>
+      feedCardFixture({
+        id: "post-ask",
+        postType: "HELP_WANTED",
+        body: "Need two hands Saturday",
+        task,
+      });
     renderWithTrpcEdge(
-      <FeedStream scope="project:project-p" leadingCards={[card("new")]} />,
-      feedEdge({ "": { items: [card("a"), card("new")], nextCursor: null } }),
+      <FeedStream
+        scope="project:project-p"
+        leadingCards={[ask({ id: "task-1", state: "OPEN" })]}
+      />,
+      feedEdge({
+        "": {
+          items: [
+            card("a"),
+            ask({ id: "task-1", state: "PICKED_UP", assigneeName: "Cy" }),
+          ],
+          nextCursor: null,
+        },
+      }),
     );
 
     await screen.findByText("Card a");
-    expect(renderedBodies()).toEqual(["Card new", "Card a"]);
+    expect(renderedBodies()).toEqual(["Need two hands Saturday", "Card a"]);
+    const [first] = screen.getAllByRole("article");
+    within(first!).getByText("Picked up by Cy");
   });
 
   it("on an empty platform shows one line and Start a project", async () => {

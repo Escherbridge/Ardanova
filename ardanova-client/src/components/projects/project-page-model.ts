@@ -58,6 +58,22 @@ export function projectTagsOf(project: {
   return { linked: [...linked], plain: [...plain] };
 }
 
+/** The edit form's hashtag field: `editable` is what a `hashtags` write replaces, `kept` the legacy text it carries over. See ./AGENTS.md §Edit form. */
+export function projectHashtagFieldOf(project: {
+  hashtags?: readonly string[];
+  tags?: string | null;
+  categories?: readonly string[];
+}): { editable: string[]; kept: string[] } {
+  const { linked, plain } = projectTagsOf(project);
+  const kept = new Set(plain);
+  for (const category of project.categories ?? []) {
+    const text = category.trim();
+    // A category a tag can spell is already among `hashtags` as its "#slug".
+    if (text && !canonicalHashtag(text)) kept.add(text);
+  }
+  return { editable: linked, kept: [...kept] };
+}
+
 /** The one-line ask: `summary`, else the older `description`, unless it only repeats the solution. */
 export function projectLedeOf(project: {
   summary?: string | null;

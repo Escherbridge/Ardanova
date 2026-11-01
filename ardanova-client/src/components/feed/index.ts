@@ -16,6 +16,7 @@ export {
 } from "./feed-stream";
 export { FeedCard, type FeedCardProps } from "./feed-card";
 export { ColdStartRow } from "./cold-start-row";
+export { RecordNotes } from "./record-notes";
 export { SubjectChip, type FollowToggleHandler } from "./subject-chip";
 
 // SR-03 Phase 3 composer (Lane C); see ./composer/AGENTS.md.

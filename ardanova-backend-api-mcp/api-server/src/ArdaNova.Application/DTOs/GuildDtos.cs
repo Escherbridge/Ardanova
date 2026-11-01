@@ -24,6 +24,14 @@ public record GuildDto
     public string OwnerId { get; init; }
 }
 
+/// <summary>One row of GET /api/guilds/mine: what the composer's attach picker and a card's subject need.</summary>
+public record GuildMembershipDto
+{
+    public string Id { get; init; } = null!;
+    public string Name { get; init; } = null!;
+    public string Slug { get; init; } = null!;
+}
+
 /// <summary>The acting identity and whether it administers the platform; always derived from the signed actor assertion, never a request body.</summary>
 public sealed record GuildActor(string Id, bool IsPlatformAdmin = false);
 

@@ -134,9 +134,14 @@ public class TaskService : ITaskService
         string? projectId,
         int page,
         int pageSize,
+        bool askableOnly = false,
         CancellationToken ct = default)
     {
         var query = VisibleTasks(viewer);
+
+        // Filtered before the page is cut, so open tasks behind 100 done ones still reach the ask picker.
+        if (askableOnly)
+            query = query.Where(t => t.assignedToId == null && t.status != TaskStatus.COMPLETED);
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {

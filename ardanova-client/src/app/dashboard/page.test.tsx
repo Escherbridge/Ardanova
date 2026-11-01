@@ -73,63 +73,21 @@ const seedLibrary = {
   sectors: ["FOOD_BEVERAGE"],
 };
 
-/** Cy's barn, which Ada joined, as .NET `GET /api/projects/mine` lists it (ProjectDto). */
+/** Cy's barn, which Ada joined, as .NET `GET /api/projects/mine` lists it (ProjectMembershipDto). */
 const adaProjectDto = {
   id: "project-barn",
   title: "Barn raising",
   slug: "barn-raising",
-  description: "A barn for the commons.",
-  problemStatement: "The commons has no dry storage.",
-  solution: "Raise a timber barn together.",
-  categories: ["CONSTRUCTION"],
+  summary: "A barn for the commons.",
   status: "PUBLISHED",
-  fundingGoal: null,
-  currentFunding: 0,
-  supportersCount: 0,
-  votesCount: 0,
-  viewsCount: 0,
-  featured: false,
-  tags: null,
-  images: null,
-  videos: null,
-  documents: null,
-  targetAudience: null,
-  expectedImpact: null,
-  timeline: null,
-  projectType: "COMMUNITY",
-  duration: "ONGOING",
-  createdAt: "2026-10-01T12:00:00Z",
-  updatedAt: "2026-10-01T12:00:00Z",
-  publishedAt: "2026-10-01T12:00:00Z",
-  fundedAt: null,
-  completedAt: null,
-  commerceEnabled: false,
-  storefrontDescription: null,
-  createdById: "user-cy",
-  createdBy: { id: "user-cy", name: "Cy Carpenter", image: null },
-  assignedGuildId: null,
+  categories: ["CONSTRUCTION"],
 };
 
-/** A guild Ada is a member of, as .NET `GET /api/guilds/mine` lists it (GuildDto). */
+/** A guild Ada is a member of, as .NET `GET /api/guilds/mine` lists it (GuildMembershipDto). */
 const framersGuildDto = {
   id: "guild-framers",
   name: "Timber framers",
   slug: "timber-framers",
-  description: "Joinery and frames.",
-  website: null,
-  email: "framers@example.org",
-  phone: null,
-  address: null,
-  logo: null,
-  portfolio: null,
-  specialties: null,
-  isVerified: false,
-  rating: null,
-  reviewsCount: 0,
-  projectsCount: 0,
-  createdAt: "2026-10-01T12:00:00Z",
-  updatedAt: "2026-10-01T12:00:00Z",
-  ownerId: "user-cy",
 };
 
 /** .NET FeedCardDto JSON for a card Ada sees through discovery: not a member, not following. */
@@ -235,10 +193,21 @@ describe("Home is the feed (SR-03 plan §1)", () => {
         .getByRole("link", { name: "Start a project" })
         .getAttribute("href"),
     ).toBe("/projects/create");
-    // A proposal is on screen, so its record note is too (verbatim guard copy).
-    screen.getByText(
+    // A proposal is on screen, so its record notes are too (verbatim guard copy). Below lg the rail would follow an
+    // endless stream, so the narrow layout's copy sits above the stream; the lg rail keeps its own.
+    const feed = screen.getByRole("feed");
+    for (const note of [
       "Proposals remain proposals until the recorded process resolves them. Events are shown as scheduled, not as attendance or consent.",
-    );
+      "Participation is not proof of ownership. Governance credentials, project utility, and economic rights remain separate, reviewable records.",
+    ]) {
+      const [narrow, rail] = screen.getAllByText(note);
+      expect(narrow!.closest(".lg\\:hidden")).not.toBeNull();
+      expect(
+        narrow!.compareDocumentPosition(feed) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(rail!.closest("aside")).not.toBeNull();
+    }
 
     fireEvent.click(
       screen.getAllByRole("button", { name: "Follow Barn raising" })[0],

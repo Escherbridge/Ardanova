@@ -567,6 +567,13 @@ replacement, never a merge with the legacy Categories/ProjectType/Tags fields, w
 Hashtags is omitted. `ProjectHashtagDisplay.From` is the pure reverse for `ProjectDto.Hashtags` (edit-form
 round-trip); it does not re-expose free tags (those stay in `Tags` only).
 
+**Carried over (final-review H1).** On `UpdateAsync`, a stored `categories` or `tags` token that `Hashtags.Normalize`
+rejects (a legacy custom category such as `Community Garden`, free text with a space) is appended to the resolved
+value instead of being dropped (`NotSpellableAsHashtag` + `JoinTokens`). The edit form cannot show such a token as a
+hashtag, so the replacement never had a say over it; the form shows it as a fixed chip
+(client `components/projects/AGENTS.md` §Edit form). Proof: `ProjectHashtagResolutionFlowTests
+.EditingHashtags_CarriesOverACustomCategoryAndFreeTextNoHashtagCanSpell` (real PG).
+
 **§Project follow.** `ProjectFollowService` (new) is the only writer of `ProjectFollow`. Visibility
 (`IProjectVisibility`) is checked before every write — a hidden/draft project 404s the same as a missing one.
 `FollowAsync` has no exists-then-insert race: the pre-check is a shortcut only, and a genuine `23505` on save is
@@ -581,6 +588,12 @@ of another user's follow state — `GET .../follow` only ever answers for the si
 write into a project or guild, so the composer's attach picker (client `components/feed/composer/AGENTS.md`) never
 offers a subject the post would be refused on. Actor-only, no userId parameter; the project read still composes
 `ProjectQueryFilters.VisibleTo`, and an admin reads only their own team. Proof: `MembershipListFlowTests` (real PG).
+
+Slim and bounded (final-review M4): each answers a membership row, not the full DTO - `ProjectMembershipDto` (id,
+title, slug, summary, status, categories; `status` lets the composer say a public note on a DRAFT waits for publish)
+and `GuildMembershipDto` (id, name, slug) - projected in SQL so the 20k-character text columns are never read. At
+most `MembershipLists.Cap` (200) rows: the most recently updated are chosen (`updatedAt` desc, id as tiebreak), then
+sorted by title/name for the picker. Trigger to revisit: someone on more than 200 teams cannot attach the rest.
 
 # Project member authority
 

@@ -170,6 +170,8 @@ export function ProjectFollowButton({
 
 export interface ProjectFeedTabProps {
   projectId: string;
+  /** A DRAFT's composer says "Everyone" waits for publish. */
+  projectStatus?: string;
   /** The signed-in reader; the composer is offered only to the team (`canPost`), and the API refuses anyone else. */
   author: ComposerAuthor | null;
   canPost: boolean;
@@ -182,6 +184,7 @@ export interface ProjectFeedTabProps {
 /** The default tab: the composer for the team, then this project's stream, newest first. */
 export function ProjectFeedTab({
   projectId,
+  projectStatus,
   author,
   canPost,
   leadingCards,
@@ -193,6 +196,7 @@ export function ProjectFeedTab({
       {canPost && author ? (
         <FieldNoteComposer
           projectId={projectId}
+          projectStatus={projectStatus}
           author={author}
           onPublished={onPublished}
         />

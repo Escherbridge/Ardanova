@@ -186,17 +186,21 @@ public class GuildService : IGuildService
         return Result<GuildDto>.Success(await WithProjectCountAsync(_mapper.Map<GuildDto>(guild), ct));
     }
 
-    public async Task<Result<IReadOnlyList<GuildDto>>> GetMembershipsAsync(string userId, CancellationToken ct = default)
+    public async Task<Result<IReadOnlyList<GuildMembershipDto>>> GetMembershipsAsync(string userId, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(userId))
-            return Result<IReadOnlyList<GuildDto>>.Success(Array.Empty<GuildDto>());
+            return Result<IReadOnlyList<GuildMembershipDto>>.Success(Array.Empty<GuildMembershipDto>());
 
-        var guilds = await _repository.FindAsync(
-            g => g.ownerId == userId || g.GuildMembers.Any(member => member.userId == userId),
-            ct);
-        var ordered = guilds.OrderBy(g => g.name, StringComparer.OrdinalIgnoreCase).ToList();
-        return Result<IReadOnlyList<GuildDto>>.Success(
-            await WithProjectCountsAsync(_mapper.Map<IReadOnlyList<GuildDto>>(ordered), ct));
+        // Projected in SQL: the picker needs three columns, never the guild's long text.
+        var guilds = await _repository.Query()
+            .Where(g => g.ownerId == userId || g.GuildMembers.Any(member => member.userId == userId))
+            .OrderByDescending(g => g.updatedAt)
+            .ThenBy(g => g.id)
+            .Take(MembershipLists.Cap)
+            .Select(g => new GuildMembershipDto { Id = g.id, Name = g.name, Slug = g.slug })
+            .ToListAsync(ct);
+        return Result<IReadOnlyList<GuildMembershipDto>>.Success(
+            guilds.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase).ToList());
     }
 
     public async Task<Result<IReadOnlyList<GuildDto>>> GetVerifiedAsync(CancellationToken ct = default)

@@ -341,6 +341,35 @@ describe(
       ).toBe("");
     });
 
+    it("two sends in one render start one conversation with one message, and words typed while it sends stay", async () => {
+      renderPage();
+      await screen.findByRole("heading", { name: "Bea Builder" });
+      const box = () =>
+        screen.getByRole<HTMLTextAreaElement>("textbox", { name: "Message" });
+      fireEvent.change(box(), {
+        target: { value: "I can take Saturday morning." },
+      });
+
+      // A double Enter lands before React re-renders, so the pending flag cannot have flipped yet.
+      act(() => {
+        fireEvent.keyDown(box(), { key: "Enter" });
+        fireEvent.keyDown(box(), { key: "Enter" });
+      });
+      fireEvent.change(box(), {
+        target: { value: "I can take Saturday morning. Sunday too?" },
+      });
+
+      await within(await screen.findByRole("log")).findByText(
+        "I can take Saturday morning.",
+      );
+      await quiet();
+      expect(writes().map((call) => `${call.method} ${call.path}`)).toEqual([
+        "POST /api/chat/conversations/direct",
+        "POST /api/chat/messages",
+      ]);
+      expect(box().value).toBe("Sunday too?");
+    });
+
     it("an existing direct conversation with that person opens instead of a draft", async () => {
       stored.messages = [
         messageDto("message-1", "user-b", "Bea Builder", "Framing Saturday?"),

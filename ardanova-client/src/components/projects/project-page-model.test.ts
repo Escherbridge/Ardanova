@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  projectHashtagFieldOf,
   projectLedeOf,
   projectTabFrom,
   projectTagsOf,
@@ -49,6 +50,30 @@ describe("projectTagsOf: the header's tag chips", () => {
     },
   ])("$flow", ({ project, linked, plain }) => {
     expect(projectTagsOf(project)).toEqual({ linked, plain });
+  });
+});
+
+describe("projectHashtagFieldOf: what the edit form may replace, and what it carries over", () => {
+  it.each([
+    {
+      flow: "a pre-hashtag project: sector + type derived, free tag merged, custom category kept as written",
+      project: {
+        categories: ["CONSTRUCTION", "Community Garden"],
+        hashtags: ["#construction", "#temporary"],
+        tags: "barn-raising, shared tools",
+      },
+      editable: ["construction", "temporary", "barn-raising"],
+      kept: ["shared tools", "Community Garden"],
+    },
+    {
+      // A tag-shaped custom category is already among the derived "#slug"s, so it is editable, not kept.
+      flow: "a tag-shaped custom category is editable once",
+      project: { categories: ["Solar"], hashtags: ["#solar", "#temporary"] },
+      editable: ["solar", "temporary"],
+      kept: [],
+    },
+  ])("$flow", ({ project, editable, kept }) => {
+    expect(projectHashtagFieldOf(project)).toEqual({ editable, kept });
   });
 });
 

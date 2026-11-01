@@ -33,6 +33,8 @@ import {
   type ProjectDuration,
 } from "~/lib/contracts/project-contract";
 
+import { projectHashtagFieldOf } from "./project-page-model";
+
 const durationLabels: Record<ProjectDuration, string> = {
   ONE_TWO_WEEKS: "1-2 weeks",
   ONE_THREE_MONTHS: "1-3 months",
@@ -53,8 +55,7 @@ export interface ProjectEditFormData {
   title: string;
   problemStatement: string;
   solution: string;
-  // Discovery hashtags (SR-03 Phase 3 §3): a FULL REPLACEMENT of categories/projectType/tags,
-  // resolved server-side. Prefilled from ProjectDto.Hashtags below.
+  /** Canonical tags without '#': everything a `hashtags` write replaces. See ./AGENTS.md §Edit form. */
   hashtags: string[];
   duration: ProjectDuration | "";
   targetAudience: string;
@@ -67,12 +68,19 @@ export function buildEditFormData(project: ProjectDto): ProjectEditFormData {
     title: project.title,
     problemStatement: project.problemStatement,
     solution: project.solution,
-    hashtags: project.hashtags ?? [],
+    hashtags: projectHashtagFieldOf(project).editable,
     duration: project.duration ?? "",
     targetAudience: project.targetAudience ?? "",
     expectedImpact: project.expectedImpact ?? "",
     timeline: project.timeline ?? "",
   };
+}
+
+function sameSequence(left: readonly string[], right: readonly string[]) {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
 }
 
 interface ProjectEditFormProps {
@@ -116,8 +124,13 @@ function ProjectEditFormFields({
   const router = useRouter();
   const utils = api.useUtils();
 
-  const [formData, setFormData] = useState<ProjectEditFormData>(() =>
-    buildEditFormData(project),
+  const [initialData] = useState(() => buildEditFormData(project));
+  const [formData, setFormData] = useState<ProjectEditFormData>(initialData);
+  // Legacy text no hashtag can spell: shown, never sent; the API carries it over on a hashtags write.
+  const [keptTags] = useState(() => projectHashtagFieldOf(project).kept);
+  const hashtagsChanged = !sameSequence(
+    formData.hashtags,
+    initialData.hashtags,
   );
   const [hashtagInput, setHashtagInput] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -157,11 +170,14 @@ function ProjectEditFormFields({
     if (!query) return [];
     return taxonomyTerms
       .filter((term) => term.kind === "SECTOR" || term.kind === "PROJECT_TYPE")
-      .filter((term) => !formData.hashtags.includes(term.slug))
+      .flatMap((term) => {
+        const tag = canonicalHashtag(term.slug);
+        return tag ? [{ tag, label: term.label }] : [];
+      })
+      .filter(({ tag }) => !formData.hashtags.includes(tag))
       .filter(
-        (term) =>
-          term.slug.toLowerCase().includes(query) ||
-          term.label.toLowerCase().includes(query),
+        ({ tag, label }) =>
+          tag.includes(query) || label.toLowerCase().includes(query),
       )
       .slice(0, 6);
   })();
@@ -179,10 +195,10 @@ function ProjectEditFormFields({
   };
 
   const removeHashtag = (tag: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      hashtags: prev.hashtags.filter((t) => t !== tag),
-    }));
+    handleChange(
+      "hashtags",
+      formData.hashtags.filter((t) => t !== tag),
+    );
   };
 
   /** Commits every complete #tag in the box at once, so pasting "#a #b" adds both. */
@@ -228,6 +244,9 @@ function ProjectEditFormFields({
       newErrors.problemStatement = "Min 10 characters";
     if (!formData.solution.trim()) newErrors.solution = "Required";
     if (formData.solution.length < 10) newErrors.solution = "Min 10 characters";
+    // An older project can hold more than the cap; the API would drop the extras silently.
+    if (hashtagsChanged && formData.hashtags.length > MAX_HASHTAGS_PER_POST)
+      newErrors.hashtags = `Keep at most ${MAX_HASHTAGS_PER_POST} hashtags.`;
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -243,9 +262,8 @@ function ProjectEditFormFields({
       description: formData.solution,
       problemStatement: formData.problemStatement,
       solution: formData.solution,
-      // Full replacement of categories/projectType/tags (SR-03 Phase 3 §3) -
-      // see Services/Implementations/AGENTS.md §Project hashtags.
-      hashtags: formData.hashtags,
+      // A full replacement of categories/projectType/tags, so sent only when edited: ./AGENTS.md §Edit form.
+      ...(hashtagsChanged ? { hashtags: formData.hashtags } : {}),
       duration: formData.duration || undefined,
       targetAudience: formData.targetAudience || undefined,
       expectedImpact: formData.expectedImpact || undefined,
@@ -490,16 +508,16 @@ function ProjectEditFormFields({
             />
             {hashtagSuggestions.length > 0 && (
               <ul className="bg-card border-border absolute z-10 mt-1 w-full border-2 shadow-lg">
-                {hashtagSuggestions.map((term) => (
-                  <li key={term.slug}>
+                {hashtagSuggestions.map((suggestion) => (
+                  <li key={suggestion.tag}>
                     <button
                       type="button"
-                      onClick={() => addHashtagTag(term.slug)}
+                      onClick={() => addHashtagTag(suggestion.tag)}
                       className="hover:bg-muted/50 flex min-h-11 w-full items-center justify-between px-4 py-2 text-left text-sm"
                     >
-                      <span className="font-medium">#{term.slug}</span>
+                      <span className="font-medium">#{suggestion.tag}</span>
                       <span className="text-muted-foreground text-xs">
-                        {term.label}
+                        {suggestion.label}
                       </span>
                     </button>
                   </li>
@@ -507,7 +525,7 @@ function ProjectEditFormFields({
               </ul>
             )}
           </div>
-          {formData.hashtags.length > 0 && (
+          {(formData.hashtags.length > 0 || keptTags.length > 0) && (
             <div className="flex flex-wrap gap-2">
               {formData.hashtags.map((tag) => (
                 <Badge
@@ -526,11 +544,28 @@ function ProjectEditFormFields({
                   </button>
                 </Badge>
               ))}
+              {keptTags.map((text) => (
+                <Badge
+                  key={`kept:${text}`}
+                  variant="outline"
+                  className="min-h-11 px-3"
+                >
+                  {text}
+                </Badge>
+              ))}
             </div>
+          )}
+          {errors.hashtags && (
+            <p role="alert" className="text-destructive text-sm">
+              {errors.hashtags}
+            </p>
           )}
           <p className="text-muted-foreground text-xs">
             {formData.hashtags.length}/{MAX_HASHTAGS_PER_POST} · #construction
             sorts by sector.
+            {keptTags.length > 0
+              ? " Older labels without a # stay as written."
+              : null}
           </p>
         </CardContent>
       </Card>

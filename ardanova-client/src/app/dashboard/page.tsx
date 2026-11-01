@@ -10,6 +10,7 @@ import { ArrowUpRight } from "lucide-react";
 import {
   FeedStream,
   FieldNoteComposer,
+  RecordNotes,
   feedCardFromPost,
   useAttachableSubjects,
   type ComposerAuthor,
@@ -51,6 +52,8 @@ export default function HomePage() {
             <FieldNoteComposer author={viewer} />
           </section>
         ) : null}
+        {/* Below lg the rail would follow an endless stream, so the notes sit above it. */}
+        <RecordNotes className="lg:hidden" />
         <FeedStream
           scope="home"
           viewerId={viewer?.id ?? null}
@@ -61,7 +64,7 @@ export default function HomePage() {
 
       <aside
         aria-label="Your work and records"
-        className="space-y-8 lg:sticky lg:top-24 lg:self-start"
+        className="hidden space-y-8 lg:sticky lg:top-24 lg:block lg:self-start"
       >
         <YourWork enabled={viewer !== null} />
         <RecordNotes />
@@ -175,21 +178,5 @@ function YourWork({ enabled }: { enabled: boolean }) {
         </ol>
       )}
     </section>
-  );
-}
-
-/** Rights and consent notes for the proposals, events and funding the stream carries; kept verbatim. */
-function RecordNotes() {
-  return (
-    <div className="border-border text-muted-foreground space-y-3 border-t-[3px] border-double pt-3 text-xs leading-relaxed">
-      <p>
-        Proposals remain proposals until the recorded process resolves them.
-        Events are shown as scheduled, not as attendance or consent.
-      </p>
-      <p>
-        Participation is not proof of ownership. Governance credentials, project
-        utility, and economic rights remain separate, reviewable records.
-      </p>
-    </div>
   );
 }

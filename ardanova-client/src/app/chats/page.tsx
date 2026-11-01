@@ -40,6 +40,13 @@ import { api } from "~/trpc/react";
 const MESSAGE_NOT_SENT =
   "Your message was not sent. Check your connection and try again.";
 
+/** The message box after a send: the sent text removed, anything typed after it while sending kept. */
+function withoutSentText(current: string, sent: string): string {
+  return current.startsWith(sent)
+    ? current.slice(sent.length).replace(/^\s+/, "")
+    : current;
+}
+
 const conversationFilters = [
   { id: "all", label: "All" },
   { id: "unread", label: "Unread" },
@@ -295,6 +302,8 @@ export default function ChatsPage() {
   const startDirect = api.chat.getOrCreateDirect.useMutation();
   const sendFirstMessage = api.chat.sendMessage.useMutation();
   const isStartingDraft = startDirect.isPending || sendFirstMessage.isPending;
+  // `isPending` only flips on the next render; two sends inside one render both see it false.
+  const draftSendInFlightRef = useRef(false);
 
   // `?with=` opens the existing direct conversation when the loaded list has one, else a draft. Reads only.
   useEffect(() => {
@@ -439,35 +448,42 @@ export default function ChatsPage() {
 
   /** The draft's first send: get-or-create the DIRECT conversation, then send into it, then open it. */
   async function handleSendDraft() {
-    const content = messageInput.trim();
-    if (!content || !draftWith || isStartingDraft) return;
+    const typed = messageInput;
+    const content = typed.trim();
+    if (!content || !draftWith || draftSendInFlightRef.current) return;
+    draftSendInFlightRef.current = true;
     setSendError(null);
 
-    let conversationId: string;
     try {
-      // Get-or-create: a conversation the loaded list page missed is reused server-side, not duplicated.
-      conversationId = (
-        await startDirect.mutateAsync({ otherUserId: draftWith })
-      ).id;
-    } catch {
-      setSendError(MESSAGE_NOT_SENT);
-      return;
-    }
+      let conversationId: string;
+      try {
+        // Get-or-create: a conversation the loaded list page missed is reused server-side, not duplicated.
+        conversationId = (
+          await startDirect.mutateAsync({ otherUserId: draftWith })
+        ).id;
+      } catch {
+        setSendError(MESSAGE_NOT_SENT);
+        return;
+      }
 
-    let sent = false;
-    try {
-      await sendFirstMessage.mutateAsync({ conversationId, content });
-      sent = true;
-    } catch {
-      setSendError(MESSAGE_NOT_SENT);
+      let sent = false;
+      try {
+        await sendFirstMessage.mutateAsync({ conversationId, content });
+        sent = true;
+      } catch {
+        setSendError(MESSAGE_NOT_SENT);
+      }
+      // The conversation exists now either way; open it, keeping unsent words in the box.
+      void utils.chat.getConversations.invalidate();
+      shouldStickToBottomRef.current = true;
+      pendingScrollRestoreRef.current = null;
+      setDraftWith(null);
+      setSelectedChatId(conversationId);
+      // Clear only what was sent: words typed while it was sending stay.
+      if (sent) setMessageInput((current) => withoutSentText(current, typed));
+    } finally {
+      draftSendInFlightRef.current = false;
     }
-    // The conversation exists now either way; open it, keeping unsent words in the box.
-    void utils.chat.getConversations.invalidate();
-    shouldStickToBottomRef.current = true;
-    pendingScrollRestoreRef.current = null;
-    setDraftWith(null);
-    setSelectedChatId(conversationId);
-    if (sent) setMessageInput("");
   }
 
   function handleInputChange(value: string) {

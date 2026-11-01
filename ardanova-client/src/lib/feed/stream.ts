@@ -30,23 +30,52 @@ export function feedSubjectOf(card: FeedKitCard): FeedSubject | null {
 }
 
 /**
- * Leading (locally inserted) cards first, then every page in order, each id once.
- * The API never repeats a card in one scroll; this is the defensive second check.
+ * Leading (locally inserted) cards first, then every page in order, each id once. A leading card the stream also
+ * carries keeps its place but shows the stream's copy, the server's word on state and counters. The API never repeats
+ * a card in one scroll; the id check is the defensive second check. See components/feed/AGENTS.md §FeedStream.
  */
 export function mergeFeedPages<TCard extends { id: string }>(
   leading: readonly TCard[],
   pages: readonly { items: readonly TCard[] }[] | undefined,
 ): TCard[] {
+  const streamCopies = new Map<string, TCard>();
+  pages?.forEach((page) =>
+    page.items.forEach((card) => {
+      if (!streamCopies.has(card.id)) streamCopies.set(card.id, card);
+    }),
+  );
   const seen = new Set<string>();
   const merged: TCard[] = [];
   const take = (card: TCard) => {
     if (seen.has(card.id)) return;
     seen.add(card.id);
-    merged.push(card);
+    merged.push(streamCopies.get(card.id) ?? card);
   };
   leading.forEach(take);
   pages?.forEach((page) => page.items.forEach(take));
   return merged;
+}
+
+/** Every cached copy of card `id` with `patch` applied, for `setQueriesData` over the feed's infinite caches. */
+export function withCardPatched<
+  TCard extends { id: string },
+  TData extends { pages: readonly { items: readonly TCard[] }[] },
+>(
+  data: TData | undefined,
+  id: string,
+  patch: Partial<TCard>,
+): TData | undefined {
+  if (!data) return data;
+  // Same shape as `data`, only the matching cards replaced; spreading loses the generic, hence the cast.
+  return {
+    ...data,
+    pages: data.pages.map((page) => ({
+      ...page,
+      items: page.items.map((card) =>
+        card.id === id ? { ...card, ...patch } : card,
+      ),
+    })),
+  } as TData;
 }
 
 /** Sector codes seen on loaded cards, most frequent first: the cold-start row's chips. No new API. */

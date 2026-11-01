@@ -10,6 +10,7 @@ import type {
   ProjectCreatorDto,
   ProjectDto,
   ProjectDuration,
+  ProjectMembershipDto,
   ProjectMilestoneDto,
   ProjectRole,
   ProjectStatus,
@@ -394,9 +395,9 @@ export class ProjectsEndpoint {
     return this.client.get<Project[]>(apiPath`/api/projects/user/${userId}`);
   }
 
-  /** The signed actor's own projects (created or a member of); no userId, the actor is the member. */
-  getMine(): Promise<ApiResponse<Project[]>> {
-    return this.client.get<Project[]>(apiPath`/api/projects/mine`);
+  /** The signed actor's own projects (created or a member of), at most 200 slim rows; no userId, the actor is the member. */
+  getMine(): Promise<ApiResponse<ProjectMembershipDto[]>> {
+    return this.client.get<ProjectMembershipDto[]>(apiPath`/api/projects/mine`);
   }
 
   getByStatus(status: ProjectStatus): Promise<ApiResponse<Project[]>> {

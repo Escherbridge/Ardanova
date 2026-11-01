@@ -13,8 +13,9 @@ Plan: `conductor/tracks/mvp-readiness-loop_20261026/SR-03-PHASE3-PLAN.md` §1, R
   `Hashtags.cs`): `/tag/Carpentry` redirects to `/tag/carpentry`, anything that is not a tag is a 404. Sector chips
   link here via `sectorTag` (`FOOD_BEVERAGE` → `food-beverage`), which the API's tag scope resolves back to the
   sector (Feed/AGENTS.md; plan §11 Q3).
-- **Nothing else on the page:** the `#tag` heading and `FeedStream scope="tag:<tag>"`. The stream ends silently, or
-  with one line when empty (`defaultFeedEnd`).
+- **Nothing else on the page:** the `#tag` heading, the record notes (`RecordNotes`, verbatim; a tag stream carries
+  PROPOSAL and FUNDING cards like Home's, final-review M3) and `FeedStream scope="tag:<tag>"`. The stream ends
+  silently, or with one line when empty (`defaultFeedEnd`).
 
 ## Shared follow hook
 

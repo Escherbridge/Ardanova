@@ -127,6 +127,42 @@ public sealed class ProjectHashtagResolutionFlowTests : IAsyncLifetime
         cleared.ProjectType.Should().Be(ProjectType.TEMPORARY, "an absent PROJECT_TYPE tag resets to the enum default");
     }
 
+    /// <summary>
+    /// A pre-hashtag project carries a custom category and free text no hashtag can spell. The edit form never shows
+    /// those in its field, so a hashtags write must not wipe them: the form's round trip (the derived "#slug"s plus the
+    /// free tags, '#' stripped) keeps everything, and a real edit replaces only what the field could express.
+    /// </summary>
+    [PostgresFact]
+    public async Task EditingHashtags_CarriesOverACustomCategoryAndFreeTextNoHashtagCanSpell()
+    {
+        var legacy = Succeeded(await Service().CreateAsync(new CreateProjectDto
+        {
+            CreatedById = Founder,
+            Title = "Community garden",
+            Description = "A description long enough for the create flow.",
+            ProblemStatement = "No shared growing space.",
+            Solution = "Turn the lot into beds.",
+            Categories = ["CONSTRUCTION", "Community Garden"],
+            Tags = "barn-raising,shared tools",
+        }));
+        legacy.Hashtags.Should().Equal("#construction", "#temporary");
+
+        var roundTripped = Succeeded(await Service().UpdateAsync(legacy.Id, new UpdateProjectDto
+        {
+            Hashtags = ["construction", "temporary", "barn-raising"],
+        }));
+
+        roundTripped.Categories.Should().Equal("CONSTRUCTION", "Community Garden");
+        roundTripped.Tags.Should().Be("barn-raising,shared tools");
+        roundTripped.ProjectType.Should().Be(ProjectType.TEMPORARY);
+
+        var edited = Succeeded(await Service().UpdateAsync(legacy.Id, new UpdateProjectDto { Hashtags = ["#hospitality"] }));
+
+        edited.Categories.Should().Equal(new[] { "HOSPITALITY", "Community Garden" },
+            "a removed hashtag clears what it derived; a value no hashtag spells was never in the field to remove");
+        edited.Tags.Should().Be("shared tools");
+    }
+
     [PostgresFact]
     public async Task ASectorResolvedFromAHashtag_IsStillFoundByTheWholeValueCategoryFilter()
     {
@@ -177,6 +213,8 @@ public sealed class ProjectHashtagResolutionFlowTests : IAsyncLifetime
         context.TaxonomyTerms.Add(Term("taxonomy_sector_hospitality", TaxonomyKind.SECTOR, "HOSPITALITY", "Hospitality"));
         context.TaxonomyTerms.Add(Term("taxonomy_type_physical_build", TaxonomyKind.PROJECT_TYPE, "PHYSICAL_BUILD", "Physical build"));
         context.TaxonomyTerms.Add(Term("taxonomy_type_venue", TaxonomyKind.PROJECT_TYPE, "VENUE", "Venue"));
+        // Production seeds every ProjectType value, so the edit form's "#temporary" chip round-trips as the type.
+        context.TaxonomyTerms.Add(Term("taxonomy_type_temporary", TaxonomyKind.PROJECT_TYPE, "TEMPORARY", "Temporary"));
         await context.SaveChangesAsync();
     }
 

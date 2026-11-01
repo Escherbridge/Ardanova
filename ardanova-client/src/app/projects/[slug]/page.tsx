@@ -471,6 +471,7 @@ export default function ProjectDetailPage() {
         {activeTab === "feed" && (
           <ProjectFeedTab
             projectId={project.id}
+            projectStatus={project.status}
             author={author}
             canPost={isMember}
             leadingCards={leadingCards}

@@ -2,14 +2,17 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
+import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import { getQueryKey } from "@trpc/react-query";
 import { Loader2, Send } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { MutationErrorNotice } from "~/components/ui/query-error-state";
 import type { FeedCard } from "~/lib/contracts/feed-contract";
 import { feedRoutes } from "~/lib/feed/routes";
+import { withCardPatched } from "~/lib/feed/stream";
 import { cn } from "~/lib/utils";
-import { api } from "~/trpc/react";
+import { api, type RouterOutputs } from "~/trpc/react";
 
 import { ComposerSelect } from "./composer/composer-select";
 import { HashtagTextarea } from "./composer/hashtag-textarea";
@@ -37,6 +40,7 @@ import {
   audienceDescription,
   audienceLabel,
   audienceOptionsFor,
+  audienceWithin,
   type AudienceContext,
   type FieldNoteAudience,
 } from "./field-note-audience";
@@ -45,6 +49,8 @@ import {
 export interface FieldNoteComposerProps {
   /** Fixes the note to this project (no attach picker). The pre-Phase-3 prop. */
   projectId?: string;
+  /** The fixed project's status, so "Everyone" can say it waits for a DRAFT to publish. */
+  projectStatus?: string;
   /** Fixes the note to this guild (no attach picker, no "Who can help?"). */
   guildId?: string;
   /** Opens on "Who can help?" when "help"; defaults to "help" when `taskId` is given, else "note". */
@@ -60,6 +66,8 @@ export interface FieldNoteComposerProps {
   className?: string;
 }
 
+type FeedPage = RouterOutputs["feed"]["getPage"];
+
 type AskLookup =
   | { status: "loading" }
   | { status: "someone-else" }
@@ -68,6 +76,7 @@ type AskLookup =
 /** The authoring studio: three prompts, one sheet. Writes POST / PROJECT_UPDATE / GUILD_ACTIVITY / HELP_WANTED. */
 export function FieldNoteComposer({
   projectId,
+  projectStatus,
   guildId,
   mode,
   taskId,
@@ -80,6 +89,7 @@ export function FieldNoteComposer({
   const fieldId = `${baseId}-words`;
   const editHeadingId = `${baseId}-editing`;
   const utilities = api.useUtils();
+  const queryClient = useQueryClient();
 
   const fixedAttachment: ComposerAttachment = projectId
     ? { kind: "project", id: projectId }
@@ -126,7 +136,15 @@ export function FieldNoteComposer({
     ? "ask"
     : (attachment?.kind ?? null);
   const audienceOptions = audienceOptionsFor(audienceContext);
-  const visibility = audienceOptions.includes(audience) ? audience : "PUBLIC";
+  // Narrowed, never widened, when the attachment no longer offers the chosen audience.
+  const visibility = audienceWithin(audience, audienceOptions);
+  const attachedProjectStatus =
+    attachedProjectId === null
+      ? undefined
+      : fixedAttachment?.kind === "project"
+        ? projectStatus
+        : subjects.projects.find((project) => project.id === attachedProjectId)
+            ?.status;
 
   const input = createInputFor({
     prompt,
@@ -195,6 +213,21 @@ export function FieldNoteComposer({
 
   const save = api.post.update.useMutation({
     onSuccess: (post) => {
+      // A stream's copy wins over a leading card (mergeFeedPages), so the saved words go into every cached copy.
+      const edited = feedCardFromPost(post);
+      queryClient.setQueriesData<InfiniteData<FeedPage>>(
+        { queryKey: getQueryKey(api.feed.getPage, undefined, "infinite") },
+        (data) =>
+          withCardPatched<FeedPage["items"][number], InfiniteData<FeedPage>>(
+            data,
+            post.id,
+            {
+              body: edited.body,
+              title: edited.title,
+              hashtags: edited.hashtags,
+            },
+          ),
+      );
       setEditing(null);
       setContent("");
       setAnnouncement("Saved.");
@@ -385,7 +418,9 @@ export function FieldNoteComposer({
 
       {editing ? null : (
         <p className="text-muted-foreground px-4 pb-3 font-mono text-[11px]">
-          {audienceDescription(visibility)}
+          {audienceDescription(visibility, {
+            projectIsDraft: attachedProjectStatus === "DRAFT",
+          })}
         </p>
       )}
 

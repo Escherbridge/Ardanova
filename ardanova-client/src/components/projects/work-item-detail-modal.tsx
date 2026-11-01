@@ -529,6 +529,7 @@ function AskForHelp({
         <div ref={composerRef}>
           <FieldNoteComposer
             projectId={projectId}
+            projectStatus={project.data?.status}
             taskId={task.id}
             author={viewer}
             onPosted={() => setStage("asked")}

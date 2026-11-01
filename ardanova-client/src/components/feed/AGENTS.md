@@ -76,8 +76,12 @@ does not already link inline.
   scroll would stall (zero-latency edge). `!isFetchNextPageError` stops a failed page from re-requesting itself
   while the sentinel stays in view (5 ms edge, so the in-flight render commits). `!isFetching` also keeps
   auto-paging from cancelling a background refetch, which `fetchNextPage` does by default.
-- **Dedupe:** `mergeFeedPages` keeps the first copy of each id; `leadingCards` (a just-published post) come first
-  and the stream's later copy is skipped.
+- **Dedupe:** `mergeFeedPages` shows each id once. `leadingCards` (a just-published post) keep their place at the
+  top, but once a page carries the same id the stream's copy is what shows there (final-review L1): it is the
+  server's word, so an ask flips to "Picked up", counters move, and a later read wins over the local guess. An ask
+  edit therefore patches every cached copy (`withCardPatched`, from the composer's `post.update` success) so the
+  stream's copy carries the new words at once. Not covered: a leading post retracted later stays until the page
+  remounts, because a ranked stream omitting it proves nothing (trigger: a retraction signal on the feed read).
 - **Follow:** optimistic per subject key, so every card of one project flips together; a rejected handler reverts
   and toasts `describeMutationError`. Team members never see the toggle. A page that owns a subject's follow state
   elsewhere (the project page's header button) passes it as `following` (by `feedSubjectKey`), which wins over the

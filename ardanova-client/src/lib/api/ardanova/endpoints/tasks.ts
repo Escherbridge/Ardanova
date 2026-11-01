@@ -138,6 +138,8 @@ export interface SearchTasksParams {
   priority?: TaskPriority;
   taskType?: TaskType;
   projectId?: string;
+  /** Only tasks nobody holds that are not COMPLETED (the ones an ask may name), filtered before paging. */
+  askable?: boolean;
   page?: number;
   pageSize?: number;
 }
@@ -166,6 +168,7 @@ export class TasksEndpoint {
     if (params.priority) sp.set("priority", params.priority);
     if (params.taskType) sp.set("taskType", params.taskType);
     if (params.projectId) sp.set("projectId", params.projectId);
+    if (params.askable) sp.set("askable", "true");
     sp.set("page", String(params.page ?? 1));
     sp.set("pageSize", String(params.pageSize ?? 10));
     return this.client.get<PagedResult<Task>>(apiPath`/api/tasks/search?${sp}`);

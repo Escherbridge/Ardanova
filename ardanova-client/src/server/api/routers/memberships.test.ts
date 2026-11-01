@@ -25,67 +25,21 @@ afterAll(() => {
   vi.unstubAllEnvs();
 });
 
-const NOW = "2026-11-01T09:00:00Z";
-
-/** .NET ProjectDto for Cy's barn, which Ada joined but did not create. */
+/** .NET ProjectMembershipDto for Cy's barn, which Ada joined but did not create. */
 const cysBarn = {
   id: "project-barn",
   title: "Barn raising",
   slug: "barn-raising",
-  description: "A shared barn for the commons.",
   summary: null,
-  problemStatement: "No covered space for winter work.",
-  solution: "Raise a timber barn together.",
-  categories: ["CONSTRUCTION"],
-  hashtags: ["#construction"],
   status: "PUBLISHED",
-  fundingGoal: null,
-  currentFunding: 0,
-  supportersCount: 0,
-  votesCount: 0,
-  viewsCount: 0,
-  featured: false,
-  tags: null,
-  images: null,
-  videos: null,
-  documents: null,
-  targetAudience: null,
-  expectedImpact: null,
-  timeline: null,
-  projectType: "COMMUNITY",
-  duration: null,
-  createdAt: NOW,
-  updatedAt: NOW,
-  publishedAt: NOW,
-  fundedAt: null,
-  completedAt: null,
-  commerceEnabled: false,
-  storefrontDescription: null,
-  createdById: "user-cy",
-  createdBy: { id: "user-cy", name: "Cy Carpenter", image: null },
-  assignedGuildId: null,
+  categories: ["CONSTRUCTION"],
 };
 
-/** .NET GuildDto for a guild Ada is a member of, not its owner. */
+/** .NET GuildMembershipDto for a guild Ada is a member of, not its owner. */
 const framers = {
   id: "guild-framers",
   name: "Timber framers",
   slug: "timber-framers",
-  description: "Joinery and frames.",
-  website: null,
-  email: "framers@example.org",
-  phone: null,
-  address: null,
-  logo: null,
-  portfolio: null,
-  specialties: null,
-  isVerified: false,
-  rating: null,
-  reviewsCount: 0,
-  projectsCount: 1,
-  createdAt: NOW,
-  updatedAt: NOW,
-  ownerId: "user-cy",
 };
 
 /**
@@ -98,9 +52,8 @@ describe("membership reads for the composer's attach picker", () => {
 
     const projects = await browser.project.getMyMemberships.query();
 
-    expect(
-      projects.map((project) => [project.id, project.createdById]),
-    ).toEqual([["project-barn", "user-cy"]]);
+    // The slim row passes the contract intact; a drifted shape would be a BAD_GATEWAY, not a half-read list.
+    expect(projects).toEqual([cysBarn]);
     expect(requests).toEqual([
       {
         method: "GET",
@@ -116,9 +69,7 @@ describe("membership reads for the composer's attach picker", () => {
 
     const guilds = await browser.guild.getMyMemberships.query();
 
-    expect(guilds.map((guild) => [guild.id, guild.ownerId])).toEqual([
-      ["guild-framers", "user-cy"],
-    ]);
+    expect(guilds).toEqual([framers]);
     expect(requests).toEqual([
       {
         method: "GET",

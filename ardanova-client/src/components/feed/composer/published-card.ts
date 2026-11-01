@@ -38,7 +38,7 @@ export type PublishedPost = Pick<
 
 /**
  * A card built only from facts the write returned. `canClaim` is always false: the claim rule lives once, server-side
- * (TaskClaimRule), and the next feed read replaces this card with the server's.
+ * (TaskClaimRule). Once a feed read carries this post, `mergeFeedPages` shows the stream's copy in this card's place.
  */
 export function feedCardFromPost(
   post: PublishedPost,
