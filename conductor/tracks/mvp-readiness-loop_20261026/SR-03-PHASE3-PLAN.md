@@ -5,7 +5,7 @@ status: approved
 date: 2026-10-31
 revision: 2
 title: SR-03 Phase 3 - the feed is the main interaction
-computed_at_commit: 9a40e43
+computed_at_commit: b73a509
 ---
 
 # SR-03 Phase 3: the feed is the main interaction
@@ -152,7 +152,7 @@ Each file has exactly one owner. Backend paths are relative to `ardanova-backend
 
 | Lane | Size | Owns | Seam test |
 |---|---|---|---|
-| **S0 generator** (P7-18-UP, ledger:670) | M | `scripts/generate-csharp-models.ts` (Phase 2 edits it too, so S0 runs after that merge); new `ArdaNova.Domain/Models/Entities/*.Custom.cs`; the entity files whose hand-written members move | `generate:csharp` on unchanged DBML → zero git diff; `dotnet build` green |
+| **S0 generator** (P7-18-UP, ledger:670) — **DONE** (700f4ed, reviewed APPROVE, merged b73a509) | M | `scripts/generate-csharp-models.ts` (Phase 2 edits it too, so S0 runs after that merge); new `ArdaNova.Domain/Models/Entities/*.Custom.cs`; the entity files whose hand-written members move | `generate:csharp` on unchanged DBML → zero git diff; `dotnet build` green |
 | **S3 schema** | S | `prisma/database-architecture.dbml` (PostType +HELP_WANTED; `Post.taskId` unique + Ref SET NULL; `Notification.postId` + Ref cascade + index (userId, postId)); `prisma/migrations/2026110x_feed_help_wanted/` (+CHECK); generated `schema.prisma`, `src/lib/zod/**`; `ArdaNova.Domain/Models/Entities/Post.cs`, `ProjectTask.cs`, `Notification.cs`, `ArdaNova.Domain/Models/Enums/PostType.cs`, `ArdaNova.Infrastructure/Data/GeneratedModelConfigurations.cs` | Scratch DB: deploy ×2 is a no-op; `migrate diff --exit-code` 0; a second HELP_WANTED on the same task → 23505; taskId on a POST → CHECK violation |
 | **K1 writes** | M | `ArdaNova.Application/Services/Implementations/PostService.cs`, `TaskServices.cs`, `NotificationServices.cs`; `ArdaNova.Application/Services/Interfaces/IPostService.cs`, `ITaskService.cs`, `INotificationService.cs`; `ArdaNova.Application/DTOs/PostDtos.cs`, `TaskDtos.cs`; `ArdaNova.Application/Mappings/MappingProfile.cs`; `ArdaNova.API/Controllers/PostsController.cs` (add a Conflict arm, :225-232), `TasksController.cs`; new `ArdaNova.Infrastructure/Tasks/TaskClaimStore.cs`; new shared claim-rule predicate under `ArdaNova.Application/`; `ArdaNova.Infrastructure/DependencyInjection.cs`; `ArdaNova.Application/Services/Implementations/AGENTS.md` (updates §Task assignment :211; appends L's §Hashtags/§Follow text at the join) | Real PG: HELP_WANTED rules (201/403/400; 409 with the existing post id); a manager removes an ask; **two parallel claims → one 200, one 409, one notification**; a claim on a COMPLETED task → 409; reply → asker +1, self → 0 |
 | **K2 feed read** | M | Phase 2's `ArdaNova.Application/Feed/**` (read and projector), `Feed/AGENTS.md`, `ArdaNova.Application/DTOs/FeedDtos.cs`, `ArdaNova.Infrastructure/Feed/FeedReadStore.cs`, `ArdaNova.API/Controllers/FeedController.cs`: viewer relation (isMember, isFollowing, `canClaim` through K1's predicate), task facts (paid, assignee name, state), HELP_WANTED hydration, any §7 ask Phase 2 leaves undone | Real PG: a member gets `canClaim`, a follower doesn't; after the task is deleted the card is dropped |
@@ -227,6 +227,31 @@ An old backend cannot read an enum label it doesn't know.
 | Per-post notification collapse may double under concurrent replies | Accepted (harmless) |
 | Re-asking about a released task | Deferred. Re-ask = update the same post and bump the timestamp Phase 2's recency ordering reads (column named once Phase 2 merges). Trigger: a released task's ask goes unseen |
 | Tag follows, aliases, membership requests, email/push, native-thread reply notifications, backing affinity, guild Feed tab, signed-out tag pages, `ardanova-ai-client/` | Deferred; triggers: repeat tag visits, near-duplicate unresolved tags, DM offers outgrowing manual adds, the P5-20 sender going real, a soak review, a guild with ≥10 cards in 30 days |
+
+## 11. G0 re-verification (at b73a509)
+
+**Preconditions, all confirmed live (not just merged):** money idempotency (4c7ea55; live P5-41 2026-11-01), copy strip-down (ca73402), Phase 2 (b622b45; live SR-03-P2-LIVE 2026-11-01 — backfill dry-run 14 sources → 6 cards, execute 6, second dry-run `projected:0, alreadyProjected:6`), Lane **S0 DONE** (700f4ed, reviewed APPROVE, merged b73a509 — marked done in §6). QA-persona organic seed is still TODO (released DB has 0 person posts, ledger:694) — not a wave-1 blocker; it gates G (wave 2), which switches Home to the feed.
+
+**Assumptions A-1..A-7:**
+- **A-1 (DTO shape): CONFIRMED verbatim.** `FeedCardDto`/`FeedPageDto` (FeedDtos.cs) match `feed-contract.ts` field-for-field, including `Viewer{IsMember,IsFollowing,CanClaim}` (`CanClaim` is hardcoded `false` "until claimable cards exist" — K1/K2's job), `Hashtags`, `Reasons[]`, `Funding{Percent}`.
+- **API shape: CONFIRMED.** `GET /api/feed?cursor&limit&scope` → `{items,nextCursor}` (FeedController.cs:26-39); scopes `home|project:{id}|guild:{id}|tag:{tag}` (FeedService.cs:274-280; feed-contract.ts:54-62).
+- **A-6 (Home at /dashboard): CONFIRMED.** `dashboard/page.tsx` exists; sidebar still says "Nova Studio" (app-sidebar.tsx:205) — unreplaced, G's job.
+- **A-7 (per-scope caps/ordering): CHANGED.** Ordering is newest-first on every scope (CONFIRMED, FeedService.cs:579-589). But caps sit on ONE shared branch for project+guild+tag (FeedService.cs:542-545 — drifted from the plan's cited :474-475): `SubjectCap=null, AuthorCap=HomeAuthorCap, Discovery=null` for all three. So **Q2 (tag: subject cap null, author cap only) is ALREADY TRUE**; **Q3 (tag also matches the project's sector) is ALREADY IMPLEMENTED** (`TaggedWith`, FeedService.cs:288-297, with its own `InScope/Sector` reason at :552). **Q1 (project/guild author cap → null) is NOT done** — project and guild still share tag's author cap. K2 must split the ternary into three arms (home / project-or-guild / tag), not flip a flag.
+
+**Lane owns, re-grepped at b73a509:**
+- **S3**: DBML `Post` (1635-1674) has no `taskId`; `Notification` (119-130) has no `postId`; `PostType` enum (16 values) has no `HELP_WANTED` — scope unchanged. Latest migration slot is `20261031000000_feed_retraction_and_hashtags`.
+- **K1**: `Implementations/AGENTS.md`'s single-writer rule is now at line 430, not :211 (file grew under S0/Phase 2) — same substance, same owner. `TaskServices.AssignAsync` 266-284 and `TasksController` Conflict→409 at :492 CONFIRMED unchanged. `TaskCommerceService` sets `assignedToId`+`opportunityId` together at 226-227 (plan cited 214-227, minor drift) — "no Apply row" conclusion CONFIRMED.
+- **K2**: all of Feed/** (14 files incl. FeedRanking.cs, FeedQualityScore.cs, Hashtags.cs, FeedCursor.cs), Feed/AGENTS.md, FeedDtos.cs, FeedReadStore.cs, FeedController.cs are committed and LIVE, not an uncommitted worktree as §0/§7 assumed — confidence upgrades from `none` to CONFIRMED.
+- **L**: `ProjectDto` exposes `Categories` only, no hashtags/projectType/tags yet (new ground, CONFIRMED scope); `ProjectFollowService.cs`/`IProjectFollowService.cs` do not exist (CONFIRMED new).
+- **F/P**: `components/feed/**`, `feed-contract.ts`, `endpoints/feed.ts`, `routers/feed.ts`, `root.ts` (feed registered at :3,54) all exist; `components/hashtags/**` and `lib/feed/**` do not exist yet (new, F's job). P's "no change planned" on `root.ts` CONFIRMED.
+
+**Disjointness — one real collision, rest clear:**
+1. **`MappingProfile.cs` — collision.** Only K1 is listed, but L's hashtag/projectType work on `ProjectDto` needs a new `.ForMember` block on `CreateMap<Project,ProjectDto>()` (line 24) — today it maps only `Categories`. K1's edits sit in the Post/Task blocks (~95-170), L's in the Project block (~24-50): textually disjoint `CreateMap<T,U>()` statements. **Resolution (named integration step, not a blocker):** both lanes may append to this file; whichever of K1/L reaches the wave-1 integration branch first takes it as-is, the other rebases (trivial, non-overlapping hunks). L is "touches, does not own" on this file.
+2. **`DependencyInjection.cs` — not a collision.** K1 owns `ArdaNova.Infrastructure/DependencyInjection.cs` (TaskClaimStore); L owns the different file `ArdaNova.Application/DependencyInjection.cs` (ProjectFollowService).
+3. **`AGENTS.md` files — already resolved by protocol.** K1 owns `Implementations/AGENTS.md`, K2 owns `Feed/AGENTS.md` (different files); L's notes are handed to K1 as text per §6, not edited directly.
+4. **DBML / `schema.prisma` / generated EF+zod** — owned solely by S3, which completes before wave 1 opens (G0→S0→S3→waves); no wave-1 lane lists these, so there is no concurrent-edit window.
+
+**Go/no-go:** S3 **GO**. Wave 1 — K1 **GO**, K2 **GO** (carries Q1 as in-lane work; Q2/Q3 already done, less work than planned), L **GO** (MappingProfile.cs append-only handoff noted above), F **GO**, P **GO**.
 
 ## Revision 1 (critic)
 
