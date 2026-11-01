@@ -6,9 +6,9 @@ import type { FeedSubject } from "~/lib/feed/types";
 import { api } from "~/trpc/react";
 
 /**
- * FeedStream's `onToggleFollow` for Home and tag pages: a project subject goes through the project follow
- * procedures, a guild subject through guild follow. The promise rejects on failure so FeedStream reverts.
- * Lives here only because of lane ownership; see ./AGENTS.md §Shared follow hook.
+ * FeedStream's `onToggleFollow`: a project subject goes through the project follow procedures, a guild subject
+ * through guild follow. The promise rejects on failure so FeedStream reverts. Home, tag pages and the project page
+ * share it; see components/feed/AGENTS.md §FeedStream.
  */
 export function useSubjectFollow() {
   const { mutateAsync: followProject } =

@@ -7,7 +7,6 @@ import { matchMutation, useQueryClient } from "@tanstack/react-query";
 import { getMutationKey } from "@trpc/react-query";
 import { ArrowUpRight } from "lucide-react";
 
-import { useSubjectFollow } from "~/app/tag/[tag]/use-subject-follow";
 import {
   FeedStream,
   FieldNoteComposer,
@@ -19,6 +18,7 @@ import {
 import { SetupPrompt } from "~/components/onboarding/setup-prompt";
 import { feedRoutes } from "~/lib/feed/routes";
 import type { FeedKitCard } from "~/lib/feed/types";
+import { useSubjectFollow } from "~/lib/feed/use-subject-follow";
 import { api, type RouterOutputs } from "~/trpc/react";
 
 type MyTask = RouterOutputs["task"]["getMyTasks"]["items"][number];

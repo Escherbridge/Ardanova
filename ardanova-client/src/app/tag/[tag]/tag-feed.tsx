@@ -3,8 +3,7 @@
 import { useSession } from "next-auth/react";
 
 import { FeedStream } from "~/components/feed";
-
-import { useSubjectFollow } from "./use-subject-follow";
+import { useSubjectFollow } from "~/lib/feed/use-subject-follow";
 
 /** One tag's stream under its `#tag` heading. */
 export function TagFeed({ tag }: { tag: string }) {

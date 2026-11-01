@@ -47,15 +47,14 @@ subject chip on this project's stream.
 - **Serialized optimistic toggle.** A click shows at once, in the header and on every cached feed card of this
   project (`setQueriesData` over all `feed.getPage` caches, so Home's cards agree too). Requests run in click order,
   so the server ends on the last click; only the latest click may restore state when the API refuses.
-- **Why the stream sometimes remounts.** `FeedStream` keeps its own per-subject override after a chip tap and takes
-  no outside follow state. If the header changes after a chip was tapped, that override is stale, so the stream gets
-  a new `key` once the header's change is confirmed. A header change with no earlier chip tap needs no remount: the
-  patched cache already reads right.
+- **One state, handed to the stream.** `FeedStream`'s `following` prop (keyed by `feedSubjectKey`) wins over its own
+  per-card optimistic override, so the page passes `{ "project:<id>": follow.following }` and a header change after a
+  chip tap shows on every chip with no remount (the old `streamKey` workaround is gone; the final join added the
+  prop). A chip on another project or a guild goes through the shared `lib/feed/use-subject-follow.ts`, the same
+  dispatch Home and tag pages use, and keeps the stream's own optimistic state.
 
 ## Deferred
 
-- `FeedStream` accepting controlled follow state (e.g. a `following` map) would remove the remount. Ask Lane F if a
-  second mounting page needs the same sync.
 - `ProjectFieldNotes`, `post.getProjectFieldNotes` and the `project.createUpdate/getUpdates/deleteUpdate`
   procedures have no page mount now. Their owners (Lanes F/C and P) can delete them; the trigger is the next pass
   over those files.

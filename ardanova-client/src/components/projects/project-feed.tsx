@@ -14,7 +14,9 @@ import {
 import { Button } from "~/components/ui/button";
 import { describeMutationError } from "~/components/ui/query-error-copy";
 import type { FeedCard } from "~/lib/contracts/feed-contract";
+import { feedSubjectKey } from "~/lib/feed/stream";
 import type { FeedSubject } from "~/lib/feed/types";
+import { useSubjectFollow } from "~/lib/feed/use-subject-follow";
 import { cn } from "~/lib/utils";
 import { api, type RouterOutputs } from "~/trpc/react";
 
@@ -28,10 +30,8 @@ export interface ProjectFollow {
   pending: boolean;
   /** The header's toggle. Rejects when the API refuses; the state is already restored. */
   toggleFromHeader: (follow: boolean) => Promise<void>;
-  /** `FeedStream onToggleFollow`: the stream shows its own optimistic state and reverts on rejection. */
+  /** `FeedStream onToggleFollow`: this project goes through the shared state; any other subject straight to the API. */
   toggleFromCard: (subject: FeedSubject, follow: boolean) => Promise<unknown>;
-  /** Changes when the stream must drop its per-card follow state; pass as the stream's `key`. */
-  streamKey: number;
 }
 
 /** Sets `viewer.isFollowing` on this project's cards in every cached feed page (Home included). */
@@ -65,11 +65,10 @@ export function useProjectFollow(
     { projectId },
     { enabled },
   );
+  const followOtherSubject = useSubjectFollow();
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
-  const [streamKey, setStreamKey] = useState(0);
   const latestClick = useRef(0);
   const inFlight = useRef<Promise<unknown>>(Promise.resolve());
-  const cardChipsTouched = useRef(false);
 
   // Serialized optimistic toggle: requests run in click order and only the latest click may restore state.
   const setFollowing = useCallback(
@@ -111,37 +110,12 @@ export function useProjectFollow(
     [projectId, queryClient, utilities],
   );
 
-  const toggleFromHeader = useCallback(
-    async (follow: boolean) => {
-      await setFollowing(follow);
-      // A chip the reader tapped earlier still holds the stream's own override; a fresh stream drops it.
-      if (cardChipsTouched.current) {
-        cardChipsTouched.current = false;
-        setStreamKey((key) => key + 1);
-      }
-    },
-    [setFollowing],
-  );
-
   const toggleFromCard = useCallback(
-    (subject: FeedSubject, follow: boolean): Promise<unknown> => {
-      const client = utilities.client;
-      switch (subject.type) {
-        case "project":
-          if (subject.id === projectId) {
-            cardChipsTouched.current = true;
-            return setFollowing(follow);
-          }
-          return follow
-            ? client.project.followProject.mutate({ projectId: subject.id })
-            : client.project.unfollowProject.mutate({ projectId: subject.id });
-        case "guild":
-          return follow
-            ? client.guild.followGuild.mutate({ guildId: subject.id })
-            : client.guild.unfollowGuild.mutate({ guildId: subject.id });
-      }
-    },
-    [projectId, setFollowing, utilities],
+    (subject: FeedSubject, follow: boolean): Promise<unknown> =>
+      subject.type === "project" && subject.id === projectId
+        ? setFollowing(follow)
+        : followOtherSubject(subject, follow),
+    [projectId, setFollowing, followOtherSubject],
   );
 
   return {
@@ -149,9 +123,8 @@ export function useProjectFollow(
       ? (optimistic ?? confirmed.data?.isFollowing)
       : undefined,
     pending: optimistic !== null,
-    toggleFromHeader,
+    toggleFromHeader: setFollowing,
     toggleFromCard,
-    streamKey,
   };
 }
 
@@ -225,12 +198,13 @@ export function ProjectFeedTab({
         />
       ) : null}
       <FeedStream
-        key={follow.streamKey}
         scope={`project:${projectId}`}
         label="Project feed"
         viewerId={author?.id ?? null}
         leadingCards={leadingCards}
         onToggleFollow={author ? follow.toggleFromCard : undefined}
+        // The header and this project's chips read one state, so a header change after a chip tap shows on the chips.
+        following={{ [feedSubjectKey("project", projectId)]: follow.following }}
       />
     </div>
   );

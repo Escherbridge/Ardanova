@@ -16,6 +16,7 @@ export {
 export { reasonFragment } from "./reason";
 export { feedRoutes } from "./routes";
 export {
+  feedSubjectKey,
   feedSubjectOf,
   mergeFeedPages,
   sectorTag,

@@ -77,7 +77,9 @@ does not already link inline.
 - **Dedupe:** `mergeFeedPages` keeps the first copy of each id; `leadingCards` (a just-published post) come first
   and the stream's later copy is skipped.
 - **Follow:** optimistic per subject key, so every card of one project flips together; a rejected handler reverts
-  and toasts `describeMutationError`. Team members never see the toggle.
+  and toasts `describeMutationError`. Team members never see the toggle. A page that owns a subject's follow state
+  elsewhere (the project page's header button) passes it as `following` (by `feedSubjectKey`), which wins over the
+  stream's own override for that key. `onToggleFollow` is `lib/feed/use-subject-follow.ts` on every mounting page.
 - **ARIA feed pattern:** `role="feed"`, `aria-busy`, articles with `aria-posinset`/`aria-setsize` (-1 while more
   may load), Page Down / Page Up between articles. "Load more" stays visible as the non-observer fallback.
 
@@ -105,7 +107,7 @@ approval, so a card carries a quiet "Like" toggle beside its counters and never 
 
 ## Inputs (what mounting lanes pass) and asks
 
-- **G (Home), H (project page):** `<FeedStream scope viewerId onToggleFollow leadingCards renderEnd? />`.
+- **G (Home), H (project page):** `<FeedStream scope viewerId onToggleFollow following? leadingCards renderEnd? />`.
   `onToggleFollow(subject, follow)` returns a promise; reject to revert. H passes the published post mapped to a
   card in `leadingCards`; a scoped stream ends silently unless `renderEnd` is given.
 - **Contract (joined at wave 1):** `FeedKitCard` is exactly the contract's `FeedCard`, and `KnownFeedPostType` is

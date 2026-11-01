@@ -18,8 +18,7 @@ Plan: `conductor/tracks/mvp-readiness-loop_20261026/SR-03-PHASE3-PLAN.md` §1, R
 
 ## Shared follow hook
 
-`use-subject-follow.ts` is the `onToggleFollow` both Home and this page pass to `FeedStream`: project subjects go
-through `project.followProject` / `unfollowProject`, guild subjects through the existing `guild.followGuild` /
-`unfollowGuild`. It returns the mutation promise, so a refusal rejects and FeedStream reverts its optimistic state.
-It sits here only because Lane G's ownership did not include a shared directory; the natural home is
-`src/lib/feed/` or `src/components/feed/`, and moving it is a one-import change at the join.
+`src/lib/feed/use-subject-follow.ts` (moved there at the final join) is the `onToggleFollow` Home, this page and the
+project page pass to `FeedStream`: project subjects go through `project.followProject` / `unfollowProject`, guild
+subjects through the existing `guild.followGuild` / `unfollowGuild`. It returns the mutation promise, so a refusal
+rejects and FeedStream reverts its optimistic state.

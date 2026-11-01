@@ -1,6 +1,11 @@
 import { feedRoutes } from "./routes";
 import type { FeedKitCard, FeedSubject } from "./types";
 
+/** The per-subject state key FeedStream's follow state is held under, e.g. "project:abc". */
+export function feedSubjectKey(type: FeedSubject["type"], id: string): string {
+  return `${type}:${id}`;
+}
+
 /** The card's subject: its project, else its guild; null for a card about neither. */
 export function feedSubjectOf(card: FeedKitCard): FeedSubject | null {
   if (card.project) {
@@ -9,7 +14,7 @@ export function feedSubjectOf(card: FeedKitCard): FeedSubject | null {
       id: card.project.id,
       name: card.project.title,
       href: feedRoutes.project(card.project.slug),
-      key: `project:${card.project.id}`,
+      key: feedSubjectKey("project", card.project.id),
     };
   }
   if (card.guild) {
@@ -18,7 +23,7 @@ export function feedSubjectOf(card: FeedKitCard): FeedSubject | null {
       id: card.guild.id,
       name: card.guild.name,
       href: feedRoutes.guild(card.guild.slug),
-      key: `guild:${card.guild.id}`,
+      key: feedSubjectKey("guild", card.guild.id),
     };
   }
   return null;

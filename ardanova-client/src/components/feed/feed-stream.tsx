@@ -42,6 +42,8 @@ export interface FeedStreamProps {
     subject: FeedSubject,
     follow: boolean,
   ) => Promise<unknown> | void;
+  /** Follow state the page owns, by subject key (`feedSubjectKey`); wins over the stream's own optimistic state. */
+  following?: Readonly<Record<string, boolean | undefined>>;
   /** Cards inserted locally above the stream (a just-published post); the stream's copy is skipped. */
   leadingCards?: readonly FeedKitCard[];
   /** What follows the last card once `nextCursor` is null. Defaults to `defaultFeedEnd`. */
@@ -75,6 +77,7 @@ export function FeedStream({
   viewerId,
   label = "Feed",
   onToggleFollow,
+  following,
   leadingCards = NO_CARDS,
   renderEnd = defaultFeedEnd,
   className,
@@ -146,7 +149,11 @@ export function FeedStream({
                 card={card}
                 viewerId={viewerId}
                 scope={scope}
-                following={subjectKey ? followOverrides[subjectKey] : undefined}
+                following={
+                  subjectKey
+                    ? (following?.[subjectKey] ?? followOverrides[subjectKey])
+                    : undefined
+                }
                 followPending={
                   subjectKey ? followPending.has(subjectKey) : false
                 }
