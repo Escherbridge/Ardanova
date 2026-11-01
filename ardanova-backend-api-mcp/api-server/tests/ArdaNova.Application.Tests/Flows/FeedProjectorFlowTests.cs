@@ -943,14 +943,8 @@ public sealed class FeedProjectorFlowTests : IAsyncLifetime
         return result.Value!;
     }
 
-    private static PostService Posts(ArdaNovaDbContext context, IUnitOfWork? unitOfWork = null) => new(
-        new Repository<Post>(context),
-        new Repository<PostLike>(context),
-        new Repository<PostComment>(context),
-        new Repository<PostBookmark>(context),
-        new Repository<PostShare>(context),
-        unitOfWork ?? new UnitOfWorkOverContext(context),
-        Mapper);
+    private static PostService Posts(ArdaNovaDbContext context, IUnitOfWork? unitOfWork = null)
+        => RealServiceGraph.Posts(context, Mapper, unitOfWork);
 
     private static ProjectUpdateService Updates(ArdaNovaDbContext context)
         => new(new Repository<ProjectUpdate>(context), new UnitOfWorkOverContext(context), Mapper);
@@ -958,13 +952,7 @@ public sealed class FeedProjectorFlowTests : IAsyncLifetime
     private static ProjectMilestoneService Milestones(ArdaNovaDbContext context)
         => new(new Repository<ProjectMilestone>(context), new UnitOfWorkOverContext(context), Mapper);
 
-    private static TaskService Tasks(ArdaNovaDbContext context) => new(
-        new Repository<ProjectTask>(context),
-        new Repository<User>(context),
-        new Repository<Project>(context),
-        new Repository<TaskCommerceAgreement>(context),
-        new UnitOfWorkOverContext(context),
-        Mapper);
+    private static TaskService Tasks(ArdaNovaDbContext context) => RealServiceGraph.Tasks(context, Mapper);
 
     private static ProjectCommentService Comments(ArdaNovaDbContext context)
         => new(new Repository<ProjectComment>(context), new Repository<User>(context), new UnitOfWorkOverContext(context), Mapper);

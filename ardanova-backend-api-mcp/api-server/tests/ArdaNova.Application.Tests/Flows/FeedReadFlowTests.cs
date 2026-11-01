@@ -686,14 +686,7 @@ public sealed class FeedReadFlowTests : IAsyncLifetime
         return result.Value!;
     }
 
-    private static PostService Posts(ArdaNovaDbContext context) => new(
-        new Repository<Post>(context),
-        new Repository<PostLike>(context),
-        new Repository<PostComment>(context),
-        new Repository<PostBookmark>(context),
-        new Repository<PostShare>(context),
-        new UnitOfWorkOverContext(context),
-        Mapper);
+    private static PostService Posts(ArdaNovaDbContext context) => RealServiceGraph.Posts(context, Mapper);
 
     private static ProjectUpdateService Updates(ArdaNovaDbContext context)
         => new(new Repository<ProjectUpdate>(context), new UnitOfWorkOverContext(context), Mapper);

@@ -103,6 +103,7 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.content))
             .ForMember(dest => dest.Metadata, opt => opt.MapFrom(src => src.metadata))
             .ForMember(dest => dest.Hashtags, opt => opt.MapFrom(src => src.hashtags))
+            .ForMember(dest => dest.TaskId, opt => opt.MapFrom(src => src.taskId))
             .ForMember(dest => dest.LikesCount, opt => opt.MapFrom(src => src.likesCount))
             .ForMember(dest => dest.CommentsCount, opt => opt.MapFrom(src => src.commentsCount))
             .ForMember(dest => dest.SharesCount, opt => opt.MapFrom(src => src.sharesCount))
@@ -155,7 +156,9 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt))
             .ForMember(dest => dest.AssignedToId, opt => opt.MapFrom(src => src.assignedToId))
             .ForMember(dest => dest.AssignedTo, opt => opt.Ignore())
-            .ForMember(dest => dest.Project, opt => opt.Ignore());
+            .ForMember(dest => dest.Project, opt => opt.Ignore())
+            .ForMember(dest => dest.HasAgreement, opt => opt.Ignore())
+            .ForMember(dest => dest.HelpWanted, opt => opt.Ignore());
         CreateMap<User, TaskUserDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
             .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))

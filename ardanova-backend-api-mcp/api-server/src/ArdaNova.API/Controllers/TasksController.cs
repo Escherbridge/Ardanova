@@ -216,7 +216,9 @@ public class TasksController : ControllerBase
             return TaskNotFound(id);
 
         var assigneeId = string.IsNullOrWhiteSpace(dto.UserId) ? null : dto.UserId;
-        if (!await CanAssignAsync(task, assigneeId, ct))
+        var canManage = await CanManageProjectAsync(task.ProjectId, ct);
+        var selfClaim = !canManage && string.Equals(assigneeId, ActorId, StringComparison.Ordinal);
+        if (!canManage && !selfClaim && !ReleasesOwn(task, assigneeId))
             return Forbid();
         if (assigneeId is not null &&
             !await _authorization.IsProjectMemberAsync(assigneeId, task.ProjectId, ct))
@@ -232,7 +234,11 @@ public class TasksController : ControllerBase
                 return readinessFailure;
         }
 
-        var result = await _taskService.AssignAsync(id, assigneeId, ct);
+        // A member's self-claim is one conditional write (taken, done or agreed -> 409 with a code); a manager's
+        // assign stays check-then-write. See Services/Implementations/AGENTS.md §Task assignment.
+        var result = selfClaim
+            ? await _taskService.ClaimAsync(id, ActorId, ct)
+            : await _taskService.AssignAsync(id, assigneeId, ct);
         return ToActionResult(result);
     }
 
@@ -266,18 +272,9 @@ public class TasksController : ControllerBase
             : NotFound(new { error = $"Project with id {projectId} not found" });
     }
 
-    /// <summary>Managers assign anyone or no one; a member may claim an unassigned task or release their own.</summary>
-    private async Task<bool> CanAssignAsync(TaskDto task, string? assigneeId, CancellationToken ct)
-    {
-        if (await CanManageProjectAsync(task.ProjectId, ct))
-            return true;
-
-        var claimsUnassigned = task.AssignedToId is null &&
-                               string.Equals(assigneeId, ActorId, StringComparison.Ordinal);
-        var releasesOwn = assigneeId is null &&
-                          string.Equals(task.AssignedToId, ActorId, StringComparison.Ordinal);
-        return claimsUnassigned || releasesOwn;
-    }
+    /// <summary>A non-manager may hand back a task they hold; taking one is the claim, which the write itself guards.</summary>
+    private bool ReleasesOwn(TaskDto task, string? assigneeId)
+        => assigneeId is null && string.Equals(task.AssignedToId, ActorId, StringComparison.Ordinal);
 
     private bool IsAdmin => User.IsInRole(UserRole.ADMIN.ToString());
 
@@ -489,7 +486,8 @@ public class TasksController : ControllerBase
             ResultType.Forbidden => Forbid(),
             // A refused award edit says WHY it was refused ("the units are already set aside
             // for the worker"), and a person can only act on that if the reason reaches them.
-            ResultType.Conflict => Conflict(new { error = result.Error }),
+            // A refused claim also carries a stable TaskClaimCodes code for the client to branch on.
+            ResultType.Conflict => Conflict(new { error = result.Error, code = result.Code }),
             _ => BadRequest(new { error = result.Error })
         };
     }

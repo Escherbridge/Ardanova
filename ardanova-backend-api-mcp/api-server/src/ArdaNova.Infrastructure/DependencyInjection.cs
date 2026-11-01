@@ -5,6 +5,7 @@ using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Security;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
+using ArdaNova.Application.Tasks;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Algorand;
@@ -15,6 +16,7 @@ using ArdaNova.Infrastructure.Ogai;
 using ArdaNova.Infrastructure.Outbox;
 using ArdaNova.Infrastructure.Repositories;
 using ArdaNova.Infrastructure.Security;
+using ArdaNova.Infrastructure.Tasks;
 using ArdaNova.Infrastructure.UnitOfWork;
 using ArdaNova.Infrastructure.Wallets;
 using Microsoft.EntityFrameworkCore;
@@ -84,6 +86,8 @@ public static class DependencyInjection
         // Entity-specific Repositories
         services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<IProjectDeletionBlockers, ProjectDeletionBlockers>();
+        // The self-claim's conditional write; see Services/Implementations/AGENTS.md §Task assignment.
+        services.AddScoped<ITaskClaimStore, TaskClaimStore>();
 
         // Unit of Work
         services.AddScoped<IUnitOfWork, UnitOfWork.UnitOfWork>();

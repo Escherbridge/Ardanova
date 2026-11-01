@@ -9,6 +9,7 @@ using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using TaskStatus = ArdaNova.Domain.Models.Enums.TaskStatus;
 
 namespace ArdaNova.Application.Services.Interfaces
 {
@@ -62,8 +63,31 @@ namespace ArdaNova.Application.Services.Implementations
             PostType.PROJECT_UPDATE,
             PostType.GUILD_ACTIVITY,
             PostType.PROPOSAL,
-            PostType.SHOP_ITEM
+            PostType.SHOP_ITEM,
+            // A person's ask for help on one task; its own rules in ResolveAskAsync (Implementations/AGENTS.md §Help wanted).
+            PostType.HELP_WANTED
         };
+
+        /// <summary>The 409 code when a task already has its one HELP_WANTED; <c>conflictId</c> carries that ask's id.</summary>
+        public const string HelpWantedExistsCode = "HELP_WANTED_EXISTS";
+
+        /// <summary>Why a HELP_WANTED was refused: the task already has one.</summary>
+        public const string AskAlreadyOpen = "This task already has an ask.";
+
+        /// <summary>Why a HELP_WANTED was refused: it names no task.</summary>
+        public const string AskNeedsATask = "An ask for help needs a task.";
+
+        /// <summary>Why a post was refused: only a HELP_WANTED names a task (the database CHECK backs this).</summary>
+        public const string TaskOnlyOnAnAsk = "Only an ask for help names a task.";
+
+        /// <summary>Why a HELP_WANTED was refused: the post's project and the task's differ.</summary>
+        public const string AskOnAnotherProject = "That task belongs to another project.";
+
+        /// <summary>Why a HELP_WANTED was refused: the author is not on the task's project.</summary>
+        public const string AskNeedsMembership = "Only the project's members can ask for help on its tasks.";
+
+        /// <summary>Why a HELP_WANTED was refused: the task is COMPLETED.</summary>
+        public const string AskOnADoneTask = "This task is done.";
 
         /// <summary>A post a person wrote; feed envelopes (sourceType set) are system rows. See Implementations/AGENTS.md §Posts.</summary>
         private static readonly Expression<Func<Post, bool>> WrittenByAPerson = p => p.sourceType == null;
@@ -81,7 +105,15 @@ namespace ArdaNova.Application.Services.Implementations
         private readonly IRepository<PostShare> _shares;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMapper _mapper;
+        private readonly IRepository<ProjectTask> _tasks;
+        private readonly IRepository<Project> _projects;
+        private readonly IHierarchyAuthorizationService _authorization;
+        private readonly INotificationService _notifications;
 
+        /// <param name="tasks">Resolves a HELP_WANTED's task.</param>
+        /// <param name="projects">Limits that task to projects its author may see, so a hidden draft reads as missing.</param>
+        /// <param name="authorization">Membership for an ask; project management for removing one.</param>
+        /// <param name="notifications">Stages the reply notification inside the reply's own save.</param>
         public PostService(
             IRepository<Post> posts,
             IRepository<PostLike> likes,
@@ -89,7 +121,11 @@ namespace ArdaNova.Application.Services.Implementations
             IRepository<PostBookmark> bookmarks,
             IRepository<PostShare> shares,
             IUnitOfWork unitOfWork,
-            IMapper mapper)
+            IMapper mapper,
+            IRepository<ProjectTask> tasks,
+            IRepository<Project> projects,
+            IHierarchyAuthorizationService authorization,
+            INotificationService notifications)
         {
             _posts = posts;
             _likes = likes;
@@ -98,6 +134,10 @@ namespace ArdaNova.Application.Services.Implementations
             _shares = shares;
             _unitOfWork = unitOfWork;
             _mapper = mapper;
+            _tasks = tasks;
+            _projects = projects;
+            _authorization = authorization;
+            _notifications = notifications;
         }
 
         /// <summary>Legacy viewer-less feed: the anonymous PUBLIC subset only, never a members-only post.</summary>
@@ -202,19 +242,32 @@ namespace ArdaNova.Application.Services.Implementations
                 return Result<PostDto>.Unauthorized("An author is required");
             if (string.IsNullOrWhiteSpace(dto.Content))
                 return Result<PostDto>.ValidationError("A field note needs something to say");
-            if (!PostVisibilityPolicy.HasCoherentAudience(dto.Visibility, dto.ProjectId, dto.GuildId))
-                return Result<PostDto>.ValidationError(
-                    "A members-only note must belong to the project or group whose members may read it");
             if (!UserAuthorablePostTypes.Contains(dto.Type))
                 return Result<PostDto>.ValidationError(
                     $"{dto.Type} is written by the system, not chosen when a person creates a post");
+            if (dto.Type != PostType.HELP_WANTED && dto.TaskId is not null)
+                return Result<PostDto>.ValidationError(TaskOnlyOnAnAsk);
+
+            var projectId = dto.ProjectId;
+            if (dto.Type == PostType.HELP_WANTED)
+            {
+                var ask = await ResolveAskAsync(dto, ct);
+                if (ask.Refusal is not null)
+                    return ask.Refusal;
+                projectId = ask.ProjectId;
+            }
+
+            if (!PostVisibilityPolicy.HasCoherentAudience(dto.Visibility, projectId, dto.GuildId))
+                return Result<PostDto>.ValidationError(
+                    "A members-only note must belong to the project or group whose members may read it");
 
             var now = DateTime.UtcNow;
             var post = new Post
             {
                 id = Guid.NewGuid().ToString(),
                 authorId = dto.AuthorId,
-                projectId = dto.ProjectId,
+                projectId = projectId,
+                taskId = dto.Type == PostType.HELP_WANTED ? dto.TaskId : null,
                 guildId = dto.GuildId,
                 type = dto.Type,
                 visibility = dto.Visibility,
@@ -234,8 +287,52 @@ namespace ArdaNova.Application.Services.Implementations
             };
 
             await _posts.AddAsync(post, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
+            try
+            {
+                await _unitOfWork.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException failure) when (post.taskId is not null && IsUniqueViolation(failure))
+            {
+                // One ask per task ("Post"."taskId" unique): the answer names the ask that already holds it.
+                _unitOfWork.ClearTrackedChanges();
+                var existingId = await _posts.Query()
+                    .Where(existing => existing.taskId == post.taskId)
+                    .Select(existing => existing.id)
+                    .FirstOrDefaultAsync(ct);
+                if (existingId is null)
+                    throw;
+                return Result<PostDto>.Conflict(AskAlreadyOpen)
+                    .WithCode(HelpWantedExistsCode)
+                    .WithReference(existingId);
+            }
+
             return Result<PostDto>.Success(_mapper.Map<PostDto>(post));
+        }
+
+        /// <summary>The project a HELP_WANTED lives on (its task's), or why it is refused. See Implementations/AGENTS.md §Help wanted.</summary>
+        private async Task<(string? ProjectId, Result<PostDto>? Refusal)> ResolveAskAsync(CreatePostDto dto, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(dto.TaskId))
+                return (null, Result<PostDto>.ValidationError(AskNeedsATask));
+
+            // 404 before 403: a task on a draft the author cannot see answers exactly like a missing one.
+            var visibleProjectIds = _projects.Query()
+                .Where(ProjectQueryFilters.VisibleTo(new ProjectViewer(dto.AuthorId, IsAdmin: false)))
+                .Select(project => project.id);
+            var task = await _tasks.Query()
+                .Where(candidate => candidate.id == dto.TaskId && visibleProjectIds.Contains(candidate.projectId))
+                .Select(candidate => new { candidate.projectId, candidate.status })
+                .FirstOrDefaultAsync(ct);
+            if (task is null)
+                return (null, Result<PostDto>.NotFound($"Task {dto.TaskId} not found"));
+            if (dto.ProjectId is not null && !string.Equals(dto.ProjectId, task.projectId, StringComparison.Ordinal))
+                return (null, Result<PostDto>.ValidationError(AskOnAnotherProject));
+            if (!await _authorization.IsProjectMemberAsync(dto.AuthorId, task.projectId, ct))
+                return (null, Result<PostDto>.Forbidden(AskNeedsMembership));
+            if (task.status == TaskStatus.COMPLETED)
+                return (null, Result<PostDto>.ValidationError(AskOnADoneTask));
+
+            return (task.projectId, null);
         }
 
         /// <summary>Updates a post; authorId is the signed actor, never a request value.</summary>
@@ -273,15 +370,17 @@ namespace ArdaNova.Application.Services.Implementations
             return Result<PostDto>.Success(_mapper.Map<PostDto>(post));
         }
 
-        public async Task<Result<bool>> DeleteAsync(string id, string authorId, CancellationToken ct = default)
+        /// <summary>Deletes a post for its author; a HELP_WANTED may also be removed by a manager of its project.</summary>
+        public async Task<Result<bool>> DeleteAsync(string id, string actorId, CancellationToken ct = default)
         {
-            if (string.IsNullOrWhiteSpace(authorId))
+            if (string.IsNullOrWhiteSpace(actorId))
                 return Result<bool>.Unauthorized("A signed-in author is required");
 
-            var post = await LoadVisibleAsync(id, authorId, ct);
+            var post = await LoadVisibleAsync(id, actorId, ct);
             if (post is null)
                 return Result<bool>.NotFound($"Post {id} not found");
-            if (!string.Equals(post.authorId, authorId, StringComparison.Ordinal))
+            if (!string.Equals(post.authorId, actorId, StringComparison.Ordinal)
+                && !await MayRemoveAskAsync(post, actorId, ct))
                 return Result<bool>.Forbidden("Only the author can delete this post");
             if (post.sourceType is not null)
                 return Result<bool>.Forbidden(MirroredActivityRefusal);
@@ -298,10 +397,17 @@ namespace ArdaNova.Application.Services.Implementations
             var shareRows = await _shares.FindAsync(s => s.postId == id, ct);
             foreach (var s in shareRows) await _shares.DeleteAsync(s, ct);
 
+            await _notifications.StageForgetPostAsync(id, ct);
             await _posts.DeleteAsync(post, ct);
             await _unitOfWork.SaveChangesAsync(ct);
             return Result<bool>.Success(true);
         }
+
+        /// <summary>A manager may remove an ask on their project, so one whose author left cannot hold its task forever.</summary>
+        private async Task<bool> MayRemoveAskAsync(Post post, string actorId, CancellationToken ct)
+            => post.type == PostType.HELP_WANTED
+               && post.projectId is not null
+               && await _authorization.CanManageProjectAsync(actorId, post.projectId, ct);
 
         public async Task<Result<PostDto>> LikeAsync(string postId, string userId, CancellationToken ct = default)
         {
@@ -514,6 +620,8 @@ namespace ArdaNova.Application.Services.Implementations
             post.commentsCount += 1;
             post.updatedAt = now;
             await _posts.UpdateAsync(post, ct);
+            // One save: the reply and its author's notification land together or not at all.
+            await _notifications.StageReplyAsync(postId, dto.AuthorId, dto.Content, ct);
             await _unitOfWork.SaveChangesAsync(ct);
 
             return Result<PostCommentDto>.Success(_mapper.Map<PostCommentDto>(comment));
@@ -575,7 +683,7 @@ namespace ArdaNova.Application.Services.Implementations
             return _mapper.Map<PostDto>(post);
         }
 
-        /// <summary>The (postId, userId) unique index refused a second like or bookmark from the same person.</summary>
+        /// <summary>A unique index refused the row: a second like or bookmark from one person, or a second ask on one task.</summary>
         private static bool IsUniqueViolation(DbUpdateException failure)
             => failure.InnerException is DbException { SqlState: UniqueViolationSqlState };
 

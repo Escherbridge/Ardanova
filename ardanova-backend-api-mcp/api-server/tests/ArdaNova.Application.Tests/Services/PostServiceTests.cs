@@ -30,7 +30,11 @@ public class PostServiceTests
             _bookmarks.Object,
             _shares.Object,
             _unitOfWork.Object,
-            _mapper.Object);
+            _mapper.Object,
+            new Mock<IRepository<ProjectTask>>().Object,
+            new Mock<IRepository<Project>>().Object,
+            new Mock<ArdaNova.Application.Services.Interfaces.IHierarchyAuthorizationService>().Object,
+            new Mock<ArdaNova.Application.Services.Interfaces.INotificationService>().Object);
     }
 
     [Fact]

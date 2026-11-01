@@ -99,7 +99,8 @@ public class PostsController : ControllerBase
             Visibility = request.Visibility ?? PostVisibility.PUBLIC,
             Title = request.Title,
             Content = request.Content,
-            Metadata = request.Metadata
+            Metadata = request.Metadata,
+            TaskId = request.TaskId
         }, ct);
 
         return result.IsSuccess
@@ -228,11 +229,13 @@ public class PostsController : ControllerBase
             ResultType.ValidationError => BadRequest(new { error = result.Error }),
             ResultType.Unauthorized => Unauthorized(new { error = result.Error }),
             ResultType.Forbidden => Forbid(),
+            // A second ask on a task: the composer reads conflictId to offer "Edit your ask" instead of an error.
+            ResultType.Conflict => Conflict(new PostConflictDto(result.Error, result.Code, result.Reference)),
             _ => BadRequest(new { error = result.Error })
         };
     }
 
-    /// <summary>Create payload with no author field: the author is the signed actor.</summary>
+    /// <summary>Create payload with no author field: the author is the signed actor. TaskId only on HELP_WANTED.</summary>
     public sealed record CreatePostRequest(
         string Content,
         string? ProjectId,
@@ -240,7 +243,8 @@ public class PostsController : ControllerBase
         PostType? Type,
         PostVisibility? Visibility,
         string? Title,
-        string? Metadata);
+        string? Metadata,
+        string? TaskId = null);
 
     /// <summary>Reply payload with no author field: the author is the signed actor.</summary>
     public sealed record AddPostCommentRequest(string Content, string? ParentId);
