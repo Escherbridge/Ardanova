@@ -53,7 +53,17 @@ public class ProjectHiringFlowTests
         _tasks.Add(NewTask("task-draft", DraftProjectId, "secret draft plan"));
         _tasks.Add(NewTask("task-public", PublishedProjectId, "public plan"));
 
-        _taskService = new TaskService(_tasks, _users, _projects, _agreements, _unitOfWork, _mapper);
+        // Hiring hands work out through a manager's assign; the claim store and notifications must stay untouched.
+        _taskService = new TaskService(
+            _tasks,
+            _users,
+            _projects,
+            _agreements,
+            _unitOfWork,
+            _mapper,
+            new ListRepository<Post>(),
+            new Mock<ArdaNova.Application.Tasks.ITaskClaimStore>(MockBehavior.Strict).Object,
+            new Mock<ArdaNova.Application.Services.Interfaces.INotificationService>(MockBehavior.Strict).Object);
         _opportunityService = new OpportunityService(
             _opportunities,
             _opportunityApplications,

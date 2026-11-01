@@ -28,6 +28,14 @@ public interface ITaskService
     Task<Result<TaskDto>> UpdateAsync(string id, UpdateTaskDto dto, CancellationToken ct = default);
     Task<Result<TaskDto>> UpdateStatusAsync(string id, TaskStatus status, CancellationToken ct = default);
     /// <summary>Sets or clears the assignee; refused once an accepted bid or escrow owns who does the work.</summary>
+    /// <remarks>A manager's path: check-then-write. A member taking a task for themselves goes through <see cref="ClaimAsync"/>.</remarks>
     Task<Result<TaskDto>> AssignAsync(string id, string? userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// A member takes an open task for themselves through one conditional write; a 409 with a
+    /// <c>TaskClaimCodes</c> code when it is taken, done or under agreement. Membership and paid-task
+    /// readiness are the caller's checks, made before this. See Implementations/AGENTS.md §Task assignment.
+    /// </summary>
+    Task<Result<TaskDto>> ClaimAsync(string id, string userId, CancellationToken ct = default);
     Task<Result<bool>> DeleteAsync(string id, CancellationToken ct = default);
 }

@@ -16,6 +16,9 @@ public record PostDto
 
     /// <summary>The #tags read from the note's own words; see Application/Feed/AGENTS.md §Hashtags.</summary>
     public IReadOnlyList<string> Hashtags { get; init; } = [];
+
+    /// <summary>The task a HELP_WANTED post asks help with; null on every other type.</summary>
+    public string? TaskId { get; init; }
     public int LikesCount { get; init; }
     public int CommentsCount { get; init; }
     public int SharesCount { get; init; }
@@ -35,7 +38,13 @@ public record CreatePostDto
     public string? Title { get; init; }
     public required string Content { get; init; }
     public string? Metadata { get; init; }
+
+    /// <summary>Required on HELP_WANTED, refused on every other type. See Implementations/AGENTS.md §Help wanted.</summary>
+    public string? TaskId { get; init; }
 }
+
+/// <summary>A 409 from the posts routes; <c>conflictId</c> names the existing row (the task's live ask for HELP_WANTED_EXISTS).</summary>
+public sealed record PostConflictDto(string? Error, string? Code, string? ConflictId);
 
 public record UpdatePostDto
 {

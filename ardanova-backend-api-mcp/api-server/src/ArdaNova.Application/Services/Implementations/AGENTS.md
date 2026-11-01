@@ -99,7 +99,7 @@ alert code decides who gets woken.
 
 Cashing out is TWO steps, and the split is deliberate. A sale is a node exchange run
 under a key derived from the `PayoutRequest` row id - which is why the row is written
-*before* the node is called, so a request that dies mid-flight still leaves something
+_before_ the node is called, so a request that dies mid-flight still leaves something
 reconciliation can name. A withdrawal is a node-owned cash-out that ArdaNova READS BACK
 rather than mirrors: duplicating it would make two records of one movement of real money,
 the ledger-of-record shape D47 rejected for stake.
@@ -150,16 +150,16 @@ completed; check back shortly") carries none, because that sponsorship may still
 only server answer a sponsor's browser may drop its saved key on. It voids only what it can prove
 dead and reveals everything else:
 
-| Under (funderUserId, key) | Void does | Answer |
-| --- | --- | --- |
-| no intent | writes a `FundingIntentVoid` tombstone, then re-reads | `voided` (no id) - or decides the intent a racing create committed |
-| CANCELLED (a void's own) | nothing | `voided` |
-| DRAFT, settlement AUTHORIZED | CAS AUTHORIZED -> CANCELLED (outbox PENDING+unleased -> CANCELLED) AND intent CANCELLED, one transaction | `voided`; a lost CAS re-reads and decides again |
-| DRAFT, settlement CANCELLED by `VOIDED_BY_SPONSOR` (a pre-fix two-commit void that half-landed) | repairs the intent to CANCELLED | `voided` |
-| DRAFT, settlement released | nothing - the request that released it may be asking the node now | `revealed` |
-| HOLDING / FAILED / REJECTED, settlement closed, no node operation, never released (`VOIDED_BY_SPONSOR`) | nothing | `voided` |
-| HOLDING / FAILED / REJECTED, settlement closed, no node operation, released | reads the node's receipt by idempotency key (§Node proof) | `voided` only on a believable NOT_FOUND; else `revealed` (a Landed receipt also logs Critical) |
-| SETTLEMENT_PENDING (after the advance a poll makes), SETTLED, a recorded node operation, anything else | nothing | `revealed` |
+| Under (funderUserId, key)                                                                               | Void does                                                                                                | Answer                                                                                         |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| no intent                                                                                               | writes a `FundingIntentVoid` tombstone, then re-reads                                                    | `voided` (no id) - or decides the intent a racing create committed                             |
+| CANCELLED (a void's own)                                                                                | nothing                                                                                                  | `voided`                                                                                       |
+| DRAFT, settlement AUTHORIZED                                                                            | CAS AUTHORIZED -> CANCELLED (outbox PENDING+unleased -> CANCELLED) AND intent CANCELLED, one transaction | `voided`; a lost CAS re-reads and decides again                                                |
+| DRAFT, settlement CANCELLED by `VOIDED_BY_SPONSOR` (a pre-fix two-commit void that half-landed)         | repairs the intent to CANCELLED                                                                          | `voided`                                                                                       |
+| DRAFT, settlement released                                                                              | nothing - the request that released it may be asking the node now                                        | `revealed`                                                                                     |
+| HOLDING / FAILED / REJECTED, settlement closed, no node operation, never released (`VOIDED_BY_SPONSOR`) | nothing                                                                                                  | `voided`                                                                                       |
+| HOLDING / FAILED / REJECTED, settlement closed, no node operation, released                             | reads the node's receipt by idempotency key (§Node proof)                                                | `voided` only on a believable NOT_FOUND; else `revealed` (a Landed receipt also logs Critical) |
+| SETTLEMENT_PENDING (after the advance a poll makes), SETTLED, a recorded node operation, anything else  | nothing                                                                                                  | `revealed`                                                                                     |
 
 **AUTHORIZED is the void's window.** A sponsorship's settlement is created AUTHORIZED, which the
 outbox worker never takes (it leases PENDING_DISPATCH only), and only `ReleaseAndDispatchAsync`
@@ -225,11 +225,11 @@ leaves the label and not the reality. Every "nothing was taken" on a settlement 
 (PENDING_DISPATCH or later) is therefore decided by THE AUTHORITY: the node's receipt, read by
 idempotency key through `IAzoaSettlementGateway.ReconcileAsync` (`ReadNodeReceiptAsync`):
 
-| Receipt | Verdict | Hold / fail / void | Resume of a lost send |
-| --- | --- | --- | --- |
-| Accepted with an operation id | `Landed` | complete the sponsorship (record the stake) - never hold or fail it | complete it |
-| the node's NOT_FOUND envelope, from a read STARTED past every send's quiet window, on a node attested to enforce `Admit-Before` - or for a key nothing was ever sent under | `Absent` | hold (a lapse), fail (a closed settlement), void | hand to the worker |
-| any NOT_FOUND while enforcement is not attested, NOT_FOUND inside the window, 5xx, timeout, non-terminal, unconfigured | `Unproven` | follow it as SETTLEMENT_PENDING; never "nothing taken" | hand to the worker |
+| Receipt                                                                                                                                                                    | Verdict    | Hold / fail / void                                                  | Resume of a lost send |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------- | --------------------- |
+| Accepted with an operation id                                                                                                                                              | `Landed`   | complete the sponsorship (record the stake) - never hold or fail it | complete it           |
+| the node's NOT_FOUND envelope, from a read STARTED past every send's quiet window, on a node attested to enforce `Admit-Before` - or for a key nothing was ever sent under | `Absent`   | hold (a lapse), fail (a closed settlement), void                    | hand to the worker    |
+| any NOT_FOUND while enforcement is not attested, NOT_FOUND inside the window, 5xx, timeout, non-terminal, unconfigured                                                     | `Unproven` | follow it as SETTLEMENT_PENDING; never "nothing taken"              | hand to the worker    |
 
 **The quiet window and the admission deadline (round 5 H2).** The node admits an exchange only at step
 13 of `ReserveExchangeManager.ExchangeAsync` (oasis-sleek), after governance, rate, readiness and account
@@ -248,12 +248,12 @@ whose deadline has already passed. A replay of an already-admitted key ignores t
 original receipt. `LatestSendStamp` reads both stamps before the receipt; a send that starts later must take
 a lease or move the row, which the hold's version-and-unleased CAS then loses to.
 
-| Setting (`Azoa:Exchange:*`) | Default | Meaning |
-| --- | --- | --- |
-| `AdmitWindowSeconds` | 240 | W_admit: how long after its stamp a send may be admitted |
-| `QuietWindowSeconds` | 300 | W: how long after the latest stamp a NOT_FOUND is proof (enforcing node only) |
-| `MaximumClockSkewSeconds` | 30 | the BFF-vs-SurrealDB-host clock difference (and BFF replica-to-replica) the proof tolerates |
-| `NodeEnforcesAdmitBefore` | false | operator attestation that the deployed node enforces the header |
+| Setting (`Azoa:Exchange:*`) | Default | Meaning                                                                                     |
+| --------------------------- | ------- | ------------------------------------------------------------------------------------------- |
+| `AdmitWindowSeconds`        | 240     | W_admit: how long after its stamp a send may be admitted                                    |
+| `QuietWindowSeconds`        | 300     | W: how long after the latest stamp a NOT_FOUND is proof (enforcing node only)               |
+| `MaximumClockSkewSeconds`   | 30      | the BFF-vs-SurrealDB-host clock difference (and BFF replica-to-replica) the proof tolerates |
+| `NodeEnforcesAdmitBefore`   | false   | operator attestation that the deployed node enforces the header                             |
 
 **The clock assumption.** The DECIDING clock is the node's DATABASE, not its process: the admission
 write carries `IF time::now() > $deadline THROW` inside the same transaction as its CREATE (oasis-sleek
@@ -371,6 +371,7 @@ or from an env var, which REPLACES the C# default rather than leaving it — res
 channel, log Critical" explicitly in code, which is the narrowest setting and the shape a
 deploy produces most easily. That resolution is the control; the empty key in
 `appsettings.json` is only discoverability and cannot widen anything.
+
 # Opportunity visibility
 
 `OpportunityService` answers every list, search and detail read through `VisibleOpportunities(viewer)`,
@@ -396,7 +397,7 @@ existing member, or a user who already has a PENDING one.
 ## Hiring an existing member
 
 An accepted opportunity application must leave the applicant holding the offered role. When the
-applicant is already a member ranked *below* the offer, accepting promotes their existing row in the
+applicant is already a member ranked _below_ the offer, accepting promotes their existing row in the
 same save (one membership per user per project; the reviewer already passed `RefuseRoleOffer`, so the
 promotion is never above the reviewer's own rank). When the applicant already holds the offered rank
 or a higher one (the creator always ranks as FOUNDER), both `ApplyAsync` and the ACCEPT are refused
@@ -413,7 +414,7 @@ hides that foreign-key error behind a generic 400. `ProjectService.DeleteAsync` 
 (`{ error, code: "PROJECT_HAS_DEPENDENTS", blockedBy: ["Epic", ...] }`).
 
 Which tables block is derived, not listed by hand: `Infrastructure/Repositories/ProjectDeletionBlockers`
-takes every *required* foreign key to `Project` from the EF model (Prisma emits `ON DELETE RESTRICT`
+takes every _required_ foreign key to `Project` from the EF model (Prisma emits `ON DELETE RESTRICT`
 for required relations and `SET NULL` for optional ones) and runs one `EXISTS` per table in a single
 `UNION ALL` query. `ProjectDeletionFlowTests` pins that set to the `RESTRICT` constraints parsed from
 `ardanova-client/prisma/migrations`, so a new dependent table added through the DBML turns the test red
@@ -427,9 +428,98 @@ for example the create page rolling back a project whose creation failed halfway
 
 # Task assignment
 
-`TaskService.AssignAsync` is the only write of `assignedToId` after creation. It refuses once an
-accepted bid's agreement exists or escrow is no longer NONE: the agreement names the worker, and
-swapping the assignee underneath it would pay one person for another's work.
+`assignedToId` has exactly **two writers** after creation (SR-03 phase 3, Lane K1). Anything else that
+assigns a task is a bug; route it through one of these.
+
+1. **`ITaskClaimStore.TryClaimAsync`** (`Infrastructure/Tasks/TaskClaimStore`): a member taking an open
+   task for themselves. `TasksController.Assign` sends a self-claim from a non-manager here, through
+   `TaskService.ClaimAsync`. It is ONE conditional statement:
+
+   ```sql
+   UPDATE "ProjectTask" SET "assignedToId" = @me, "updatedAt" = @now
+   WHERE id = @id AND "assignedToId" IS NULL AND status <> 'COMPLETED' AND "escrowStatus" = 'NONE'
+     AND NOT EXISTS (SELECT 1 FROM "TaskCommerceAgreement" WHERE "taskId" = id)
+   ```
+
+   The WHERE is `Tasks/TaskClaimRule`'s blocking facts; `TaskClaimStoreAgreementTests` seeds every fact
+   row on real Postgres and proves the SQL accepts exactly what the rule calls Claimable or
+   PaidNeedsReadiness, so the two cannot drift. Two racing claims both reach the UPDATE; the loser
+   waits on the row lock, Postgres re-checks the WHERE against the winner's row, and it writes 0 rows.
+   On 0 rows `ClaimAsync` re-reads the task and answers with `TaskClaimRule.Evaluate` as a 409 carrying
+   a `TaskClaimCodes` code (`TASK_TAKEN`, `TASK_DONE`, `TASK_UNDER_AGREEMENT`); `TasksController`
+   returns `{ error, code }`. A loser that finds the task already its own (a double tap) gets 200.
+   Membership and the paid-task readiness check stay in `TasksController.Assign`, before the write.
+   The asker's "picked up" notification is staged inside the claim's transaction, so a lost race
+   writes none and a won one writes exactly one (§Come-back notifications). The UPDATE bypasses EF's
+   change tracker, so `ClaimAsync` clears the tracked rows before it reads the task back.
+
+2. **`TaskService.AssignAsync`**: a manager assigning anyone or no one, and a member releasing their
+   own task. It refuses once an accepted bid's agreement exists or escrow is no longer NONE (409,
+   `TASK_UNDER_AGREEMENT`): the agreement names the worker, and swapping the assignee underneath it
+   would pay one person for another's work. **This path is still check-then-write** and can
+   overwrite a claim that landed between its read and its save. Accepted for now; trigger to
+   revisit: the first report of a claim being silently overwritten (then give managers a
+   compare-and-set on the assignee they saw).
+
+`TaskCommerceService` sets `assignedToId` only on the task it creates from an accepted bid (creation,
+not reassignment).
+
+# Help wanted
+
+A HELP_WANTED post is a person's ask for help on one task (SR-03 phase 3 plan §2). `PostService`
+rules, in order (`ResolveAskAsync`):
+
+- `taskId` is required on HELP_WANTED (400) and refused on every other type (400; the database CHECK
+  `Post_taskId_help_wanted_only` backs it).
+- The task must be on a project the author can see, else 404 (a draft's task reads as missing). The
+  post's `projectId`, when sent, must be the task's (400); when omitted it becomes the task's.
+- The author must be a member (creator or `ProjectMember`, `IHierarchyAuthorizationService.IsProjectMemberAsync`), else 403.
+- A COMPLETED task cannot be asked about (400).
+- **One ask per task** is the unique index on `Post.taskId`. A second insert's 23505 is the answer,
+  never a 500: the service clears the tracked insert, reads the ask that holds the task and returns a
+  409 with code `HELP_WANTED_EXISTS` and `Result.Reference` = that ask's id. `PostsController`
+  writes `PostConflictDto` `{ error, code, conflictId }` (the error envelope keeps the extra fields
+  and adds `statusCode`, `traceId`); the composer reads `conflictId` to offer "Edit your ask".
+- **Removing an ask:** `DELETE /api/posts/{id}` admits the author or a manager of the ask's project
+  (`CanManageProjectAsync`), so an ask whose author left cannot hold its task forever. Every other
+  type keeps author-only. Deleting any post also deletes its notifications (`StageForgetPostAsync`):
+  the database cascades `Notification.postId`, but EF models that FK as client-set-null, so a tracked
+  notification would otherwise survive pointing at nothing.
+
+`TaskDto.HelpWanted { postId, askerId, askerName }` and `TaskDto.HasAgreement` are filled by
+`TaskService`'s enrichment (one read each per page). Task reads carry no viewer, so `HelpWanted` only
+shows an ask whose own audience is everyone (PUBLIC, not retracted); the task itself is already gated
+by its project's visibility. `TaskDto.ToClaimFacts()` hands `TaskClaimRule` the facts it reads.
+
+# Come-back notifications
+
+SR-03 phase 3 §4 allows exactly two in-app return loops; nothing else in the backend writes
+notifications. Both are **staged** by `NotificationService` (added or updated through the repository,
+not saved) so they commit in the caller's own save or transaction, and neither ever notifies the
+person who acted.
+
+| Event                                                                 | Writer                                             | Type          | Title                           | Message                           |
+| --------------------------------------------------------------------- | -------------------------------------------------- | ------------- | ------------------------------- | --------------------------------- |
+| A member claims a task with a live HELP_WANTED                        | `TaskService.ClaimAsync` → `StageAskPickedUpAsync` | TASK_ASSIGNED | `Picked up`                     | `{name} took {task}`              |
+| A reply on a post (any type, including a feed card naming the person) | `PostService.AddCommentAsync` → `StageReplyAsync`  | COMMENT_REPLY | `New reply` / `{n} new replies` | `{name}: “{first 80 characters}”` |
+
+- **Collapsed per post.** A reply finds the author's one unread COMMENT_REPLY for `(userId, postId)`
+  (index `Notification_userId_postId_idx`) and updates it: count +1 in `data.replyCount`, latest
+  replier and excerpt, and `createdAt` moved to now so the bell (newest first) lifts it. Reading it
+  ends the fold; the next reply opens a new row. Find-then-update: two replies at the same instant may
+  leave two rows, accepted (plan §10).
+- `data` is JSON (`postId`, `replyCount`, `latestReplierId` / `postId`, `taskId`, `claimerId`);
+  `NotificationDto` has no `postId` field, so clients read it from `data`. `actionUrl` is
+  `/tasks/{id}` for a claim and `/projects/{slug}` (Feed tab) for a reply on a project post.
+- The excerpt collapses whitespace and cuts on whole text elements, never mid-emoji. A person with no
+  name on file is `Someone`.
+- A manager's assign does not notify the asker (only a claim "picks up" an ask). Trigger to revisit:
+  an asker whose task a manager assigned never hears about it.
+
+# Hashtags and follow (Lane L)
+
+_Placeholder: Lane L's §Hashtags / §Follow notes (project hashtag resolution, project follow) are handed
+to K1 as text and land here at the wave-1 join._
 
 # Project member authority
 
@@ -455,7 +545,7 @@ through `ProjectMemberRolePolicy.RefuseRoleOffer`: FOUNDER is never offered, and
 only roles below their own rank. Before this rule, a CORE_CONTRIBUTOR could post a LEADER role,
 accept an application from a sock-puppet account, and then be demoted by the LEADER they had just
 seated. `OpportunitiesController` calls `IOpportunityService.RefuseRoleOfferAsync` in three places:
-on create, on a role change, and again on ACCEPT. The ACCEPT check uses the *reviewer's* rank, so a
+on create, on a role change, and again on ACCEPT. The ACCEPT check uses the **reviewer's** rank, so a
 role the founder posted cannot be granted by a lower-ranked co-manager who happens to review it.
 `ProjectsController.CreateInvitation` applies the same policy to the invited role. An unknown role
 string now returns 400; before, `Enum.Parse` crashed.

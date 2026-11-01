@@ -30,13 +30,24 @@ public class TaskServiceTests
         _agreementRepositoryMock = new Mock<IRepository<TaskCommerceAgreement>>();
         _unitOfWorkMock = new Mock<IUnitOfWork>();
         _mapperMock = new Mock<IMapper>();
+        // Enrichment reads agreements and asks per page; these tests have none.
+        _agreementRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaskCommerceAgreement, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        var postRepositoryMock = new Mock<IRepository<Post>>();
+        postRepositoryMock
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<Post, bool>>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
         _sut = new TaskService(
             _repositoryMock.Object,
             _userRepositoryMock.Object,
             _projectRepositoryMock.Object,
             _agreementRepositoryMock.Object,
             _unitOfWorkMock.Object,
-            _mapperMock.Object);
+            _mapperMock.Object,
+            postRepositoryMock.Object,
+            new Mock<ArdaNova.Application.Tasks.ITaskClaimStore>(MockBehavior.Strict).Object,
+            new Mock<ArdaNova.Application.Services.Interfaces.INotificationService>(MockBehavior.Strict).Object);
     }
 
     [Fact]

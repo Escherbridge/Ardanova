@@ -5,6 +5,7 @@ using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
+using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
@@ -114,7 +115,11 @@ public class DraftProjectVisibilityBoundaryTests
             _bookmarks.Object,
             _shares.Object,
             _unitOfWork.Object,
-            _mapper.Object);
+            _mapper.Object,
+            new Mock<IRepository<ProjectTask>>().Object,
+            new Mock<IRepository<Project>>().Object,
+            new Mock<IHierarchyAuthorizationService>().Object,
+            new Mock<INotificationService>().Object);
     }
 
     // ===== OI-13: the single-row project lookups the MCP seam calls =====
