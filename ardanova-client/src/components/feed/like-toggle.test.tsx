@@ -58,17 +58,18 @@ function renderSignedIn(ui: ReactNode) {
       httpLink({
         url: "http://localhost:3000/api/trpc",
         transformer: superjson,
-        fetch: (input, init) => {
-          // jsdom's AbortSignal is not Node's; the in-process request needs no abort.
-          const { signal: _signal, ...rest } = init ?? {};
-          return fetchRequestHandler({
+        fetch: (input, init) =>
+          fetchRequestHandler({
             endpoint: "/api/trpc",
-            req: new Request(String(input), rest as RequestInit),
+            // jsdom's AbortSignal is not Node's; the in-process request needs no abort.
+            req: new Request(input as RequestInfo, {
+              ...(init as RequestInit),
+              signal: undefined,
+            }),
             router,
             createContext: ({ req }) =>
               createTRPCContext({ headers: req.headers }),
-          });
-        },
+          }),
       }),
     ],
   });
@@ -136,7 +137,7 @@ describe("FeedCard like toggle (SR-03-D3)", () => {
     expect(like.getAttribute("aria-pressed")).toBe("true");
     expect(footerText()).toContain("4 likes");
     await waitFor(() => expect(dotNetApi).toHaveBeenCalledTimes(1));
-    const [likeUrl, likeInit] = dotNetApi.mock.calls[0]!;
+    const [likeUrl, likeInit] = dotNetApi.mock.calls[0];
     expect([likeInit.method, likeUrl]).toEqual([
       "POST",
       "http://127.0.0.1:5147/api/posts/post-1/like",
@@ -152,7 +153,7 @@ describe("FeedCard like toggle (SR-03-D3)", () => {
     expect(like.getAttribute("aria-pressed")).toBe("false");
     expect(footerText()).toContain("4 likes");
     await waitFor(() => expect(dotNetApi).toHaveBeenCalledTimes(2));
-    const [unlikeUrl, unlikeInit] = dotNetApi.mock.calls[1]!;
+    const [unlikeUrl, unlikeInit] = dotNetApi.mock.calls[1];
     expect([unlikeInit.method, unlikeUrl]).toEqual([
       "DELETE",
       "http://127.0.0.1:5147/api/posts/post-1/like",
