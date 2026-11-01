@@ -86,9 +86,8 @@ describe("claimRequestKey persistence", () => {
     );
     const other = readyRequest(claimAddFunds(tab, "user-2", 2_500));
     // A corrupt slot under the signing-out person's prefix: it protects nothing and is never read.
-    const storedKeys = Array.from(
-      { length: tab.length },
-      (_, index) => tab.key(index)!,
+    const storedKeys = Array.from({ length: tab.length }, (_, index) =>
+      tab.key(index),
     );
     const user1Slot = storedKeys.find((key) =>
       tab.getItem(key)!.includes(payment.requestKey),

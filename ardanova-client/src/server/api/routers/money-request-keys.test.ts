@@ -98,7 +98,8 @@ function bff(answer: (call: BffCall) => BffAnswer): BffCall[] {
         method: init.method ?? "GET",
         path: new URL(url).pathname,
         idempotencyKey: new Headers(init.headers).get("X-Idempotency-Key"),
-        body: init.body ? JSON.parse(String(init.body)) : null,
+        // The base client only ever sends JSON text; any other body type fails the parse loudly.
+        body: init.body ? JSON.parse(init.body as string) : null,
       };
       calls.push(call);
       const { status, body } = answer(call);
