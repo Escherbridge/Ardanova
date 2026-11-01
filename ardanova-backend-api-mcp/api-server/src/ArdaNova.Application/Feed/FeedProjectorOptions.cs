@@ -26,6 +26,9 @@ public sealed class FeedProjectorOptions
     /// </summary>
     public int SweepBatchSize { get; init; } = 500;
 
+    /// <summary>How often the quality pass recomputes Post.trendingScore (Feed/AGENTS.md §Quality score).</summary>
+    public TimeSpan ScoreInterval { get; init; } = TimeSpan.FromMinutes(5);
+
     /// <summary>Reads the operator's settings; a malformed or out-of-range value throws.</summary>
     public static FeedProjectorOptions FromConfiguration(IConfiguration configuration)
     {
@@ -49,6 +52,8 @@ public sealed class FeedProjectorOptions
                 configuration, "SweepIntervalMinutes", (int)defaults.SweepInterval.TotalMinutes, 5, 1440)),
             SweepBatchSize = ReadInteger(
                 configuration, "SweepBatchSize", defaults.SweepBatchSize, 1, 10_000),
+            ScoreInterval = TimeSpan.FromMinutes(ReadInteger(
+                configuration, "ScoreIntervalMinutes", (int)defaults.ScoreInterval.TotalMinutes, 1, 1440)),
         };
     }
 

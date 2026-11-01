@@ -1657,6 +1657,8 @@ Table Post {
   sourceId varchar [note: 'Projected envelope: the source row id. NULL for a post a person wrote']
   opportunityId varchar [note: 'Opportunity this post is about']
   eventId varchar [note: 'Event this post is about']
+  retractedAt datetime [note: 'Projected envelope withdrawn while its source still exists (opportunity re-drafted, event cancelled). NULL = live; re-entry clears it on the SAME row']
+  hashtags "text[]" [not null, default: '{}', note: 'Lowercased NFKC #tags from the post copy (envelopes: the source copy), deduped, max 10, first-seen order']
 
   indexes {
     createdAt
@@ -1667,6 +1669,7 @@ Table Post {
     (sourceType, sourceId) [unique, note: 'One envelope per source row; NULL pairs (authored posts) never collide']
     opportunityId
     eventId
+    hashtags [note: 'gin: serves the feed tag scope (hashtags @> ARRAY[tag])']
   }
 }
 Ref: Post.authorId > User.id
@@ -1695,6 +1698,7 @@ Table PostLike {
 
   indexes {
     (postId, userId) [unique]
+    (userId, createdAt) [note: 'The feed reads the latest likes of a viewer to learn their interests']
   }
 }
 Ref: PostLike.postId > Post.id
@@ -1709,6 +1713,11 @@ Table PostComment {
   likesCount int [not null, default: 0]
   createdAt datetime [not null, default: `now()`]
   updatedAt datetime [not null, note: 'Updated at']
+
+  indexes {
+    postId [note: 'Replies per post: the feed quality pass and thread reads']
+    (authorId, createdAt) [note: 'The feed reads the latest replies of a viewer to learn their interests']
+  }
 }
 Ref: PostComment.postId > Post.id
 Ref: PostComment.authorId > User.id
@@ -1735,6 +1744,10 @@ Table PostShare {
   sharedToGuildId varchar
   comment text
   createdAt datetime [not null, default: `now()`]
+
+  indexes {
+    postId [note: 'Shares per post: the feed quality pass']
+  }
 }
 Ref: PostShare.postId > Post.id
 Ref: PostShare.userId > User.id

@@ -13,6 +13,9 @@ public record PostDto
     public string? Title { get; init; }
     public string Content { get; init; } = null!;
     public string? Metadata { get; init; }
+
+    /// <summary>The #tags read from the note's own words; see Application/Feed/AGENTS.md §Hashtags.</summary>
+    public IReadOnlyList<string> Hashtags { get; init; } = [];
     public int LikesCount { get; init; }
     public int CommentsCount { get; init; }
     public int SharesCount { get; init; }

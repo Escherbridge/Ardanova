@@ -2043,6 +2043,8 @@ model Post {
   sourceId      String?
   opportunityId String?
   eventId       String?
+  retractedAt   DateTime?
+  hashtags      String[]        @default([])
   author        User            @relation("Post_authorId", fields: [authorId], references: [id])
   project       Project?        @relation("Post_projectId", fields: [projectId], references: [id])
   guild         Guild?          @relation("Post_guildId", fields: [guildId], references: [id])
@@ -2062,6 +2064,7 @@ model Post {
   @@index([authorId, createdAt])
   @@index([opportunityId])
   @@index([eventId])
+  @@index([hashtags], type: Gin)
 }
 
 model PostMedia {
@@ -2085,6 +2088,7 @@ model PostLike {
   user      User     @relation("PostLike_userId", fields: [userId], references: [id])
 
   @@unique([postId, userId])
+  @@index([userId, createdAt])
 }
 
 model PostComment {
@@ -2100,6 +2104,9 @@ model PostComment {
   author         User          @relation("PostComment_authorId", fields: [authorId], references: [id])
   parent         PostComment?  @relation("PostComment_parentId", fields: [parentId], references: [id])
   parentChildren PostComment[] @relation("PostComment_parentId")
+
+  @@index([postId])
+  @@index([authorId, createdAt])
 }
 
 model PostBookmark {
@@ -2125,6 +2132,8 @@ model PostShare {
   user              User     @relation("PostShare_userId", fields: [userId], references: [id])
   sharedToProject   Project? @relation("PostShare_sharedToProjectId", fields: [sharedToProjectId], references: [id])
   sharedToGuild     Guild?   @relation("PostShare_sharedToGuildId", fields: [sharedToGuildId], references: [id])
+
+  @@index([postId])
 }
 
 model Conversation {

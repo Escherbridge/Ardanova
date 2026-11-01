@@ -40,7 +40,7 @@ public class PostsController : ControllerBase
         _guildMemberService = guildMemberService;
     }
 
-    /// <summary>A project field-notes stream. There is no global feed.</summary>
+    /// <summary>A project field-notes stream: what people wrote, newest first. The ranked feed is FeedController.</summary>
     /// <remarks>
     /// Readable without an actor; the policy then admits only PUBLIC notes. Post visibility alone is not
     /// enough: a note on a DRAFT project defaults to PUBLIC, so the project's own visibility is consulted

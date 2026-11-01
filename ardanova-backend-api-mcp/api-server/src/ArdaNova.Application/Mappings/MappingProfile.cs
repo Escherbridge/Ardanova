@@ -102,6 +102,7 @@ public class MappingProfile : Profile
             .ForMember(dest => dest.Title, opt => opt.MapFrom(src => src.title))
             .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.content))
             .ForMember(dest => dest.Metadata, opt => opt.MapFrom(src => src.metadata))
+            .ForMember(dest => dest.Hashtags, opt => opt.MapFrom(src => src.hashtags))
             .ForMember(dest => dest.LikesCount, opt => opt.MapFrom(src => src.likesCount))
             .ForMember(dest => dest.CommentsCount, opt => opt.MapFrom(src => src.commentsCount))
             .ForMember(dest => dest.SharesCount, opt => opt.MapFrom(src => src.sharesCount))

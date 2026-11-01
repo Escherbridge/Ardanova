@@ -10,13 +10,14 @@ namespace ArdaNova.Domain.Models.Entities;
 /// Every read seam composes <see cref="VisibleTo"/> into its own query, so the list, single-row and
 /// pre-write checks cannot drift apart. Project membership here mirrors
 /// <c>HierarchyAuthorizationService.IsProjectMemberAsync</c> (project creator, or any ProjectMember row);
-/// change the two together.
+/// change the two together. A retracted feed envelope (<c>retractedAt</c> set) is readable by nobody,
+/// its author included; see Application/Feed/AGENTS.md §Retraction.
 /// </remarks>
 public static class PostVisibilityPolicy
 {
     /// <summary>The subset a caller with no viewer identity may read.</summary>
     private static readonly Expression<Func<Post, bool>> PublicOnly =
-        post => post.visibility == PostVisibility.PUBLIC;
+        post => post.retractedAt == null && post.visibility == PostVisibility.PUBLIC;
 
     private static readonly Func<Post, bool> PublicOnlyCheck = PublicOnly.Compile();
 
@@ -27,7 +28,7 @@ public static class PostVisibilityPolicy
             return PublicOnly;
 
         var viewer = viewerId;
-        return post =>
+        return post => post.retractedAt == null && (
             post.visibility == PostVisibility.PUBLIC
             || post.authorId == viewer
             || (post.visibility == PostVisibility.PROJECT_MEMBERS
@@ -37,7 +38,7 @@ public static class PostVisibilityPolicy
             || (post.visibility == PostVisibility.GUILD_MEMBERS
                 && post.Guild != null
                 && (post.Guild.ownerId == viewer
-                    || post.Guild.GuildMembers.Any(member => member.userId == viewer)));
+                    || post.Guild.GuildMembers.Any(member => member.userId == viewer))));
     }
 
     /// <summary>In-memory form of the anonymous subset, compiled from the same expression.</summary>

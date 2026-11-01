@@ -108,3 +108,43 @@ npx prisma migrate diff --from-url "$DATABASE_URL" \
 - `prisma migrate diff --from-url <scratch> --to-schema-datamodel prisma/schema.prisma --exit-code` exited 0.
 - `TaxonomyTerm` counts: SECTOR 26/0, SKILL 54/54 (all parented), PROJECT_TYPE 13/0.
 - Scratch database dropped after verification.
+
+## Phase 2 addendum (2026-10-31): `20261031000000_feed_retraction_and_hashtags`
+
+One more additive migration: nullable `Post.retractedAt TIMESTAMP(3)`, `Post.hashtags TEXT[] NOT NULL DEFAULT
+ARRAY[]::TEXT[]` (catalog default, no rewrite), the GIN index `Post_hashtags_idx`, and four engagement indexes
+`PostLike_userId_createdAt_idx`, `PostComment_authorId_createdAt_idx`, `PostComment_postId_idx`, `PostShare_postId_idx`.
+It commutes with the money branch's `20261028000000_funding_intent_void` (different tables). The file header is the
+source of truth.
+
+**Order:** `migrate deploy` -> restart the API (its EF model selects both columns on every Post read; an API on the
+new code against the old schema fails with 42703) -> BFF. No enum or type changed, so the Npgsql per-data-source type
+cache does not force a BFF restart for this migration. Then, with `Feed:Projector:Enabled=true` on the API, run the
+admin backfill (`POST /api/admin/feed/backfill`, dry run first): it re-tags existing envelopes from their sources'
+copy and re-scores every post.
+
+**If `migrate deploy` fails on `lock_timeout` (5 s; a long transaction held `Post`, `PostLike`, `PostComment` or
+`PostShare`):**
+Prisma records the migration as failed and refuses every later deploy with P3009. The migration runs in one
+transaction, so nothing was applied. Recover with
+```bash
+npx prisma migrate resolve --rolled-back 20261031000000_feed_retraction_and_hashtags
+npx prisma migrate deploy
+```
+at a quieter moment. The retry is safe even after a partial manual apply: every statement is `IF NOT EXISTS`.
+
+**Readback:**
+```sql
+SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns
+WHERE table_name = 'Post' AND column_name IN ('retractedAt', 'hashtags');   -- 2 rows, hashtags NOT NULL
+SELECT indexname, indexdef FROM pg_indexes
+WHERE indexname IN ('Post_hashtags_idx', 'PostLike_userId_createdAt_idx', 'PostComment_authorId_createdAt_idx',
+                    'PostComment_postId_idx', 'PostShare_postId_idx');  -- 5 rows, Post_hashtags_idx USING gin
+```
+
+**Rehearsal (local PostgreSQL 16 on 5433, throwaway database, 2026-10-31):** `prisma migrate deploy` applied all 25
+migrations to an empty scratch database; a second `migrate deploy` reported no pending migrations; the new migration
+re-run by hand with `psql` was a no-op (every statement `IF NOT EXISTS`); readback as above; a row inserted without
+naming `hashtags` read `{}`; and `prisma migrate diff --from-url <scratch> --to-schema-datamodel prisma/schema.prisma
+--exit-code` exited 0 (no drift); database dropped. The URL was passed explicitly to the local scratch database; no
+hosted database was touched.

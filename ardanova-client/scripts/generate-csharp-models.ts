@@ -136,7 +136,11 @@ interface MultiFKRelation {
   collectionName: string; // e.g., "ReferralsAsReferrer"
 }
 
+/** A Postgres array column, written `"text[]"` in DBML; Npgsql maps it to a CLR array. */
+const isArrayType = (dbmlType: string): boolean => dbmlType.endsWith("[]");
+
 const mapType = (dbmlType: string): string => {
+  if (isArrayType(dbmlType)) return `${mapType(dbmlType.slice(0, -2))}[]`;
   // Handle types with args like "decimal(18,8)" -> extract base type
   const baseType = dbmlType.toLowerCase().split("(")[0];
   return TYPE_MAP[baseType] || dbmlType;
@@ -488,6 +492,8 @@ public class ${table.name}
       let initializer = "";
       if (csharpType === "string" && !isNullable) {
         initializer = " = string.Empty;";
+      } else if (isArrayType(field.type.type_name) && !isNullable) {
+        initializer = ` = System.Array.Empty<${csharpType.slice(0, -2)}>();`;
       }
 
       content += `    public ${csharpType} ${field.name} { get; set; }${initializer}\n\n`;

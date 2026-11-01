@@ -77,6 +77,11 @@ public class Post
 
     public string? eventId { get; set; }
 
+    public DateTime? retractedAt { get; set; }
+
+    [Required]
+    public string[] hashtags { get; set; } = System.Array.Empty<string>();
+
     [ForeignKey("authorId")]
     public virtual User? Author { get; set; }
 

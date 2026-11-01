@@ -30,6 +30,8 @@ public static class GeneratedModelConfigurations
         modelBuilder.Entity<Post>().HasIndex(e => new { e.authorId, e.createdAt });
         modelBuilder.Entity<Post>().HasIndex(e => new { e.sourceType, e.sourceId }).IsUnique();
         modelBuilder.Entity<PostLike>().HasIndex(e => new { e.postId, e.userId }).IsUnique();
+        modelBuilder.Entity<PostLike>().HasIndex(e => new { e.userId, e.createdAt });
+        modelBuilder.Entity<PostComment>().HasIndex(e => new { e.authorId, e.createdAt });
         modelBuilder.Entity<PostBookmark>().HasIndex(e => new { e.postId, e.userId }).IsUnique();
         modelBuilder.Entity<ConversationMember>().HasIndex(e => new { e.conversationId, e.userId }).IsUnique();
         modelBuilder.Entity<ChatMessage>().HasIndex(e => new { e.conversationId, e.sentAt });

@@ -3,6 +3,7 @@ using System.Linq.Expressions;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
+using ArdaNova.Application.Feed;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
@@ -220,6 +221,7 @@ namespace ArdaNova.Application.Services.Implementations
                 title = dto.Title,
                 content = dto.Content,
                 metadata = dto.Metadata,
+                hashtags = Hashtags.Extract(dto.Title, dto.Content),
                 likesCount = 0,
                 commentsCount = 0,
                 sharesCount = 0,
@@ -260,6 +262,7 @@ namespace ArdaNova.Application.Services.Implementations
 
             if (dto.Title is not null) post.title = dto.Title;
             if (dto.Content is not null) post.content = dto.Content;
+            post.hashtags = Hashtags.Extract(post.title, post.content);
             post.visibility = nextVisibility;
             if (dto.Metadata is not null) post.metadata = dto.Metadata;
             if (dto.IsPinned is not null) post.isPinned = dto.IsPinned.Value;
@@ -542,53 +545,17 @@ namespace ArdaNova.Application.Services.Implementations
         }
 
         /// <summary>The one read gate: a post resolves only when both the post and its project admit this viewer.</summary>
+        /// <remarks>A retracted feed card fails <see cref="PostVisibilityPolicy.VisibleTo"/>, so detail, like,
+        /// reply, share and bookmark all answer it with the same not-found as a missing post.</remarks>
         private Task<Post?> LoadVisibleAsync(string postId, string? viewerId, CancellationToken ct)
             => _posts.Query()
                 .Where(p => p.id == postId)
-                .Where(PostVisibilityPolicy.VisibleTo(viewerId))
-                .Where(OnAVisibleProject(viewerId))
+                .ReadableBy(viewerId)
                 .FirstOrDefaultAsync(ct);
 
-        /// <summary>Lifts the project visibility rule onto a post: a draft's notes are as private as the draft.</summary>
-        /// <remarks>
-        /// Composed from <see cref="ProjectQueryFilters.VisibleTo"/> - the one definition of what a draft is -
-        /// rather than restated here, so the note stream and the project page cannot drift apart. A post with
-        /// no project passes; every other post inherits its project's answer. Admin reach is deliberately not
-        /// modelled: a note read resolves an admin as a plain viewer, which fails closed.
-        /// </remarks>
+        /// <summary>The project half of the read gate; shared with the feed through <see cref="PostReadFilters"/>.</summary>
         private static Expression<Func<Post, bool>> OnAVisibleProject(string? viewerId)
-        {
-            var post = Expression.Parameter(typeof(Post), "post");
-            var project = Expression.Property(post, nameof(Post.Project));
-            var rule = ProjectQueryFilters.VisibleTo(new ProjectViewer(viewerId, IsAdmin: false));
-            var body = Expression.OrElse(
-                Expression.Equal(project, Expression.Constant(null, typeof(Project))),
-                ProjectParameterRebinder.Rebind(rule.Body, rule.Parameters[0], project));
-
-            return Expression.Lambda<Func<Post, bool>>(body, post);
-        }
-
-        /// <summary>Rewrites a project-rooted predicate to read through a post's project navigation.</summary>
-        private sealed class ProjectParameterRebinder : ExpressionVisitor
-        {
-            private readonly ParameterExpression _replaced;
-            private readonly Expression _replacement;
-
-            private ProjectParameterRebinder(ParameterExpression replaced, Expression replacement)
-            {
-                _replaced = replaced;
-                _replacement = replacement;
-            }
-
-            public static Expression Rebind(
-                Expression body,
-                ParameterExpression replaced,
-                Expression replacement)
-                => new ProjectParameterRebinder(replaced, replacement).Visit(body)!;
-
-            protected override Expression VisitParameter(ParameterExpression node)
-                => ReferenceEquals(node, _replaced) ? _replacement : base.VisitParameter(node);
-        }
+            => PostReadFilters.OnAVisibleProject(viewerId);
 
         private async Task<IReadOnlyList<PostCommentDto>> LoadCommentsAsync(string postId, CancellationToken ct)
         {
