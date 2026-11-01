@@ -241,18 +241,15 @@ export default function CreateTaskPage() {
           <Button variant="ghost" asChild className="mb-4 -ml-2">
             <Link href="/tasks">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Tasks
+              Back to tasks
             </Link>
           </Button>
           <h1 className="flex items-center gap-3 text-3xl font-bold">
             <div className="bg-system/20 flex h-10 w-10 items-center justify-center rounded-none">
               <CheckSquare className="text-system h-5 w-5" />
             </div>
-            Create New {itemType === "pbi" ? "PBI" : "Task"}
+            New {itemType === "pbi" ? "PBI" : "task"}
           </h1>
-          <p className="text-muted-foreground mt-2">
-            Add a new work item to track progress
-          </p>
           <div
             className="mt-3 flex flex-wrap items-center gap-2"
             role="group"
@@ -298,7 +295,7 @@ export default function CreateTaskPage() {
           <Card className="bg-card border-border">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">
-                {itemType === "pbi" ? "PBI" : "Task"} Details
+                Details
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -351,7 +348,7 @@ export default function CreateTaskPage() {
                   }
                   value={formData.description}
                   onChange={(e) => handleChange("description", e.target.value)}
-                  placeholder="Describe the task in detail. Include acceptance criteria if applicable..."
+                  placeholder="What does done look like?"
                   rows={4}
                   className={`bg-muted/50 focus-visible:ring-ring/50 w-full resize-none rounded-none border-2 px-4 py-3 focus:ring-2 focus:outline-none ${
                     errors.description ? "border-destructive" : "border-border"
@@ -669,12 +666,12 @@ export default function CreateTaskPage() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating {itemType === "pbi" ? "PBI" : "Task"}...
+                  Creating…
                 </>
               ) : itemType === "pbi" ? (
                 "Create PBI"
               ) : (
-                "Create Task"
+                "Create task"
               )}
             </Button>
             <Button type="button" variant="outline" asChild className="py-6">
@@ -682,17 +679,14 @@ export default function CreateTaskPage() {
             </Button>
           </div>
 
-          {/* Info Note */}
-          <div className="bg-muted/30 border-border flex items-start gap-3 rounded-none border p-4">
-            <Info className="text-system mt-0.5 h-5 w-5" />
-            <div className="text-muted-foreground text-sm">
-              <p>
-                {itemType === "pbi"
-                  ? "PBIs represent user stories or work items in your product backlog. They can be broken down into tasks."
-                  : "Tasks will appear in your backlog. You can move them to different stages as you work on them."}
+          {itemType === "pbi" && (
+            <div className="bg-muted/30 border-border flex items-start gap-3 rounded-none border p-4">
+              <Info className="text-system mt-0.5 h-5 w-5" />
+              <p className="text-muted-foreground text-sm">
+                PBI: a backlog item you break into tasks.
               </p>
             </div>
-          </div>
+          )}
         </form>
       </div>
     </div>

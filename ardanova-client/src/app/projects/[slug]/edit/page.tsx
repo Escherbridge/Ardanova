@@ -45,12 +45,7 @@ export default function EditProjectPage() {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-start justify-center gap-5 p-6">
         <AlertCircle className="text-destructive size-10" aria-hidden="true" />
-        <div>
-          <h1 className="font-mono text-2xl font-bold">Project not found</h1>
-          <p className="text-muted-foreground mt-2 text-sm">
-            This project could not be loaded, or it no longer exists.
-          </p>
-        </div>
+        <h1 className="font-mono text-2xl font-bold">Project not found</h1>
         <Button asChild variant="outline">
           <Link href="/projects">
             <ArrowLeft className="size-4" />
@@ -70,7 +65,7 @@ export default function EditProjectPage() {
             You can&apos;t edit this project
           </h1>
           <p className="text-muted-foreground mt-2 text-sm">
-            Only the project&apos;s creator can revise its Basic Info here.
+            Only its creator can.
           </p>
         </div>
         <Button asChild variant="outline">
@@ -95,15 +90,9 @@ export default function EditProjectPage() {
           </Button>
           <h1 className="flex items-center gap-2 text-3xl font-bold">
             <Pencil className="text-primary size-6" aria-hidden="true" />
-            Edit Project
+            Edit project
           </h1>
-          <p className="text-muted-foreground mt-2">
-            Revise the problem, solution, and details for{" "}
-            <span className="text-foreground font-medium">
-              {project.title}
-            </span>
-            .
-          </p>
+          <p className="text-muted-foreground mt-2">{project.title}</p>
         </div>
 
         <ProjectEditForm project={project} />

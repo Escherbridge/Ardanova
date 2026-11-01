@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   Loader2,
   Shield,
-  Info,
   Mail,
   MapPin,
   Sparkles,
@@ -158,18 +157,18 @@ export function GuildForm({ mode, guild }: GuildFormProps) {
       <div className="bg-background flex min-h-screen items-center justify-center">
         <Card className="bg-card border-border w-full max-w-md">
           <CardHeader>
-            <CardTitle>Authentication Required</CardTitle>
-            <p className="text-muted-foreground text-sm">
-              You need to be signed in to{" "}
-              {mode === "create" ? "create" : "edit"} a guild.
-            </p>
+            <CardTitle>
+              {mode === "create"
+                ? "Sign in to create a guild"
+                : "Sign in to edit this guild"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <Button
               asChild
               className="bg-neon hover:bg-neon/90 w-full font-semibold text-black"
             >
-              <Link href={buildSignInHref(callbackUrl)}>Sign In</Link>
+              <Link href={buildSignInHref(callbackUrl)}>Sign in</Link>
             </Button>
           </CardContent>
         </Card>
@@ -185,27 +184,22 @@ export function GuildForm({ mode, guild }: GuildFormProps) {
           <Button variant="ghost" asChild className="mb-4 -ml-2">
             <Link href="/guilds">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Guilds
+              Back to guilds
             </Link>
           </Button>
           <h1 className="flex items-center gap-3 text-3xl font-bold">
             <div className="bg-neon/20 flex h-10 w-10 items-center justify-center rounded-lg">
               <Shield className="text-neon h-5 w-5" />
             </div>
-            {mode === "create" ? "Create Guild" : "Edit Guild"}
+            {mode === "create" ? "New guild" : "Edit guild"}
           </h1>
-          <p className="text-muted-foreground mt-2">
-            {mode === "create"
-              ? "Set up your professional guild to start bidding on projects"
-              : "Update your guild information"}
-          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Guild Details */}
           <Card className="bg-card border-border">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Guild Details</CardTitle>
+              <CardTitle className="text-lg">Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -257,7 +251,7 @@ export function GuildForm({ mode, guild }: GuildFormProps) {
                   }
                   value={formData.description}
                   onChange={(e) => handleChange("description", e.target.value)}
-                  placeholder="Describe what your guild does, your expertise, and what makes you unique..."
+                  placeholder="What does your guild do?"
                   rows={4}
                   className={`bg-muted/50 focus:ring-neon/50 w-full resize-none rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none ${
                     errors.description ? "border-destructive" : "border-border"
@@ -430,7 +424,7 @@ export function GuildForm({ mode, guild }: GuildFormProps) {
                       id="guild-specialties-help"
                       className="text-muted-foreground mt-1 text-sm"
                     >
-                      Enter your specialties separated by commas
+                      Separate with commas.
                     </p>
                   </div>
 
@@ -447,7 +441,7 @@ export function GuildForm({ mode, guild }: GuildFormProps) {
                       onChange={(e) =>
                         handleChange("portfolio", e.target.value)
                       }
-                      placeholder="Describe your past work and achievements..."
+                      placeholder="Past work and results"
                       rows={4}
                       className="bg-muted/50 border-border focus:ring-neon/50 w-full resize-none rounded-lg border-2 px-4 py-3 focus:ring-2 focus:outline-none"
                     />
@@ -495,33 +489,18 @@ export function GuildForm({ mode, guild }: GuildFormProps) {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {mode === "create"
-                    ? "Creating Guild..."
-                    : "Saving Changes..."}
+                  {mode === "create" ? "Creating…" : "Saving…"}
                 </>
               ) : mode === "create" ? (
-                "Create Guild"
+                "Create guild"
               ) : (
-                "Save Changes"
+                "Save changes"
               )}
             </Button>
             <Button type="button" variant="outline" asChild className="py-6">
               <Link href="/guilds">Cancel</Link>
             </Button>
           </div>
-
-          {/* Info Note */}
-          {mode === "create" && (
-            <div className="bg-muted/30 border-border flex items-start gap-3 rounded-lg border p-4">
-              <Info className="text-neon mt-0.5 h-5 w-5" />
-              <div className="text-muted-foreground text-sm">
-                <p>
-                  After creating your guild, you can invite members, set up
-                  specialties, and start bidding on project opportunities.
-                </p>
-              </div>
-            </div>
-          )}
         </form>
       </div>
     </div>

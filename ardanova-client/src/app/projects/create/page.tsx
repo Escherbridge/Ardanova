@@ -1200,7 +1200,7 @@ export default function CreateProjectPage() {
             <Button variant="ghost" asChild className="mb-4 -ml-2">
               <Link href="/projects">
                 <ArrowLeft className="mr-2 size-4" />
-                Back to Projects
+                Back to projects
               </Link>
             </Button>
             <h1 className="text-3xl font-bold">Create New Project</h1>

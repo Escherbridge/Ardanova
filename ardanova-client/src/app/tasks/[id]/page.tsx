@@ -101,7 +101,7 @@ export default function TaskDetailPage() {
     return (
       <TaskShell title="Task unavailable">
         <p className="text-muted-foreground">
-          This task could not be loaded, or is no longer available to you.
+          This task didn't load, or you no longer have access.
         </p>
       </TaskShell>
     );
@@ -123,7 +123,7 @@ export default function TaskDetailPage() {
             {task.title}
           </CardTitle>
           <p className="text-muted-foreground text-sm">
-            {task.description ?? "No description was supplied for this task."}
+            {task.description ?? "No description."}
           </p>
         </CardHeader>
         <CardContent className="text-muted-foreground space-y-2 text-sm">

@@ -63,12 +63,12 @@ export default function UserProfilePage() {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6">
         {userError ? (
-          <QueryErrorState title="This profile could not be loaded" error={userError} />
+          <QueryErrorState title="This profile didn't load." error={userError} />
         ) : (
           <p className="text-destructive">User not found.</p>
         )}
         <Button asChild variant="outline">
-          <Link href="/people">Back to People</Link>
+          <Link href="/people">Back to people</Link>
         </Button>
       </div>
     );
@@ -167,7 +167,7 @@ export default function UserProfilePage() {
                   <p className="text-muted-foreground">Loading…</p>
                 ) : projectsError ? (
                   <p role="alert" className="text-destructive">
-                    Projects could not be loaded.
+                    Projects didn't load.
                   </p>
                 ) : (userProjects?.items?.length ?? 0) === 0 ? (
                   <p className="text-muted-foreground">No projects yet.</p>
@@ -199,7 +199,7 @@ export default function UserProfilePage() {
                   <p className="text-muted-foreground">Loading…</p>
                 ) : guildsError ? (
                   <p role="alert" className="text-destructive">
-                    Guilds could not be loaded.
+                    Guilds didn't load.
                   </p>
                 ) : !ownedGuilds?.length ? (
                   <p className="text-muted-foreground">No guilds listed.</p>

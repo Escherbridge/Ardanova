@@ -550,7 +550,7 @@ export default function ProjectBoardPage() {
             <AlertCircle className="text-destructive mt-0.5 size-5 shrink-0" />
             <div>
               <p className="text-destructive font-mono text-sm font-bold">
-                BOARD COULD NOT BE LOADED
+                Board didn't load.
               </p>
               <p className="text-muted-foreground mt-1 text-xs">
                 {loadError?.message ?? "Unknown error"}
@@ -579,7 +579,7 @@ export default function ProjectBoardPage() {
       <div className="bg-background flex min-h-screen flex-col items-center justify-center gap-4 p-6">
         <p className="text-muted-foreground">Project not found.</p>
         <Button asChild variant="outline">
-          <Link href="/projects">Back to Projects</Link>
+          <Link href="/projects">Back to projects</Link>
         </Button>
       </div>
     );
@@ -767,7 +767,7 @@ export default function ProjectBoardPage() {
             </div>
             {filteredTasks.length === 0 ? (
               <div className="text-muted-foreground p-8 text-center text-sm">
-                No tasks found. Create one to get started.
+                No tasks here.
               </div>
             ) : (
               filteredTasks.map((task) => {

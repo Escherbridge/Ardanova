@@ -72,7 +72,7 @@ export default function CredentialDetailPage() {
         <Link href="/dashboard/profile">
           <Button variant="outline" className="mt-4">
             <ArrowLeft className="mr-2 size-4" />
-            Back to Profile
+            Back to profile
           </Button>
         </Link>
       </div>
@@ -111,7 +111,7 @@ export default function CredentialDetailPage() {
           className="text-muted-foreground hover:text-foreground mb-6 inline-flex items-center gap-2 transition-colors"
         >
           <ArrowLeft className="size-4" />
-          Back to Profile
+          Back to profile
         </Link>
 
         {/* Credential Header */}

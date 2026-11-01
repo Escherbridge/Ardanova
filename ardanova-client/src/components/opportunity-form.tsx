@@ -8,7 +8,6 @@ import {
   Loader2,
   Plus,
   X,
-  Info,
   Briefcase,
   DollarSign,
 } from "lucide-react";
@@ -324,12 +323,12 @@ export function OpportunityForm({
           <Button variant="ghost" asChild className="mb-4 -ml-2">
             <Link href={backHref}>
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Opportunities
+              Back to opportunities
             </Link>
           </Button>
           <h1 className="mb-2 text-3xl font-bold">Choose who is posting</h1>
           <p className="text-muted-foreground mb-8">
-            Every opportunity belongs to a project or guild you can manage.
+            Only projects or guilds you manage.
           </p>
           <EntitySelector
             onSelect={(type, id, slug) =>
@@ -349,20 +348,15 @@ export function OpportunityForm({
           <Button variant="ghost" asChild className="mb-4 -ml-2">
             <Link href={backHref}>
               <ArrowLeft className="mr-2 h-4 w-4" />
-              {isEditMode ? "Back to Position" : "Back to Opportunities"}
+              {isEditMode ? "Back to position" : "Back to opportunities"}
             </Link>
           </Button>
           <h1 className="flex items-center gap-3 text-3xl font-bold">
             <div className="bg-neon-pink/20 flex h-10 w-10 items-center justify-center rounded-lg">
               <Briefcase className="text-neon-pink h-5 w-5" />
             </div>
-            {isEditMode ? "Edit Position" : "Post a Job"}
+            {isEditMode ? "Edit position" : "New opportunity"}
           </h1>
-          <p className="text-muted-foreground mt-2">
-            {isEditMode
-              ? "Update the details for this position"
-              : "Create an opportunity to find talented contributors for your project"}
-          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -373,7 +367,7 @@ export function OpportunityForm({
               <Card className="bg-neon/5 border-neon/20">
                 <CardContent className="py-4">
                   <p className="text-sm">
-                    Creating a team position for project:{" "}
+                    For{" "}
                     <span className="font-medium">{resolvedEntitySlug}</span>
                   </p>
                 </CardContent>
@@ -383,7 +377,7 @@ export function OpportunityForm({
           {/* Job Info */}
           <Card className="bg-card border-border">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Job Details</CardTitle>
+              <CardTitle className="text-lg">Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -560,8 +554,7 @@ export function OpportunityForm({
                     id="opportunity-role-help"
                     className="text-muted-foreground mt-1 text-xs"
                   >
-                    Assign this position to a team role so it appears under that
-                    role in the team view
+                    Shows under this role in the team view.
                   </p>
                 </div>
               )}
@@ -571,7 +564,7 @@ export function OpportunityForm({
           {/* Skills */}
           <Card className="bg-card border-border">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Required Skills</CardTitle>
+              <CardTitle className="text-lg">Required skills</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <label htmlFor="opportunity-skill" className="sr-only">
@@ -752,32 +745,18 @@ export function OpportunityForm({
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {isEditMode ? "Saving..." : "Posting Job..."}
+                  {isEditMode ? "Saving…" : "Posting…"}
                 </>
               ) : isEditMode ? (
-                "Save Changes"
+                "Save changes"
               ) : (
-                "Post Job"
+                "Post opportunity"
               )}
             </Button>
             <Button type="button" variant="outline" asChild className="py-6">
               <Link href={backHref}>Cancel</Link>
             </Button>
           </div>
-
-          {/* Info Note */}
-          {!isEditMode && (
-            <div className="bg-muted/30 border-border flex items-start gap-3 rounded-lg border p-4">
-              <Info className="text-neon mt-0.5 h-5 w-5" />
-              <div className="text-muted-foreground text-sm">
-                <p>
-                  Your job posting will be visible to all community members.
-                  You&apos;ll receive applications that you can review and
-                  respond to.
-                </p>
-              </div>
-            </div>
-          )}
         </form>
       </div>
     </div>
