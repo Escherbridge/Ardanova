@@ -144,7 +144,12 @@ const projectDto = {
 };
 
 /** .NET ProjectMembershipDto, as `GET /api/projects/mine` lists a project. */
-function membershipOf(project: typeof projectDto) {
+function membershipOf(
+  project: Pick<
+    typeof projectDto,
+    "id" | "title" | "slug" | "summary" | "status" | "categories"
+  >,
+) {
   return {
     id: project.id,
     title: project.title,

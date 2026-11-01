@@ -181,6 +181,10 @@ beforeEach(() => {
       return jsonResponse(200, ["ONE_TWO_WEEKS", "ONGOING"]);
     }
     if (url.includes("/api/taxonomy")) return jsonResponse(200, taxonomy);
+    // The BFF's manager check reads the project first (Ada created it).
+    if (url.endsWith("/api/projects/project-1") && method === "GET") {
+      return jsonResponse(200, legacyProject);
+    }
     if (url.includes("/api/projects/project-1") && method === "PUT") {
       return jsonResponse(200, legacyProject);
     }
