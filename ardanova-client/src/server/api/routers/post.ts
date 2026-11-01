@@ -10,7 +10,8 @@ import { apiClient } from "~/lib/api";
 import { helpWantedConflictError } from "~/server/api/help-wanted-conflict-error";
 
 /**
- * Field notes are project-scoped; the ranked cross-project feed is `feedRouter` (routers/feed.ts).
+ * Post writes and single-post reads; a project's posts are read through the ranked feed (`feedRouter`,
+ * routers/feed.ts, scope `project:<id>`).
  *
  * Writes are `protectedProcedure`, so the API takes the author from the signed actor
  * assertion and a caller can never post as someone else. Reads stay public, but attach
@@ -56,33 +57,6 @@ const PostVisibilitySchema = z.enum([
 ]);
 
 export const postRouter = createTRPCRouter({
-  getProjectFieldNotes: publicProcedure
-    .input(
-      z.object({
-        projectId: z.string().min(1),
-        page: z.number().min(1).default(1),
-        pageSize: z.number().min(1).max(100).default(20),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      const response = await readAsViewer(ctx.session?.user, () =>
-        apiClient.posts.getProjectFieldNotes(
-          input.projectId,
-          input.page,
-          input.pageSize,
-        ),
-      );
-      if (response.error) {
-        // A project this reader may not see 404s at the API. Reporting that as a 500
-        // would tell the browser the node broke when in fact it answered correctly.
-        throw new TRPCError({
-          code: response.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
-          message: response.error,
-        });
-      }
-      return response.data;
-    }),
-
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input, ctx }) => {

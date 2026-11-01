@@ -321,14 +321,6 @@ function withElectorate(proposal: ProjectProposal, eligibleMembers: number) {
   };
 }
 
-// Update schemas
-const createUpdateSchema = z.object({
-  projectId: z.string(),
-  title: z.string().min(1),
-  content: z.string().min(10),
-  images: z.string().optional(),
-});
-
 // Comment schemas
 const addCommentSchema = z.object({
   projectId: z.string(),
@@ -1516,103 +1508,6 @@ export const projectRouter = createTRPCRouter({
       }
 
       return response.data;
-    }),
-
-  // ========================================
-  // PROJECT UPDATES
-  // ========================================
-
-  // Create project update
-  createUpdate: protectedProcedure
-    .input(createUpdateSchema)
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Verify user is owner or member of the project
-      const project = await apiClient.projects.getById(input.projectId);
-      if (project.error || !project.data) {
-        throw new Error("Project not found");
-      }
-
-      const isOwner = project.data.createdById === userId;
-
-      if (!isOwner) {
-        const members = await apiClient.projects.getMembers(input.projectId);
-        if (members.error || !members.data) {
-          throw new Error("Failed to verify membership");
-        }
-
-        const isMember = members.data.some(
-          (member) => member.userId === userId,
-        );
-        if (!isMember) {
-          throw new Error("Only project owner or members can post updates");
-        }
-      }
-
-      const response = await apiClient.projects.createUpdate(input.projectId, {
-        createdById: userId,
-        title: input.title,
-        content: input.content,
-        images: input.images,
-      });
-
-      if (response.error || !response.data) {
-        throw new Error(response.error ?? "Failed to create update");
-      }
-
-      return response.data;
-    }),
-
-  // Get updates for project
-  getUpdates: publicProcedure
-    .input(z.object({ projectId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const response = await readAsViewer(ctx.session?.user, () =>
-        apiClient.projects.getUpdates(input.projectId),
-      );
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      return response.data ?? [];
-    }),
-
-  // Delete update
-  deleteUpdate: protectedProcedure
-    .input(z.object({ projectId: z.string(), updateId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const userId = ctx.session.user.id;
-
-      // Get update to verify ownership
-      const update = await apiClient.projects.getUpdateById(
-        input.projectId,
-        input.updateId,
-      );
-      if (update.error || !update.data) {
-        throw new Error("Update not found");
-      }
-
-      if (update.data.projectId !== input.projectId) {
-        throw new Error("Update does not belong to this project");
-      }
-
-      // Verify update ownership
-      if (update.data.userId !== userId) {
-        throw new Error("Access denied");
-      }
-
-      const response = await apiClient.projects.deleteUpdate(
-        input.projectId,
-        input.updateId,
-      );
-
-      if (response.error) {
-        throw new Error(response.error ?? "Failed to delete update");
-      }
-
-      return { success: true };
     }),
 
   // ========================================

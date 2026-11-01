@@ -34,8 +34,11 @@ The Updates tab is gone and `updates-tab.tsx` is deleted (plan §8-7: two update
 folded rather than kept as a read-only view because every row it wrote (`ProjectUpdate`) is already projected into
 the feed as a PUBLIC `PROJECT_UPDATE` card (`ArdaNova.Application/Feed/AGENTS.md` §Mapping), so a filtered view
 would only repeat the stream. Its delete control never fired for a stored row (it compared against the optimistic
-row's placeholder id), so nothing reachable was lost. The Overview tab no longer mounts `ProjectFieldNotes` either:
-that was a second composer and a second list of the same posts.
+row's placeholder id), so nothing reachable was lost. The Overview tab no longer mounts the old field-notes list
+either: that was a second composer and a second list of the same posts. The final join deleted that list
+(`ProjectFieldNotes`, `FieldNoteCard`), its `post.getProjectFieldNotes` read and the
+`project.createUpdate/getUpdates/deleteUpdate` procedures. The .NET routes and the API client's wrappers for them
+stay (`ProjectUpdate` rows still project into the feed).
 
 ## Follow
 
@@ -52,9 +55,3 @@ subject chip on this project's stream.
   chip tap shows on every chip with no remount (the old `streamKey` workaround is gone; the final join added the
   prop). A chip on another project or a guild goes through the shared `lib/feed/use-subject-follow.ts`, the same
   dispatch Home and tag pages use, and keeps the stream's own optimistic state.
-
-## Deferred
-
-- `ProjectFieldNotes`, `post.getProjectFieldNotes` and the `project.createUpdate/getUpdates/deleteUpdate`
-  procedures have no page mount now. Their owners (Lanes F/C and P) can delete them; the trigger is the next pass
-  over those files.

@@ -19,7 +19,6 @@ import { feedCardSchema, type FeedCard } from "~/lib/contracts/feed-contract";
 import { api } from "~/trpc/react";
 
 import { FieldNoteComposer } from "./field-note-composer";
-import { ProjectFieldNotes } from "./project-field-notes";
 
 vi.mock("server-only", () => ({}));
 vi.mock("~/server/auth", () => ({
@@ -642,38 +641,31 @@ describe("FieldNoteComposer: inline # suggestions", () => {
   });
 });
 
-describe("existing usage: the project page's field notes (projectId + onPosted)", () => {
-  it("still posts a PROJECT_UPDATE and the stream shows it, without reading the attach lists", async () => {
-    let notes: unknown[] = [];
-    serve({
-      "GET /api/projects/project-p/field-notes": () =>
-        ok({ ...paged(notes), pageSize: 20 }),
-      "POST /api/posts": (call) => {
-        const created = createdFromRequest(call);
-        notes = [created.body];
-        return created;
-      },
-    });
+describe("a page that fixes the project (the project page's mount)", () => {
+  it("posts a PROJECT_UPDATE with no picker, names the project from one read, and never reads the attach lists", async () => {
+    const published = vi.fn<(card: FeedCard) => void>();
     renderSignedIn(
-      <ProjectFieldNotes projectId="project-p" canPost viewerId="user-b" />,
+      <FieldNoteComposer
+        projectId="project-p"
+        author={author}
+        onPublished={published}
+      />,
     );
 
-    await screen.findByText("No field notes yet.");
+    expect(screen.queryByLabelText("Attach")).toBeNull();
     write(textbox("What moved?"), "Walls are up.");
     fireEvent.click(button("Post update"));
 
-    // The stream's copy, not the draft: React mirrors a textarea's value into its text content.
-    expect(
-      await screen.findByText("Walls are up.", {
-        ignore: "textarea, script, style",
-      }),
-    ).toBeTruthy();
+    await waitFor(() => expect(published).toHaveBeenCalledTimes(1));
     expect(textbox("What moved?").value).toBe("");
     expect(callsTo("POST", "/api/posts")[0]?.body).toEqual({
       content: "Walls are up.",
       type: "PROJECT_UPDATE",
       visibility: "PUBLIC",
       projectId: "project-p",
+    });
+    expect(published.mock.calls[0][0]).toMatchObject({
+      project: { id: "project-p", slug: "barn-raising" },
     });
     // A fixed project needs no picker, so Home's attach-list reads never happen on the project page.
     expect(
