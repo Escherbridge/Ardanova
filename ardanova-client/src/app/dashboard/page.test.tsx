@@ -201,12 +201,11 @@ describe("Home is the feed (SR-03 plan §1)", () => {
       "Participation is not proof of ownership. Governance credentials, project utility, and economic rights remain separate, reviewable records.",
     ]) {
       const [narrow, rail] = screen.getAllByText(note);
-      expect(narrow!.closest(".lg\\:hidden")).not.toBeNull();
+      expect(narrow.closest(".lg\\:hidden")).not.toBeNull();
       expect(
-        narrow!.compareDocumentPosition(feed) &
-          Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy();
-      expect(rail!.closest("aside")).not.toBeNull();
+        narrow.compareDocumentPosition(feed) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(rail.closest("aside")).not.toBeNull();
     }
 
     fireEvent.click(

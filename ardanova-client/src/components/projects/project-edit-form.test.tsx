@@ -163,7 +163,7 @@ async function savedBody() {
       url.includes("/api/projects/project-1") && init?.method === "PUT",
   );
   expect(puts).toHaveLength(1);
-  return JSON.parse(puts[0]![1]!.body as string) as Record<string, unknown>;
+  return JSON.parse(puts[0][1]!.body as string) as Record<string, unknown>;
 }
 
 /** Every chip under the hashtag field, in order, as a reader sees it. */
@@ -217,10 +217,8 @@ describe("ProjectEditForm: the hashtag field shows everything a hashtags write r
       screen.queryByRole("button", { name: /Remove .*Community Garden/ }),
     ).toBeNull();
     expect(
-      (
-        screen.getByDisplayValue(
-          "Reopen the corner cafe as a co-op",
-        ) as HTMLInputElement
+      screen.getByDisplayValue<HTMLInputElement>(
+        "Reopen the corner cafe as a co-op",
       ).maxLength,
     ).toBe(200);
   });

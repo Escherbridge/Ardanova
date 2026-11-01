@@ -210,7 +210,7 @@ describe("FeedStream", () => {
     await screen.findByText("Card a");
     expect(renderedBodies()).toEqual(["Need two hands Saturday", "Card a"]);
     const [first] = screen.getAllByRole("article");
-    within(first!).getByText("Picked up by Cy");
+    within(first).getByText("Picked up by Cy");
   });
 
   it("on an empty platform shows one line and Start a project", async () => {
