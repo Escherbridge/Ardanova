@@ -1,6 +1,7 @@
 namespace ArdaNova.Application.Tests.Policies;
 
 using ArdaNova.Application.Common.Interfaces;
+using ArdaNova.Application.Tests.Support;
 using ArdaNova.Infrastructure;
 using ArdaNova.Infrastructure.Security;
 using FluentAssertions;
@@ -21,6 +22,8 @@ public class ActorAssertionReplayCleanupRegistrationTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddInfrastructure(configuration);
+        // Many composition tests build this same DI graph in one test run; see CompositionRootWarnings.
+        services.SuppressManyServiceProvidersCreatedWarning();
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions
         {

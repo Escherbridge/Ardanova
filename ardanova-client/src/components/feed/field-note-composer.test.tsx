@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { httpLink } from "@trpc/client";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import superjson from "superjson";
@@ -74,6 +80,19 @@ type DotNetRoute = (call: DotNetCall) => DotNetAnswer;
 const calls: DotNetCall[] = [];
 const unexpected: string[] = [];
 let routes: Record<string, DotNetRoute> = {};
+
+/** tRPC requests the mounted composer has started and not yet had answered (background mine/memberships reads
+ * can still be in flight when a test's own assertions are satisfied). */
+let inFlight = 0;
+
+/** Waits until no tRPC request has been in flight for three ticks, so "it never read X" is a fact, not a race
+ * against a background fetch this test's own render kicked off but didn't need to wait on. */
+async function quiet() {
+  for (let quietTicks = 0, ticks = 0; quietTicks < 3 && ticks < 400; ticks++) {
+    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 25)));
+    quietTicks = inFlight === 0 ? quietTicks + 1 : 0;
+  }
+}
 
 const dotNetApi = vi.fn(async (url: string, init: RequestInit) => {
   const parsed = new URL(url);
@@ -296,18 +315,24 @@ function renderSignedIn(ui: ReactNode) {
       httpLink({
         url: "http://localhost:3000/api/trpc",
         transformer: superjson,
-        fetch: (input, init) =>
-          fetchRequestHandler({
-            endpoint: "/api/trpc",
-            // jsdom's AbortSignal is not Node's; the in-process request needs no abort.
-            req: new Request(input as RequestInfo, {
-              ...(init as RequestInit),
-              signal: undefined,
-            }),
-            router,
-            createContext: ({ req }) =>
-              createTRPCContext({ headers: req.headers }),
-          }),
+        fetch: async (input, init) => {
+          inFlight += 1;
+          try {
+            return await fetchRequestHandler({
+              endpoint: "/api/trpc",
+              // jsdom's AbortSignal is not Node's; the in-process request needs no abort.
+              req: new Request(input as RequestInfo, {
+                ...(init as RequestInit),
+                signal: undefined,
+              }),
+              router,
+              createContext: ({ req }) =>
+                createTRPCContext({ headers: req.headers }),
+            });
+          } finally {
+            inFlight -= 1;
+          }
+        },
       }),
     ],
   });
@@ -332,6 +357,7 @@ const pick = (label: string, value: string) =>
 beforeEach(() => {
   calls.length = 0;
   unexpected.length = 0;
+  inFlight = 0;
   serve();
   vi.stubGlobal("fetch", dotNetApi);
 });
@@ -459,6 +485,8 @@ describe("FieldNoteComposer: who can read it follows the attachment without wide
       type: "POST",
       visibility: "PRIVATE",
     });
+    // The guild list is a second, separate read: let it settle so it never leaks into a later test's call log.
+    await quiet();
   });
 
   it("says a public note on a DRAFT project waits for it to be published", async () => {
@@ -470,6 +498,8 @@ describe("FieldNoteComposer: who can read it follows the attachment without wide
 
     pick("Attach", "project:project-p");
     screen.getByText("Anyone can read it.");
+    // The guild list is a second, separate read: let it settle so it never leaks into a later test's call log.
+    await quiet();
   });
 });
 
@@ -564,6 +594,9 @@ describe("FieldNoteComposer: Who can help? (HELP_WANTED)", () => {
       // Never claimable locally: the next feed read carries the server's TaskClaimRule answer.
       viewer: { isMember: true, canClaim: false },
     });
+    // The guild list is a second, separate read never shown in help mode: let it settle so it never leaks
+    // into a later test's call log.
+    await quiet();
   });
 
   describe("a second ask on the same task (409 carrying the existing post id)", () => {
@@ -778,6 +811,9 @@ describe("FieldNoteComposer: inline # suggestions", () => {
       "Framing the east wall #carpentry",
     );
     expect(callsTo("GET", "/api/taxonomy")).toHaveLength(1);
+    // The attach lists fired at mount but were never checked here: let them settle so neither leaks into a
+    // later test's call log.
+    await quiet();
   });
 });
 

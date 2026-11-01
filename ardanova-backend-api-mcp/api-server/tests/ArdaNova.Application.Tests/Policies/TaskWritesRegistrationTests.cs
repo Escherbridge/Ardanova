@@ -4,6 +4,7 @@ using ArdaNova.Application;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Application.Tasks;
+using ArdaNova.Application.Tests.Support;
 using ArdaNova.Infrastructure;
 using ArdaNova.Infrastructure.Tasks;
 using FluentAssertions;
@@ -25,6 +26,8 @@ public class TaskWritesRegistrationTests
         services.AddLogging();
         services.AddApplication();
         services.AddInfrastructure(configuration);
+        // Many composition tests build this same DI graph in one test run; see CompositionRootWarnings.
+        services.SuppressManyServiceProvidersCreatedWarning();
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         using var scope = provider.CreateScope();
