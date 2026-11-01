@@ -5,8 +5,9 @@ type: reference
 # components/feed — the polymorphic feed kit (SR-03 Phase 3, Lane F)
 
 Plan: `conductor/tracks/mvp-readiness-loop_20261026/SR-03-PHASE3-PLAN.md` §1-§5. Server side:
-`ArdaNova.Application/Feed/AGENTS.md`. The field-note files (`field-note-*`, `project-field-notes`) predate the
-feed and are unchanged.
+`ArdaNova.Application/Feed/AGENTS.md`. The composer (`field-note-composer.tsx`, parts in `composer/`, see
+`composer/AGENTS.md`) and its audience wording (`field-note-audience.ts`) were rebuilt in Phase 3 (Lane C and the
+final join); the old project field-notes list and card were deleted at the final join.
 
 ## Component map
 

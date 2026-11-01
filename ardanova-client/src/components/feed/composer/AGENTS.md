@@ -110,13 +110,13 @@ offers a subject the post would be refused on. Proof: `MembershipListFlowTests` 
 | First `#`                                                | `taxonomy.getAll`                            |
 | Publish with `onPublished`, subject not in a picker list | `project.getById` / `guild.getById`          |
 
-The project page (fixed `projectId`, no `onPublished`) makes none of these until "Who can help?" or `#`.
+The project page (fixed `projectId`) makes none of the first three until "Who can help?" or `#`; its `onPublished`
+names the project with one `project.getById` per publish. Escape inside the work-item modal closes an open `#` list
+first, not the dialog: the modal's `onEscapeKeyDown` reads the textarea's `aria-activedescendant`
+(`app/tasks/AGENTS.md`).
 
 ## Deferred
 
 - **Task list capped at 100** per project (one `task.getAll` page). Trigger: a project with >100 tasks.
-- **Escape inside a Radix dialog** closes the dialog, not just the suggestions: Radix listens on `document` in the
-  capture phase, before React. Trigger: Lane W mounts the composer in the modal → its `onEscapeKeyDown` can
-  `preventDefault()` while the textarea has `aria-activedescendant`.
 - **No headline field.** The old composer's optional title is gone (the prompt frames the words); cards still render a
   title when a post has one.
