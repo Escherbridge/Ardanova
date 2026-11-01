@@ -343,16 +343,15 @@ export const taskRouter = createTRPCRouter({
     }),
 
   /**
-   * "Pick up task" (HELP_WANTED's primary action, plan §2): the signed-in member self-claims an
-   * unassigned task via the same `PUT /api/tasks/{id}/assign` route `assign` uses, with their own
-   * id as the assignee. K1's `TaskClaimStore.TryClaimAsync` makes this a conditional write
-   * (`assignedToId IS NULL AND status <> 'COMPLETED' AND ...`); 0 rows updated is the 409 below.
-   * A manager's check-then-write `assign` can still overwrite a fresh claim (plan §2, accepted).
+   * "Pick up task" (HELP_WANTED's primary action, plan §2): the signed-in user self-claims an open
+   * task on `PUT /api/tasks/{id}/assign` with `claim: true`, so the API's conditional write
+   * (`TaskClaimStore.TryClaimAsync`) decides it for a manager too - a stale card never takes a
+   * task someone claimed since it rendered. 0 rows updated is the 409 below.
    */
   claim: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const response = await apiClient.tasks.assign(
+      const response = await apiClient.tasks.claim(
         input.id,
         ctx.session.user.id,
       );

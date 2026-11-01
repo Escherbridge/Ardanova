@@ -104,4 +104,7 @@ public record UpdateTaskStatusDto
 public record AssignTaskDto
 {
     public string? UserId { get; init; }
+
+    /// <summary>The one-tap "Pick up": take this task only while it is open, never over its holder. See Implementations/AGENTS.md §Task assignment.</summary>
+    public bool Claim { get; init; }
 }

@@ -217,7 +217,10 @@ public class TasksController : ControllerBase
 
         var assigneeId = string.IsNullOrWhiteSpace(dto.UserId) ? null : dto.UserId;
         var canManage = await CanManageProjectAsync(task.ProjectId, ct);
-        var selfClaim = !canManage && string.Equals(assigneeId, ActorId, StringComparison.Ordinal);
+        // Taking a task for yourself is the conditional write, a manager's included; only a manager's deliberate
+        // takeover of a task someone holds (not a "Pick up" tap) stays AssignAsync.
+        var selfClaim = string.Equals(assigneeId, ActorId, StringComparison.Ordinal)
+                        && (!canManage || dto.Claim || task.AssignedToId is null);
         if (!canManage && !selfClaim && !ReleasesOwn(task, assigneeId))
             return Forbid();
         if (assigneeId is not null &&
@@ -234,8 +237,8 @@ public class TasksController : ControllerBase
                 return readinessFailure;
         }
 
-        // A member's self-claim is one conditional write (taken, done or agreed -> 409 with a code); a manager's
-        // assign stays check-then-write. See Services/Implementations/AGENTS.md §Task assignment.
+        // A self-claim is one conditional write (taken, done or agreed -> 409 with a code) that notifies the asker; a
+        // manager's assign of anyone else, or takeover, stays check-then-write. See Services/Implementations/AGENTS.md §Task assignment.
         var result = selfClaim
             ? await _taskService.ClaimAsync(id, ActorId, ct)
             : await _taskService.AssignAsync(id, assigneeId, ct);

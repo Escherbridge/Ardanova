@@ -89,6 +89,16 @@ namespace ArdaNova.Application.Services.Implementations
         /// <summary>Why a HELP_WANTED was refused: the task is COMPLETED.</summary>
         public const string AskOnADoneTask = "This task is done.";
 
+        /// <summary>Why a HELP_WANTED was refused: it named a group; an ask lives on its task's project.</summary>
+        public const string AskOnAGroup = "An ask for help is posted to its task's project, not to a group.";
+
+        /// <summary>Why a HELP_WANTED's audience was refused: only everyone or the project's members, so a manager can always see it.</summary>
+        public const string AskAudience = "An ask for help is shared with everyone or with the project's members.";
+
+        /// <summary>The audiences an ask may have; every other one would hide it from the managers who may remove it.</summary>
+        private static bool IsAskAudience(PostVisibility visibility)
+            => visibility is PostVisibility.PUBLIC or PostVisibility.PROJECT_MEMBERS;
+
         /// <summary>A post a person wrote; feed envelopes (sourceType set) are system rows. See Implementations/AGENTS.md §Posts.</summary>
         private static readonly Expression<Func<Post, bool>> WrittenByAPerson = p => p.sourceType == null;
 
@@ -314,6 +324,11 @@ namespace ArdaNova.Application.Services.Implementations
         {
             if (string.IsNullOrWhiteSpace(dto.TaskId))
                 return (null, Result<PostDto>.ValidationError(AskNeedsATask));
+            // The request's own shape, so refusing it first reveals nothing about the task.
+            if (dto.GuildId is not null)
+                return (null, Result<PostDto>.ValidationError(AskOnAGroup));
+            if (!IsAskAudience(dto.Visibility))
+                return (null, Result<PostDto>.ValidationError(AskAudience));
 
             // 404 before 403: a task on a draft the author cannot see answers exactly like a missing one.
             var visibleProjectIds = _projects.Query()
@@ -350,6 +365,8 @@ namespace ArdaNova.Application.Services.Implementations
                 return Result<PostDto>.Forbidden(MirroredActivityRefusal);
 
             var nextVisibility = dto.Visibility ?? post.visibility;
+            if (post.type == PostType.HELP_WANTED && !IsAskAudience(nextVisibility))
+                return Result<PostDto>.ValidationError(AskAudience);
             if (!PostVisibilityPolicy.HasCoherentAudience(nextVisibility, post.projectId, post.guildId))
                 return Result<PostDto>.ValidationError(
                     "A members-only note must belong to the project or group whose members may read it");
@@ -620,9 +637,21 @@ namespace ArdaNova.Application.Services.Implementations
             post.commentsCount += 1;
             post.updatedAt = now;
             await _posts.UpdateAsync(post, ct);
-            // One save: the reply and its author's notification land together or not at all.
-            await _notifications.StageReplyAsync(postId, dto.AuthorId, dto.Content, ct);
-            await _unitOfWork.SaveChangesAsync(ct);
+
+            // One transaction: the reply and its author's notification (whose fold writes at once) land together or not at all.
+            await _unitOfWork.BeginTransactionAsync(ct);
+            try
+            {
+                await _notifications.StageReplyAsync(postId, dto.AuthorId, dto.Content, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
+                await _unitOfWork.CommitTransactionAsync(ct);
+            }
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+                _unitOfWork.ClearTrackedChanges();
+                throw;
+            }
 
             return Result<PostCommentDto>.Success(_mapper.Map<PostCommentDto>(comment));
         }

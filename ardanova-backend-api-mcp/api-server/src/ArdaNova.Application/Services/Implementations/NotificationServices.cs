@@ -9,6 +9,7 @@ using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using AutoMapper;
+using Microsoft.EntityFrameworkCore;
 
 public class NotificationService : INotificationService
 {
@@ -161,6 +162,9 @@ public class NotificationService : INotificationService
             .FirstOrDefault();
         if (ask is null || string.Equals(ask.authorId, claimerId, StringComparison.Ordinal))
             return;
+        // The ask lives on the task's project, so this also stops news about a draft the asker has left.
+        if (!await RecipientMayReadAsync(ask.id, ask.authorId, ct))
+            return;
 
         var task = await _tasks.GetByIdAsync(taskId, ct);
         if (task is null)
@@ -183,48 +187,77 @@ public class NotificationService : INotificationService
     }
 
     /// <inheritdoc/>
-    /// <remarks>Find-then-update: two replies at the same instant may leave two rows; accepted (SR-03 phase 3 plan §10).</remarks>
+    /// <remarks>
+    /// The fold is a conditional write that runs at once, so the caller must hold a transaction for the reply and its
+    /// notification to land together (PostService.AddCommentAsync does). See Implementations/AGENTS.md §Come-back notifications.
+    /// </remarks>
     public async Task StageReplyAsync(string postId, string replierId, string replyText, CancellationToken ct = default)
     {
         var post = await _posts.GetByIdAsync(postId, ct);
         if (post is null || string.Equals(post.authorId, replierId, StringComparison.Ordinal))
             return;
+        // An author removed from a draft can no longer open the post; the bell must not quote it to them.
+        if (!await RecipientMayReadAsync(postId, post.authorId, ct))
+            return;
 
         var replier = NameOf(await _users.GetByIdAsync(replierId, ct));
+        var message = ReplyMessage(replier, replyText);
         var now = DateTime.UtcNow;
-        var unread = await _repository.FindOneAsync(
-            notification => notification.userId == post.authorId
+        var unread = await _repository.Query()
+            .Where(notification => notification.userId == post.authorId
                 && notification.postId == postId
                 && notification.type == NotificationType.COMMENT_REPLY
-                && !notification.isRead,
-            ct);
+                && !notification.isRead)
+            .Select(notification => new { notification.id, notification.data })
+            .FirstOrDefaultAsync(ct);
 
-        if (unread is null)
-        {
-            await _repository.AddAsync(new Notification
-            {
-                id = Guid.NewGuid().ToString(),
-                userId = post.authorId,
-                type = NotificationType.COMMENT_REPLY,
-                title = RepliesTitle(1),
-                message = ReplyMessage(replier, replyText),
-                data = JsonSerializer.Serialize(new ReplyData(postId, 1, replierId), DataJson),
-                actionUrl = await ProjectLinkAsync(post.projectId, ct),
-                postId = postId,
-                isRead = false,
-                createdAt = now
-            }, ct);
+        if (unread is not null && await FoldIntoAsync(unread.id, unread.data, postId, replierId, message, now, ct))
             return;
-        }
 
-        var count = ReplyCountIn(unread.data) + 1;
-        unread.title = RepliesTitle(count);
-        unread.message = ReplyMessage(replier, replyText);
-        unread.data = JsonSerializer.Serialize(new ReplyData(postId, count, replierId), DataJson);
-        // The bell orders by createdAt; the folded row rises with its latest reply.
-        unread.createdAt = now;
-        await _repository.UpdateAsync(unread, ct);
+        await _repository.AddAsync(new Notification
+        {
+            id = Guid.NewGuid().ToString(),
+            userId = post.authorId,
+            type = NotificationType.COMMENT_REPLY,
+            title = RepliesTitle(1),
+            message = message,
+            data = JsonSerializer.Serialize(new ReplyData(postId, 1, replierId), DataJson),
+            actionUrl = await ProjectLinkAsync(post.projectId, ct),
+            postId = postId,
+            isRead = false,
+            createdAt = now
+        }, ct);
     }
+
+    /// <summary>Compare-and-set of the collapse fields only; false when a mark-read or another reply's fold got there first.</summary>
+    private async Task<bool> FoldIntoAsync(
+        string notificationId,
+        string? foldSeen,
+        string postId,
+        string replierId,
+        string message,
+        DateTime now,
+        CancellationToken ct)
+    {
+        var count = ReplyCountIn(foldSeen) + 1;
+        var title = RepliesTitle(count);
+        var data = JsonSerializer.Serialize(new ReplyData(postId, count, replierId), DataJson);
+        var folded = await _repository.Query()
+            .Where(notification => notification.id == notificationId
+                && !notification.isRead
+                && notification.data == foldSeen)
+            .ExecuteUpdateAsync(set => set
+                .SetProperty(notification => notification.title, title)
+                .SetProperty(notification => notification.message, message)
+                .SetProperty(notification => notification.data, data)
+                // The bell orders by createdAt; the folded row rises with its latest reply.
+                .SetProperty(notification => notification.createdAt, now), ct);
+        return folded == 1;
+    }
+
+    /// <summary>The one post read gate (<see cref="PostReadFilters.ReadableBy"/>), asked for the person a notification would reach.</summary>
+    private Task<bool> RecipientMayReadAsync(string postId, string recipientId, CancellationToken ct)
+        => _posts.Query().Where(post => post.id == postId).ReadableBy(recipientId).AnyAsync(ct);
 
     /// <inheritdoc/>
     public async Task StageForgetPostAsync(string postId, CancellationToken ct = default)

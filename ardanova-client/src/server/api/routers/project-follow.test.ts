@@ -1,122 +1,112 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  browserOverTheBff,
+  dotNetAnswer,
+  dotNetBaseUrl,
+  fakeDotNetApi,
+  refusalOf,
+} from "~/server/api/dotnet-test-edge";
 
 vi.mock("server-only", () => ({}));
-
-const { currentSession, projects } = vi.hoisted(() => ({
-  currentSession: vi.fn<() => Promise<unknown>>(),
-  projects: {
-    followProject: vi.fn(),
-    unfollowProject: vi.fn(),
-    getMyFollowState: vi.fn(),
-  },
+vi.mock("~/server/auth", () => ({
+  auth: async () => ({
+    expires: "2099-01-01T00:00:00Z",
+    user: { id: "member-ada", role: "INDIVIDUAL" },
+  }),
 }));
 
-vi.mock("~/server/auth", () => ({ auth: currentSession }));
-vi.mock("~/lib/api", () => ({ apiClient: { projects } }));
+const browser = await browserOverTheBff();
 
-import { createCallerFactory, createTRPCContext } from "~/server/api/trpc";
-import { getActorAssertion } from "~/server/actor-assertion";
-import { projectRouter } from "./project";
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
-async function callerAs(userId: string) {
-  currentSession.mockResolvedValue({
-    expires: "2099-01-01T00:00:00Z",
-    user: { id: userId, role: "INDIVIDUAL" },
-  });
-  return createCallerFactory(projectRouter)(
-    await createTRPCContext({ headers: new Headers() }),
-  );
-}
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
-/** The API's own shapes: .NET ProjectFollowDto on POST, ProjectFollowStatusDto on GET/DELETE. The router maps each. */
-const followRow = {
-  id: "follow-1",
-  projectId: "project-1",
-  userId: "user-ada",
-  createdAt: "2026-10-31T12:00:00Z",
-};
+const followUrl = `${dotNetBaseUrl}/api/projects/project-barn/follow`;
 
+/**
+ * Each verb answers a different .NET shape (POST the follow row, GET and DELETE `{ following }`) and the router maps
+ * all three to one `ProjectFollowState`. Following twice, and unfollowing twice at once, are idempotent in .NET itself
+ * (ProjectFollowFlowTests on real Postgres); this side only signs and maps.
+ */
 describe("project follow (plan §2, §8-6)", () => {
-  beforeEach(() => vi.clearAllMocks());
+  it("follow POSTs as the session user with no follower id in the body, and reads the follow row as following", async () => {
+    const requests = fakeDotNetApi(() =>
+      dotNetAnswer(200, {
+        id: "follow-1",
+        projectId: "project-barn",
+        userId: "member-ada",
+        createdAt: "2026-11-01T09:00:00Z",
+      }),
+    );
 
-  it("signs the follow as the signed-in session user, never a caller-supplied follower id", async () => {
-    process.env.ACTOR_ASSERTION_HMAC_KEY =
-      "follow-test-signing-key-at-least-32-bytes";
-    let signedSubject: string | undefined;
-    projects.followProject.mockImplementation(async () => {
-      const assertion = getActorAssertion({
+    const state = await browser.project.followProject.mutate({
+      projectId: "project-barn",
+    });
+
+    expect(state).toEqual({ projectId: "project-barn", isFollowing: true });
+    expect(requests).toEqual([
+      {
         method: "POST",
-        url: "/api/projects/project-1/follow",
+        url: followUrl,
+        body: {},
+        signedActor: "member-ada",
+      },
+    ]);
+  });
+
+  it("unfollow DELETEs as the session user and reads .NET's { following: false }", async () => {
+    const requests = fakeDotNetApi(() =>
+      dotNetAnswer(200, { following: false }),
+    );
+
+    const state = await browser.project.unfollowProject.mutate({
+      projectId: "project-barn",
+    });
+
+    expect(state).toEqual({ projectId: "project-barn", isFollowing: false });
+    expect(requests).toEqual([
+      expect.objectContaining({
+        method: "DELETE",
+        url: followUrl,
+        signedActor: "member-ada",
+      }),
+    ]);
+  });
+
+  it.each([true, false])(
+    "the viewer's own state reads .NET's { following: %s }",
+    async (following) => {
+      fakeDotNetApi(() => dotNetAnswer(200, { following }));
+
+      const state = await browser.project.getMyFollowState.query({
+        projectId: "project-barn",
       });
-      const payload = assertion?.split(".")[0];
-      signedSubject = payload
-        ? (
-            JSON.parse(Buffer.from(payload, "base64url").toString()) as {
-              subject: string;
-            }
-          ).subject
-        : undefined;
-      return { status: 200, data: followRow };
-    });
 
-    const caller = await callerAs("user-ada");
-    await caller.followProject({ projectId: "project-1" });
+      expect(state).toEqual({
+        projectId: "project-barn",
+        isFollowing: following,
+      });
+    },
+  );
 
-    expect(signedSubject).toBe("user-ada");
-  });
+  it("a hidden or missing project's 404 reaches the browser as NOT_FOUND", async () => {
+    fakeDotNetApi(() =>
+      dotNetAnswer(404, {
+        error: "Project with id project-draft not found",
+        statusCode: 404,
+        traceId: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+      }),
+    );
 
-  it("following twice both succeed (idempotent, not a conflict)", async () => {
-    projects.followProject.mockResolvedValue({ status: 200, data: followRow });
+    const failure = await refusalOf(
+      browser.project.followProject.mutate({ projectId: "project-draft" }),
+    );
 
-    const caller = await callerAs("user-ada");
-    const first = await caller.followProject({ projectId: "project-1" });
-    const second = await caller.followProject({ projectId: "project-1" });
-
-    expect(first).toEqual({ projectId: "project-1", isFollowing: true });
-    expect(second).toEqual({ projectId: "project-1", isFollowing: true });
-  });
-
-  it("following a hidden project surfaces NOT_FOUND", async () => {
-    projects.followProject.mockResolvedValue({
-      status: 404,
-      error: "Project not found",
-    });
-
-    const caller = await callerAs("user-ada");
-    await expect(
-      caller.followProject({ projectId: "project-hidden" }),
-    ).rejects.toMatchObject({
-      code: "NOT_FOUND",
-    });
-  });
-
-  it("unfollowing a project never followed still succeeds", async () => {
-    projects.unfollowProject.mockResolvedValue({
-      status: 200,
-      data: { following: false },
-    });
-
-    const caller = await callerAs("user-ada");
-    await expect(
-      caller.unfollowProject({ projectId: "project-1" }),
-    ).resolves.toEqual({
-      projectId: "project-1",
-      isFollowing: false,
-    });
-  });
-
-  it("reads back the viewer's own follow state, no follower list involved", async () => {
-    projects.getMyFollowState.mockResolvedValue({
-      status: 200,
-      data: { following: true },
-    });
-
-    const caller = await callerAs("user-ada");
-    await expect(
-      caller.getMyFollowState({ projectId: "project-1" }),
-    ).resolves.toEqual({
-      projectId: "project-1",
-      isFollowing: true,
-    });
+    expect(failure.data?.code).toBe("NOT_FOUND");
   });
 });

@@ -40,10 +40,12 @@ const PostTypeSchema = z.enum([
   "HELP_WANTED",
 ]);
 
-/** tRPC codes for a `create` 409/400; table-driven per plan §Add (posts). */
+/** tRPC codes for a `create` refusal other than the 409; table-driven per plan §Add (posts). */
 const CREATE_STATUS_CODES: Partial<Record<number, TRPCError["code"]>> = {
   400: "BAD_REQUEST",
   403: "FORBIDDEN",
+  // An ask naming a missing task, or one on a draft the author cannot see.
+  404: "NOT_FOUND",
 };
 
 const PostVisibilitySchema = z.enum([

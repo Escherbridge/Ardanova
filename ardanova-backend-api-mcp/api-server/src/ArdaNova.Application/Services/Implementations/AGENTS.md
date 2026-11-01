@@ -431,9 +431,25 @@ for example the create page rolling back a project whose creation failed halfway
 `assignedToId` has exactly **two writers** after creation (SR-03 phase 3, Lane K1). Anything else that
 assigns a task is a bug; route it through one of these.
 
-1. **`ITaskClaimStore.TryClaimAsync`** (`Infrastructure/Tasks/TaskClaimStore`): a member taking an open
-   task for themselves. `TasksController.Assign` sends a self-claim from a non-manager here, through
-   `TaskService.ClaimAsync`. It is ONE conditional statement:
+1. **`ITaskClaimStore.TryClaimAsync`** (`Infrastructure/Tasks/TaskClaimStore`): anyone taking an open
+   task for themselves. `TasksController.Assign` sends a self-assign here, through
+   `TaskService.ClaimAsync`, when ANY of these holds:
+
+   ```csharp
+   var selfClaim = assigneeId == ActorId
+                   && (!canManage || dto.Claim || task.AssignedToId is null);
+   ```
+
+   - a non-manager (always; a member has no other way to take work);
+   - the one-tap "Pick up" (`AssignTaskDto.Claim = true`, sent by the BFF's `task.claim`), a manager's
+     included. The creator always ranks as a manager (`HierarchyAuthorizationService.CanManageProjectAsync`)
+     and the feed offers them "Pick up" too; before this, their tap went to `AssignAsync` and silently took
+     a task a member had claimed since the card rendered, and the asker never heard;
+   - a manager assigning themselves a task that reads as open (still the conditional write, so a claim
+     landing between the controller's read and the write is a 409, not an overwrite).
+
+   Only a manager's deliberate self-assign of a task someone holds, without `Claim`, is a takeover and
+   stays on `AssignAsync`. The conditional write is ONE statement:
 
    ```sql
    UPDATE "ProjectTask" SET "assignedToId" = @me, "updatedAt" = @now
@@ -453,8 +469,9 @@ assigns a task is a bug; route it through one of these.
    writes none and a won one writes exactly one (§Come-back notifications). The UPDATE bypasses EF's
    change tracker, so `ClaimAsync` clears the tracked rows before it reads the task back.
 
-2. **`TaskService.AssignAsync`**: a manager assigning anyone or no one, and a member releasing their
-   own task. It refuses once an accepted bid's agreement exists or escrow is no longer NONE (409,
+2. **`TaskService.AssignAsync`**: a manager assigning someone else or no one, a manager's deliberate
+   takeover of a held task, and a member releasing their own task. It writes no notification. It refuses
+   once an accepted bid's agreement exists or escrow is no longer NONE (409,
    `TASK_UNDER_AGREEMENT`): the agreement names the worker, and swapping the assignee underneath it
    would pay one person for another's work. **This path is still check-then-write** and can
    overwrite a claim that landed between its read and its save. Accepted for now; trigger to
@@ -471,6 +488,11 @@ rules, in order (`ResolveAskAsync`):
 
 - `taskId` is required on HELP_WANTED (400) and refused on every other type (400; the database CHECK
   `Post_taskId_help_wanted_only` backs it).
+- **Audience is PUBLIC or PROJECT_MEMBERS only** (400 `AskOnAGroup` for any `guildId`, 400 `AskAudience`
+  for GUILD_MEMBERS or PRIVATE), on create and on every edit (`UpdateAsync`). Reason: removal below loads
+  the ask through the read gate as the manager, and a manager is always the creator or a `ProjectMember`,
+  so these two are exactly the audiences every manager can read. A PRIVATE or group ask would be
+  invisible to them (404), and the ask would hold its task forever once its author left.
 - The task must be on a project the author can see, else 404 (a draft's task reads as missing). The
   post's `projectId`, when sent, must be the task's (400); when omitted it becomes the task's.
 - The author must be a member (creator or `ProjectMember`, `IHierarchyAuthorizationService.IsProjectMemberAsync`), else 403.
@@ -500,21 +522,40 @@ person who acted.
 
 | Event                                                                 | Writer                                             | Type          | Title                           | Message                           |
 | --------------------------------------------------------------------- | -------------------------------------------------- | ------------- | ------------------------------- | --------------------------------- |
-| A member claims a task with a live HELP_WANTED                        | `TaskService.ClaimAsync` → `StageAskPickedUpAsync` | TASK_ASSIGNED | `Picked up`                     | `{name} took {task}`              |
+| Someone (a manager too) claims a task with a live HELP_WANTED         | `TaskService.ClaimAsync` → `StageAskPickedUpAsync` | TASK_ASSIGNED | `Picked up`                     | `{name} took {task}`              |
 | A reply on a post (any type, including a feed card naming the person) | `PostService.AddCommentAsync` → `StageReplyAsync`  | COMMENT_REPLY | `New reply` / `{n} new replies` | `{name}: “{first 80 characters}”` |
 
+- **Only to someone who can still read the post.** Both writers ask the one post read gate
+  (`PostReadFilters.ReadableBy`) for the RECIPIENT before staging; a "no" stages nothing. An author
+  removed from a draft project gets no reply notification (the bell would otherwise quote a post they
+  can no longer open), and an asker who lost the task's project gets no "picked up" (an ask lives on
+  its task's project, so the post gate covers the task too).
 - **Collapsed per post.** A reply finds the author's one unread COMMENT_REPLY for `(userId, postId)`
-  (index `Notification_userId_postId_idx`) and updates it: count +1 in `data.replyCount`, latest
-  replier and excerpt, and `createdAt` moved to now so the bell (newest first) lifts it. Reading it
-  ends the fold; the next reply opens a new row. Find-then-update: two replies at the same instant may
-  leave two rows, accepted (plan §10).
+  (index `Notification_userId_postId_idx`) and folds into it with ONE conditional statement that
+  writes only the collapse fields (count +1 in `data.replyCount`, latest replier and excerpt, and
+  `createdAt` moved to now so the bell, newest first, lifts it):
+
+  ```sql
+  UPDATE "Notification" SET title, message, data, "createdAt"
+  WHERE id = @id AND NOT "isRead" AND data = @foldSeen   -- compare-and-set
+  ```
+
+  0 rows means someone got there first, and the reply opens a fresh row instead. A concurrent
+  mark-read wins (the old whole-row `Update` rewrote `isRead = false` and resurrected a notification
+  the person had just read). Two replies at the same instant both read the same fold; the second's
+  compare-and-set misses and it opens its own row, so the counts still add up (two rows, accepted,
+  plan §10). Reading a row ends its fold; the next reply opens a new row. The fold writes at once, not
+  at the caller's save, so `PostService.AddCommentAsync` wraps the reply and its notification in one
+  transaction.
+
 - `data` is JSON (`postId`, `replyCount`, `latestReplierId` / `postId`, `taskId`, `claimerId`);
   `NotificationDto` has no `postId` field, so clients read it from `data`. `actionUrl` is
   `/tasks/{id}` for a claim and `/projects/{slug}` (Feed tab) for a reply on a project post.
 - The excerpt collapses whitespace and cuts on whole text elements, never mid-emoji. A person with no
   name on file is `Someone`.
-- A manager's assign does not notify the asker (only a claim "picks up" an ask). Trigger to revisit:
-  an asker whose task a manager assigned never hears about it.
+- A manager's assign of someone else, or deliberate takeover, does not notify the asker (only a claim
+  "picks up" an ask; a manager's own "Pick up" IS a claim, §Task assignment). Trigger to revisit: an
+  asker whose task a manager handed to someone never hears about it.
 
 # Hashtags and follow (Lane L)
 
@@ -529,7 +570,9 @@ round-trip); it does not re-expose free tags (those stay in `Tags` only).
 **§Project follow.** `ProjectFollowService` (new) is the only writer of `ProjectFollow`. Visibility
 (`IProjectVisibility`) is checked before every write — a hidden/draft project 404s the same as a missing one.
 `FollowAsync` has no exists-then-insert race: the pre-check is a shortcut only, and a genuine `23505` on save is
-caught and answered idempotently (proven under real concurrent calls). There is no follower-list route and no read
+caught and answered idempotently (proven under real concurrent calls). `UnfollowAsync` is one `ExecuteDeleteAsync`,
+not find-then-delete: a double-tap unfollow used to make the second request's tracked DELETE hit 0 rows, throw
+`DbUpdateConcurrencyException` and 500; now it deletes nothing and answers success. There is no follower-list route and no read
 of another user's follow state — `GET .../follow` only ever answers for the signed actor.
 
 # Project member authority

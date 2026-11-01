@@ -156,6 +156,36 @@ public sealed class ProjectFollowFlowTests : IAsyncLifetime
             .Should().BeFalse();
     }
 
+    /// <summary>
+    /// A double-tap unfollow: both requests have read the project and reached their delete before either commits (a
+    /// held row lock lines them up), so the second delete finds nothing. That is still "not following", never a 500.
+    /// </summary>
+    [PostgresFact]
+    public async Task TwoConcurrentUnfollows_BothSucceed_AndLeaveNoRow()
+    {
+        Succeeded(await FollowService().FollowAsync(PublicProjectId, Viewer(Follower)));
+
+        await using var holder = await _dataSource!.OpenConnectionAsync();
+        await using var holding = await holder.BeginTransactionAsync();
+        await using (var hold = new NpgsqlCommand(
+            """SELECT 1 FROM "ProjectFollow" WHERE "projectId" = @project AND "userId" = @user FOR UPDATE""", holder, holding))
+        {
+            hold.Parameters.AddWithValue("project", PublicProjectId);
+            hold.Parameters.AddWithValue("user", Follower);
+            (await hold.ExecuteScalarAsync()).Should().Be(1);
+        }
+        var first = FollowService().UnfollowAsync(PublicProjectId, Viewer(Follower));
+        var second = FollowService().UnfollowAsync(PublicProjectId, Viewer(Follower));
+        await WaitForLockWaitersAsync(2);
+        await holding.CommitAsync();
+
+        foreach (var unfollowed in await Task.WhenAll(first, second))
+            unfollowed.IsSuccess.Should().BeTrue(unfollowed.Error);
+        await using var context = NewContext();
+        (await context.ProjectFollows.AnyAsync(f => f.projectId == PublicProjectId && f.userId == Follower))
+            .Should().BeFalse();
+    }
+
     /// <summary>Cross-lane flow (join step 3, Phase 2's read side): a follower who is not on the team still gets the card, with FollowedProject as its reason.</summary>
     [PostgresFact]
     public async Task AfterFollowing_TheHomeFeedGivesTheProjectsUpdateTheFollowedProjectReason()
@@ -219,6 +249,22 @@ public sealed class ProjectFollowFlowTests : IAsyncLifetime
     }
 
     private static ProjectViewer Viewer(string userId) => new(userId, IsAdmin: false);
+
+    /// <summary>Returns once <paramref name="count"/> requests on this database are queued behind a row lock.</summary>
+    private async Task WaitForLockWaitersAsync(int count)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(20);
+        while (DateTime.UtcNow < deadline)
+        {
+            await using var command = _dataSource!.CreateCommand(
+                "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'");
+            if ((long)(await command.ExecuteScalarAsync())! >= count)
+                return;
+            await Task.Delay(25);
+        }
+
+        throw new TimeoutException($"Fewer than {count} unfollows ever queued behind the held row.");
+    }
 
     private static T Succeeded<T>(Result<T> result)
     {

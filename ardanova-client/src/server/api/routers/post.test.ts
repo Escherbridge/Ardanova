@@ -1,134 +1,149 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { TRPCError } from "@trpc/server";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  browserOverTheBff,
+  dotNetAnswer,
+  dotNetBaseUrl,
+  fakeDotNetApi,
+  refusalOf,
+} from "~/server/api/dotnet-test-edge";
 
 vi.mock("server-only", () => ({}));
-
-const { currentSession, posts } = vi.hoisted(() => ({
-  currentSession: vi.fn<() => Promise<unknown>>(),
-  posts: { create: vi.fn(), delete: vi.fn() },
+vi.mock("~/server/auth", () => ({
+  auth: async () => ({
+    expires: "2099-01-01T00:00:00Z",
+    user: { id: "member-ada", role: "INDIVIDUAL" },
+  }),
 }));
 
-vi.mock("~/server/auth", () => ({ auth: currentSession }));
-vi.mock("~/lib/api", () => ({ apiClient: { posts } }));
+const browser = await browserOverTheBff();
 
-import { createCallerFactory, createTRPCContext } from "~/server/api/trpc";
-import { getActorAssertion } from "~/server/actor-assertion";
-import { postRouter } from "./post";
-import { HelpWantedConflictCause } from "~/server/api/help-wanted-conflict-error";
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
-async function callerAs(userId: string) {
-  currentSession.mockResolvedValue({
-    expires: "2099-01-01T00:00:00Z",
-    user: { id: userId, role: "INDIVIDUAL" },
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
+
+/** .NET `PostDto` for a freshly created ask, as PostsController answers 201. */
+const createdAsk = {
+  id: "post-ask-1",
+  authorId: "member-ada",
+  projectId: "project-barn",
+  guildId: null,
+  type: "HELP_WANTED",
+  visibility: "PUBLIC",
+  title: null,
+  content: "Framing the east wall Saturday, need two hands",
+  metadata: null,
+  hashtags: [],
+  taskId: "task-frame",
+  likesCount: 0,
+  commentsCount: 0,
+  sharesCount: 0,
+  viewsCount: 0,
+  isPinned: false,
+  createdAt: "2026-11-01T09:00:00Z",
+  updatedAt: "2026-11-01T09:00:00Z",
+};
+
+/** The error envelope .NET writes for a refused result: `{ error }` plus `statusCode` and `traceId`. */
+function refused(status: number, error: string) {
+  return dotNetAnswer(status, {
+    error,
+    statusCode: status,
+    traceId: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
   });
-  return createCallerFactory(postRouter)(
-    await createTRPCContext({ headers: new Headers() }),
-  );
 }
 
 describe("post.create (HELP_WANTED, plan §2)", () => {
-  beforeEach(() => vi.clearAllMocks());
+  it("sends the ask signed as the session user, with no author field a caller could forge", async () => {
+    const requests = fakeDotNetApi(() => dotNetAnswer(201, createdAsk));
 
-  it("signs the write as the signed-in session user, never a caller-supplied value", async () => {
-    process.env.ACTOR_ASSERTION_HMAC_KEY =
-      "post-test-signing-key-at-least-32-bytes";
-    let signedSubject: string | undefined;
-    posts.create.mockImplementation(async () => {
-      const assertion = getActorAssertion({
+    await browser.post.create.mutate({
+      type: "HELP_WANTED",
+      taskId: "task-frame",
+      content: "Framing the east wall Saturday, need two hands",
+    });
+
+    expect(requests).toEqual([
+      expect.objectContaining({
         method: "POST",
-        url: "/api/posts",
-      });
-      const payload = assertion?.split(".")[0];
-      signedSubject = payload
-        ? (
-            JSON.parse(Buffer.from(payload, "base64url").toString()) as {
-              subject: string;
-            }
-          ).subject
-        : undefined;
-      return { status: 201, data: { id: "post-1" } };
-    });
-
-    const caller = await callerAs("user-ada");
-    await caller.create({ content: "Who can help with the framing?" });
-
-    expect(signedSubject).toBe("user-ada");
-  });
-
-  it("a 409 on a HELP_WANTED create surfaces CONFLICT carrying the existing post's id", async () => {
-    posts.create.mockResolvedValue({
-      status: 409,
-      error: "An ask for this task already exists",
-      code: "HELP_WANTED_EXISTS",
-      conflictId: "post-existing-1",
-    });
-
-    const caller = await callerAs("user-ada");
-    const create = caller.create({
-      content: "Who can help with the framing?",
+        url: `${dotNetBaseUrl}/api/posts`,
+        signedActor: "member-ada",
+      }),
+    ]);
+    expect(requests[0]?.body).toMatchObject({
       type: "HELP_WANTED",
-      projectId: "project-1",
-      taskId: "task-1",
+      taskId: "task-frame",
     });
-
-    await expect(create).rejects.toBeInstanceOf(TRPCError);
-    const failure = (await create.catch(
-      (error: unknown) => error,
-    )) as TRPCError;
-    expect(failure.code).toBe("CONFLICT");
-    expect(failure.cause).toBeInstanceOf(HelpWantedConflictCause);
-    expect((failure.cause as HelpWantedConflictCause).existingPostId).toBe(
-      "post-existing-1",
-    );
-  });
-
-  it("a 409 with no conflictId still surfaces CONFLICT, just without a cause to follow", async () => {
-    posts.create.mockResolvedValue({ status: 409, error: "Conflict" });
-
-    const caller = await callerAs("user-ada");
-    const create = caller.create({
-      content: "x",
-      type: "HELP_WANTED",
-      taskId: "task-1",
-    });
-
-    await expect(create).rejects.toMatchObject({ code: "CONFLICT" });
-    const failure = (await create.catch(
-      (error: unknown) => error,
-    )) as TRPCError;
-    expect(failure.cause).toBeUndefined();
+    expect(requests[0]?.body).not.toHaveProperty("authorId");
   });
 
   it.each([
-    [400, "BAD_REQUEST"],
-    [403, "FORBIDDEN"],
-    [500, "INTERNAL_SERVER_ERROR"],
-  ])("maps a non-conflict %i to %s", async (status, code) => {
-    posts.create.mockResolvedValue({ status, error: "refused" });
-    const caller = await callerAs("user-ada");
+    [400, "An ask for help needs a task.", "BAD_REQUEST"],
+    [
+      403,
+      "Only the project's members can ask for help on its tasks.",
+      "FORBIDDEN",
+    ],
+    // A missing task, or one on a draft the author cannot see.
+    [404, "Task task-frame not found", "NOT_FOUND"],
+    // ExceptionHandlingMiddleware's own words: a fault never reads as the caller's mistake.
+    [
+      500,
+      "An error occurred processing your request.",
+      "INTERNAL_SERVER_ERROR",
+    ],
+  ] as const)(
+    "a .NET %i reaches the browser as %s with the API's own words",
+    async (status, error, code) => {
+      fakeDotNetApi(() => refused(status, error));
 
-    await expect(caller.create({ content: "x" })).rejects.toMatchObject({
-      code,
-    });
-  });
+      const failure = await refusalOf(
+        browser.post.create.mutate({
+          type: "HELP_WANTED",
+          taskId: "task-frame",
+          content: "Need a hand",
+        }),
+      );
+
+      expect(failure.data?.code).toBe(code);
+      expect(failure.message).toBe(error);
+    },
+  );
 });
 
-describe("post.delete (manager removes a HELP_WANTED, plan §2)", () => {
-  beforeEach(() => vi.clearAllMocks());
+describe("post.delete (an author, or a manager removing an ask, plan §2)", () => {
+  it("a .NET 204 removes it; the API alone decided who may", async () => {
+    const requests = fakeDotNetApi(() => dotNetAnswer(204));
+
+    await browser.post.delete.mutate({ id: "post-ask-1" });
+
+    expect(requests).toEqual([
+      expect.objectContaining({
+        method: "DELETE",
+        url: `${dotNetBaseUrl}/api/posts/post-ask-1`,
+        signedActor: "member-ada",
+      }),
+    ]);
+  });
 
   it.each([
-    [403, "FORBIDDEN"],
-    [404, "NOT_FOUND"],
-    [500, "INTERNAL_SERVER_ERROR"],
-  ])(
-    "maps the API's %i to %s; the API alone decides who may remove",
-    async (status, code) => {
-      posts.delete.mockResolvedValue({ status, error: "refused" });
-      const caller = await callerAs("user-manager");
+    [403, "Only the author can delete this post", "FORBIDDEN"],
+    [404, "Post post-ask-1 not found", "NOT_FOUND"],
+  ] as const)(
+    "a .NET %i reaches the browser as %s",
+    async (status, error, code) => {
+      fakeDotNetApi(() => refused(status, error));
 
-      await expect(caller.delete({ id: "post-1" })).rejects.toMatchObject({
-        code,
-      });
+      const failure = await refusalOf(
+        browser.post.delete.mutate({ id: "post-ask-1" }),
+      );
+
+      expect(failure.data?.code).toBe(code);
+      expect(failure.message).toBe(error);
     },
   );
 });

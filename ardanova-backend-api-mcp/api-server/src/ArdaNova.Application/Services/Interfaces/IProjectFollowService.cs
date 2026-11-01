@@ -16,7 +16,7 @@ public interface IProjectFollowService
     /// <summary>Idempotent: following twice returns the same row's Success both times, never Conflict.</summary>
     Task<Result<ProjectFollowDto>> FollowAsync(string projectId, ProjectViewer viewer, CancellationToken ct = default);
 
-    /// <summary>Idempotent: unfollowing a project the viewer never followed still succeeds.</summary>
+    /// <summary>Idempotent: unfollowing a project the viewer never followed, or twice at once, still succeeds.</summary>
     Task<Result<bool>> UnfollowAsync(string projectId, ProjectViewer viewer, CancellationToken ct = default);
 
     /// <summary>The viewer's own state only - there is no route to read another user's.</summary>

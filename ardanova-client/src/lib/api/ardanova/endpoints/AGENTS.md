@@ -37,10 +37,14 @@ who may, same as `project.removeMember`.
 
 ## Task claim (SR-03 Phase 3 §2)
 
-`task.claim` (self-claim, "Pick up task") reuses `tasks.assign`'s `PUT /api/tasks/{id}/assign` route
-with the caller's own id - there is no separate claim route. The API's `TaskClaimStore` makes this a
-conditional write; 0 rows updated is a 409, mapped to `CONFLICT`. A 400 here is a membership/
-eligibility refusal, not malformed input, so it maps to `FORBIDDEN` rather than `BAD_REQUEST`.
+`task.claim` (self-claim, "Pick up task") calls `tasks.claim`: the same `PUT /api/tasks/{id}/assign`
+route as `tasks.assign`, with the caller's own id and `claim: true` - there is no separate claim route.
+The flag is what keeps a manager's tap honest: without it the API reads a manager's self-assign of a
+task someone holds as a deliberate takeover, so a card rendered before a member claimed the task
+would silently take it from them. With it, the API's `TaskClaimStore` conditional write decides for
+everyone; 0 rows updated is a 409, mapped to `CONFLICT`. A 400 here is a membership/eligibility
+refusal ("Assignee must be a member of the project"), not malformed input, so it maps to `FORBIDDEN`
+rather than `BAD_REQUEST`.
 
 The 409 body is `{ error, code }` with .NET `TaskClaimCodes`: `TASK_TAKEN`, `TASK_DONE`,
 `TASK_UNDER_AGREEMENT`. `base-client.ts` already extracts `code`; `task.claim` wraps it in
@@ -49,6 +53,12 @@ exposes it as `error.data.taskClaimCode`. The browser reads it with `taskClaimRe
 (`src/lib/tasks/claim-refusal.ts`) to word "already taken" apart from "done"; a code this client
 does not know reads as null, and the API's own message still arrives (`describeMutationError`).
 Proven over real HTTP in `server/api/root.test.ts`.
+
+**Testing these routes:** `server/api/dotnet-test-edge.ts` runs the real app router over in-process HTTP
+with the real API client, and fakes only .NET's `fetch` (answered with the API's real JSON envelopes). It
+records each .NET request as .NET reads it (method, URL, body, signed actor subject). `root.test.ts` and the
+`post`, `task` and `project-follow` router tests use it. Do not mock `apiClient` for these routes: a mock
+can hand the router a pre-parsed body that `base-client.ts` never produces.
 
 ## Project follow (SR-03 Phase 3 §2, §8-6)
 

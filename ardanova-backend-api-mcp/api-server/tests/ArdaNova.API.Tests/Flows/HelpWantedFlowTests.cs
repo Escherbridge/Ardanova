@@ -45,6 +45,7 @@ public sealed class HelpWantedFlowTests : IAsyncLifetime
     private const string BarnId = "project-barn";
     private const string KitchenId = "project-kitchen";
     private const string DraftId = "project-draft";
+    private const string CarpentersGuildId = "guild-carpenters";
 
     private const string FrameTask = "task-frame";
     private const string PaidTask = "task-paid";
@@ -183,10 +184,41 @@ public sealed class HelpWantedFlowTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task AManagerRemovesTheAskOfAnAuthorWhoLeft_AndTheTaskCanBeAskedAboutAgain()
+    public async Task AnAsk_IsSharedWithEveryoneOrTheProjectsMembers_NeverAGroupOrOnlyItsAuthor()
     {
-        var askId = await AskIdAsync(Bea, FrameTask);
-        StatusOf(await ReplyAsync(Cy, askId, "I can help Saturday")).Should().Be(201);
+        // Bea owns the guild, so the controller's own guild check passes and the ask's rule is what answers.
+        var table = new (string? GuildId, PostVisibility Visibility, string Error, string Why)[]
+        {
+            (CarpentersGuildId, PostVisibility.GUILD_MEMBERS, PostService.AskOnAGroup, "an ask lives on its task's project"),
+            (CarpentersGuildId, PostVisibility.PUBLIC, PostService.AskOnAGroup, "naming a group is refused whatever the audience"),
+            (null, PostVisibility.PRIVATE, PostService.AskAudience, "a manager could never see it to remove it"),
+            (null, PostVisibility.GUILD_MEMBERS, PostService.AskAudience, "a group audience with no group"),
+        };
+
+        foreach (var row in table)
+        {
+            var refused = await AskAsync(Bea, FrameTask, "Need a hand", guildId: row.GuildId, visibility: row.Visibility);
+            StatusOf(refused).Should().Be(400, row.Why);
+            WireBody(refused).GetProperty("error").GetString().Should().Be(row.Error, row.Why);
+        }
+        await using (var context = NewContext())
+            (await context.Posts.CountAsync()).Should().Be(0, "a refused ask writes nothing");
+
+        var askId = await AskIdAsync(Bea, FrameTask, PostVisibility.PROJECT_MEMBERS);
+        var narrowed = await UpdatePostAsync(Bea, askId, new UpdatePostDto { Visibility = PostVisibility.PRIVATE });
+
+        StatusOf(narrowed).Should().Be(400, "an edit cannot hide an ask from the managers either");
+        await using (var context = NewContext())
+            (await context.Posts.SingleAsync(post => post.id == askId)).visibility.Should().Be(PostVisibility.PROJECT_MEMBERS);
+    }
+
+    [PostgresTheory]
+    [InlineData(PostVisibility.PUBLIC)]
+    [InlineData(PostVisibility.PROJECT_MEMBERS)]
+    public async Task AManagerRemovesTheAskOfAnAuthorWhoLeft_AndTheTaskCanBeAskedAboutAgain(PostVisibility audience)
+    {
+        var askId = await AskIdAsync(Bea, FrameTask, audience);
+        StatusOf(await ReplyAsync(Ari, askId, "I can help Saturday")).Should().Be(201);
         await using (var context = NewContext())
         {
             context.ProjectMembers.Remove(await context.ProjectMembers.SingleAsync(member => member.userId == Bea && member.projectId == BarnId));
@@ -274,6 +306,79 @@ public sealed class HelpWantedFlowTests : IAsyncLifetime
         (await AssigneeAsync(PaidTask)).Should().Be(Ari);
     }
 
+    [PostgresFact]
+    public async Task AManagerPicksUpAnOpenAsk_GetsIt_AndTheAskerHearsOnce()
+    {
+        var askId = await AskIdAsync(Bea, FrameTask);
+
+        StatusOf(await ClaimAsync(Lee, FrameTask)).Should().Be(200);
+
+        (await AssigneeAsync(FrameTask)).Should().Be(Lee);
+        var note = (await NotificationsAsync(Bea)).Should().ContainSingle("a manager's pick-up is a claim like anyone's").Subject;
+        note.postId.Should().Be(askId);
+        note.message.Should().Be("Lee took Frame the east wall");
+    }
+
+    [PostgresFact]
+    public async Task AManagersPickUp_OfATaskAMemberJustClaimed_Is409Taken_AndOnlyADeliberateTakeoverMovesIt()
+    {
+        await AskIdAsync(Bea, FrameTask);
+        StatusOf(await ClaimAsync(Ari, FrameTask)).Should().Be(200);
+
+        // Lee's card rendered before Ari's claim and still offers "Pick up".
+        var late = await ClaimAsync(Lee, FrameTask);
+
+        StatusOf(late).Should().Be(409);
+        WireBody(late).GetProperty("code").GetString().Should().Be(TaskClaimCodes.Taken);
+        (await AssigneeAsync(FrameTask)).Should().Be(Ari, "a stale tap never takes a task from the member who claimed it");
+        (await NotificationsAsync(Bea)).Should().ContainSingle("only Ari's claim tells the asker")
+            .Which.message.Should().Be("Ari took Frame the east wall");
+
+        // The task board's assign is the manager's deliberate call, and still theirs to make.
+        StatusOf(await AssignAsync(Lee, FrameTask, Lee)).Should().Be(200);
+        (await AssigneeAsync(FrameTask)).Should().Be(Lee);
+    }
+
+    [PostgresFact]
+    public async Task AManagerSelfAssigningAnOpenTask_LosesToAClaimThatLandsFirst_InsteadOfOverwritingIt()
+    {
+        await AskIdAsync(Bea, PaidTask);
+        // Lee's request has read the task as open and is checking account setup when Ari's whole claim lands.
+        _readiness.During = async () =>
+        {
+            _readiness.During = null;
+            StatusOf(await ClaimAsync(Ari, PaidTask)).Should().Be(200);
+        };
+
+        var lost = await AssignAsync(Lee, PaidTask, Lee);
+
+        StatusOf(lost).Should().Be(409, "an open task read by a manager is still taken by the conditional write");
+        WireBody(lost).GetProperty("code").GetString().Should().Be(TaskClaimCodes.Taken);
+        (await AssigneeAsync(PaidTask)).Should().Be(Ari);
+        (await NotificationsAsync(Bea)).Should().ContainSingle();
+    }
+
+    [PostgresFact]
+    public async Task AnAuthorRemovedFromADraft_HearsNothingMoreAboutIt()
+    {
+        await using (var context = NewContext())
+        {
+            context.ProjectMembers.Add(Member(Bea, ProjectRole.CONTRIBUTOR, DateTime.UtcNow, DraftId));
+            await context.SaveChangesAsync();
+        }
+        var askId = await AskIdAsync(Bea, DraftTask);
+        await using (var context = NewContext())
+        {
+            context.ProjectMembers.Remove(await context.ProjectMembers.SingleAsync(member => member.userId == Bea && member.projectId == DraftId));
+            await context.SaveChangesAsync();
+        }
+
+        StatusOf(await ReplyAsync(Fern, askId, "Taking this one over")).Should().Be(201);
+        StatusOf(await ClaimAsync(Fern, DraftTask)).Should().Be(200);
+
+        (await NotificationsAsync(Bea)).Should().BeEmpty("a draft Bea can no longer open must not reach her bell");
+    }
+
     // -- Replies -----------------------------------------------------------------------------------
 
     [PostgresFact]
@@ -309,6 +414,36 @@ public sealed class HelpWantedFlowTests : IAsyncLifetime
         notes.Single(note => !note.isRead).title.Should().Be("New reply");
     }
 
+    [PostgresFact]
+    public async Task AReplyRacingTheAuthorReadingTheBell_NeverUnreadsIt_AndArrivesAsItsOwnNotification()
+    {
+        var askId = await AskIdAsync(Bea, FrameTask);
+        StatusOf(await ReplyAsync(Cy, askId, "I can help Saturday")).Should().Be(201);
+        var first = (await NotificationsAsync(Bea)).Should().ContainSingle().Subject;
+
+        // Bea opens the bell: her mark-read holds the row while Ari's reply has already found it unread.
+        await using var bea = await _dataSource!.OpenConnectionAsync();
+        await using var reading = await bea.BeginTransactionAsync();
+        await using (var markRead = new NpgsqlCommand(
+            """UPDATE "Notification" SET "isRead" = true, "readAt" = now() WHERE "id" = @id""", bea, reading))
+        {
+            markRead.Parameters.AddWithValue("id", first.id);
+            (await markRead.ExecuteNonQueryAsync()).Should().Be(1);
+        }
+        var reply = ReplyAsync(Ari, askId, "Bringing a ladder");
+        await WaitForALockWaiterAsync();
+        await reading.CommitAsync();
+
+        StatusOf(await reply).Should().Be(201);
+        var notes = await NotificationsAsync(Bea);
+        notes.Should().HaveCount(2, "the fold lost to the read, so the reply opened its own row");
+        var read = notes.Single(note => note.id == first.id);
+        read.isRead.Should().BeTrue("a read notification is never resurrected by a reply");
+        read.title.Should().Be("New reply");
+        read.message.Should().Be("Cy: “I can help Saturday”", "the read row keeps what Bea read");
+        notes.Single(note => !note.isRead).message.Should().Be("Ari: “Bringing a ladder”");
+    }
+
     // -- Seams -------------------------------------------------------------------------------------
 
     private Task<IActionResult> AskAsync(
@@ -316,17 +451,22 @@ public sealed class HelpWantedFlowTests : IAsyncLifetime
         string? taskId,
         string words,
         PostType type = PostType.HELP_WANTED,
-        string? projectId = null)
+        string? projectId = null,
+        string? guildId = null,
+        PostVisibility? visibility = null)
         => AsAsync<PostsController>(actor, posts => posts.Create(
-            new PostsController.CreatePostRequest(words, projectId, null, type, null, null, null, taskId),
+            new PostsController.CreatePostRequest(words, projectId, guildId, type, visibility, null, null, taskId),
             CancellationToken.None));
 
-    private async Task<string> AskIdAsync(string actor, string taskId)
+    private async Task<string> AskIdAsync(string actor, string taskId, PostVisibility? visibility = null)
     {
-        var created = await AskAsync(actor, taskId, "Need a hand here");
+        var created = await AskAsync(actor, taskId, "Need a hand here", visibility: visibility);
         StatusOf(created).Should().Be(201);
         return ((PostDto)((ObjectResult)created).Value!).Id;
     }
+
+    private Task<IActionResult> UpdatePostAsync(string actor, string postId, UpdatePostDto change)
+        => AsAsync<PostsController>(actor, posts => posts.Update(postId, change, CancellationToken.None));
 
     private Task<IActionResult> ReplyAsync(string actor, string postId, string words)
         => AsAsync<PostsController>(actor, posts => posts.AddComment(
@@ -335,9 +475,15 @@ public sealed class HelpWantedFlowTests : IAsyncLifetime
     private Task<IActionResult> DeletePostAsync(string actor, string postId)
         => AsAsync<PostsController>(actor, posts => posts.Delete(postId, CancellationToken.None));
 
+    /// <summary>"Pick up task", as the BFF's task.claim sends it.</summary>
     private Task<IActionResult> ClaimAsync(string actor, string taskId)
         => AsAsync<TasksController>(actor, tasks => tasks.Assign(
-            taskId, new AssignTaskDto { UserId = actor }, CancellationToken.None));
+            taskId, new AssignTaskDto { UserId = actor, Claim = true }, CancellationToken.None));
+
+    /// <summary>The task board's assign, as the BFF's task.assign sends it: no claim flag.</summary>
+    private Task<IActionResult> AssignAsync(string actor, string taskId, string? assignee)
+        => AsAsync<TasksController>(actor, tasks => tasks.Assign(
+            taskId, new AssignTaskDto { UserId = assignee }, CancellationToken.None));
 
     private async Task<TaskDto> ReadTaskAsync(string actor, string taskId)
     {
@@ -398,9 +544,25 @@ public sealed class HelpWantedFlowTests : IAsyncLifetime
             .ToListAsync();
     }
 
+    /// <summary>Returns once some request on this database is queued behind a row lock.</summary>
+    private async Task WaitForALockWaiterAsync()
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(20);
+        while (DateTime.UtcNow < deadline)
+        {
+            await using var command = _dataSource!.CreateCommand(
+                "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'");
+            if ((long)(await command.ExecuteScalarAsync())! > 0)
+                return;
+            await Task.Delay(25);
+        }
+
+        throw new TimeoutException("The racing request never queued behind the held row.");
+    }
+
     /// <summary>
     /// The barn (Fern founded it; Lee leads; Bea, Ari and Ash contribute; Cy is outside), Bea's own kitchen, and
-    /// Fern's draft. Tasks: open, paid, done, escrow-funded, already Ash's, and one on the draft.
+    /// Fern's draft. Tasks: open, paid, done, escrow-funded, already Ash's, and one on the draft. Bea owns a guild.
     /// </summary>
     private static async Task SeedAsync(ArdaNovaDbContext context)
     {
@@ -424,6 +586,17 @@ public sealed class HelpWantedFlowTests : IAsyncLifetime
         context.ProjectTasks.Add(NewTask(EscrowTask, BarnId, "Raise the roof", monthAgo, escrow: EscrowStatus.FUNDED));
         context.ProjectTasks.Add(NewTask(TakenTask, BarnId, "Hang the doors", monthAgo, assignee: Ash));
         context.ProjectTasks.Add(NewTask(DraftTask, DraftId, "Sketch the shed", monthAgo));
+        context.Guilds.Add(new Guild
+        {
+            id = CarpentersGuildId,
+            name = "Carpenters",
+            slug = CarpentersGuildId,
+            description = "People who frame things.",
+            email = "carpenters@example.test",
+            ownerId = Bea,
+            createdAt = monthAgo,
+            updatedAt = monthAgo,
+        });
         await context.SaveChangesAsync();
     }
 
@@ -443,10 +616,10 @@ public sealed class HelpWantedFlowTests : IAsyncLifetime
         publishedAt = status == ProjectStatus.DRAFT ? null : at,
     };
 
-    private static ProjectMember Member(string userId, ProjectRole role, DateTime at) => new()
+    private static ProjectMember Member(string userId, ProjectRole role, DateTime at, string projectId = BarnId) => new()
     {
-        id = $"member-{userId}",
-        projectId = BarnId,
+        id = $"member-{projectId}-{userId}",
+        projectId = projectId,
         userId = userId,
         role = role,
         joinedAt = at,

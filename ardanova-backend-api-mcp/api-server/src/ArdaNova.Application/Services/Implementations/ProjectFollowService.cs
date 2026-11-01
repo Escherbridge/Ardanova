@@ -94,13 +94,10 @@ public class ProjectFollowService : IProjectFollowService
             return Result<bool>.NotFound($"Project with id {projectId} not found");
 
         var userId = viewer.UserId;
-        var follow = await _repository.FindOneAsync(f => f.projectId == projectId && f.userId == userId, ct);
-        if (follow is null)
-            // Unfollowing a project the viewer never followed is still success - not NotFound.
-            return Result<bool>.Success(true);
-
-        await _repository.DeleteAsync(follow, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
+        // One DELETE, no find-then-delete: a double tap's second delete finds no row, and "not following" is still success.
+        await _repository.Query()
+            .Where(f => f.projectId == projectId && f.userId == userId)
+            .ExecuteDeleteAsync(ct);
         return Result<bool>.Success(true);
     }
 

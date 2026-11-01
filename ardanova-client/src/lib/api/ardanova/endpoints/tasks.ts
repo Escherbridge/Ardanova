@@ -190,6 +190,14 @@ export class TasksEndpoint {
     });
   }
 
+  /** "Pick up task": the same route, flagged so the API takes it only while open - never over its holder, even for a manager. */
+  claim(id: string, userId: string): Promise<ApiResponse<Task>> {
+    return this.client.put<Task>(apiPath`/api/tasks/${id}/assign`, {
+      userId,
+      claim: true,
+    });
+  }
+
   getByPbiId(pbiId: string): Promise<ApiResponse<Task[]>> {
     return this.client.get<Task[]>(apiPath`/api/tasks/pbi/${pbiId}`);
   }

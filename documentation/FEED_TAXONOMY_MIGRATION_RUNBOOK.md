@@ -10,12 +10,12 @@ read-only preflight identity, `migrate deploy` only, never `db push` or
 **The operator runs every command here. The authoring lane only rehearsed on a
 throwaway local PostgreSQL 16 database; it did not touch any hosted database.**
 
-| # | Migration | Kind | What it does |
-| - | --- | --- | --- |
-| 1 | `20261027000000_feed_enum_values` | Additive enum labels | `ALTER TYPE ... ADD VALUE IF NOT EXISTS`: 9 `PostType` envelope kinds, 6 `ProjectType` kinds. Labels only, because a new label cannot be used in the transaction that adds it. |
-| 2 | `20261027001000_feed_envelope_columns` | Additive schema | Creates `FeedSourceType`; adds nullable `Post.sourceType/sourceId/opportunityId/eventId`, a `CHECK` that the pair is both-or-neither, two `ON DELETE SET NULL` foreign keys, `UNIQUE (sourceType, sourceId)` and seven read indexes. Existing rows read as authored posts (NULL source). |
-| 3 | `20261027002000_post_engagement_uniqueness` | **Destructive** + constraint | Deletes duplicate `PostLike`/`PostBookmark` rows per `(postId, userId)`, keeping the earliest; recounts `Post.likesCount` from the surviving `PostLike` rows for each affected post (not a rows-removed decrement -- that undercounts when two different people's likes raced); adds the two unique indexes. |
-| 4 | `20261027003000_taxonomy_term` | Additive schema + seed | Creates `TaxonomyKind` and `TaxonomyTerm`, seeds 26 sectors (the 10 legacy category codes verbatim), 13 project types and 54 skills, `ON CONFLICT (kind, slug) DO NOTHING`. |
+| #   | Migration                                   | Kind                         | What it does                                                                                                                                                                                                                                                                                                 |
+| --- | ------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `20261027000000_feed_enum_values`           | Additive enum labels         | `ALTER TYPE ... ADD VALUE IF NOT EXISTS`: 9 `PostType` envelope kinds, 6 `ProjectType` kinds. Labels only, because a new label cannot be used in the transaction that adds it.                                                                                                                               |
+| 2   | `20261027001000_feed_envelope_columns`      | Additive schema              | Creates `FeedSourceType`; adds nullable `Post.sourceType/sourceId/opportunityId/eventId`, a `CHECK` that the pair is both-or-neither, two `ON DELETE SET NULL` foreign keys, `UNIQUE (sourceType, sourceId)` and seven read indexes. Existing rows read as authored posts (NULL source).                     |
+| 3   | `20261027002000_post_engagement_uniqueness` | **Destructive** + constraint | Deletes duplicate `PostLike`/`PostBookmark` rows per `(postId, userId)`, keeping the earliest; recounts `Post.likesCount` from the surviving `PostLike` rows for each affected post (not a rows-removed decrement -- that undercounts when two different people's likes raced); adds the two unique indexes. |
+| 4   | `20261027003000_taxonomy_term`              | Additive schema + seed       | Creates `TaxonomyKind` and `TaxonomyTerm`, seeds 26 sectors (the 10 legacy category codes verbatim), 13 project types and 54 skills, `ON CONFLICT (kind, slug) DO NOTHING`.                                                                                                                                  |
 
 ## Deploy order
 
@@ -127,13 +127,16 @@ copy and re-scores every post.
 `PostShare`):**
 Prisma records the migration as failed and refuses every later deploy with P3009. The migration runs in one
 transaction, so nothing was applied. Recover with
+
 ```bash
 npx prisma migrate resolve --rolled-back 20261031000000_feed_retraction_and_hashtags
 npx prisma migrate deploy
 ```
+
 at a quieter moment. The retry is safe even after a partial manual apply: every statement is `IF NOT EXISTS`.
 
 **Readback:**
+
 ```sql
 SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns
 WHERE table_name = 'Post' AND column_name IN ('retractedAt', 'hashtags');   -- 2 rows, hashtags NOT NULL
@@ -152,16 +155,16 @@ hosted database was touched.
 ## Phase 3 addendum (2026-11-01): `20261101000000_feed_help_wanted` (SR-03 phase 3, lane S3)
 
 One more additive migration: the `HELP_WANTED` `PostType` label; nullable, unique `Post.taskId`
-(the `ProjectTask` a HELP_WANTED post asks for, `ON DELETE SET NULL`); a `CHECK` pairing them
+(the `ProjectTask` a `HELP_WANTED` post asks for, `ON DELETE SET NULL`); a `CHECK` pairing them
 (`Post_taskId_help_wanted_only`: `"taskId" IS NULL OR "type"::text = 'HELP_WANTED'`) so "one
-HELP_WANTED per task" holds without a partial index (Prisma 6.19.3 has no partial-index model, so
+`HELP_WANTED` per task" holds without a partial index (Prisma 6.19.3 has no partial-index model, so
 one would never clear `migrate diff --exit-code`); nullable `Notification.postId` (the post a
 reply/claim notification is about, `ON DELETE CASCADE`) and the `(userId, postId)` index that
 serves the UI's per-post notification collapse. The file header is the source of truth, including
 why the CHECK casts `"type"` to text (`"type"::text = 'HELP_WANTED'`) instead of comparing the
 enum directly: PostgreSQL will not let a transaction use an enum value an `ALTER TYPE ... ADD
 VALUE` added earlier IN THAT SAME TRANSACTION when the value is parsed AS the enum (`enum_in`);
-casting the *column* to text (`enum_out`) instead never resolves the literal as a `PostType`
+casting the _column_ to text (`enum_out`) instead never resolves the literal as a `PostType`
 value, so the restriction never fires and the add-value and its first consumer can share one
 migration file (unlike `20261027000000_feed_enum_values` and
 `20260909000000_economic_settlement_kind_values`, which both had to defer use to a later file).
@@ -169,24 +172,50 @@ migration file (unlike `20261027000000_feed_enum_values` and
 **Order:** `migrate deploy` -> restart the API (Npgsql caches each Postgres enum's label set per
 data source at first use, `ArdaNova.Infrastructure/DependencyInjection.cs` `MapEnum`; an API
 process that connected before this migration cannot write or read a `HELP_WANTED` post until
-restarted) -> client. **Before rolling the API back past this migration**, run
+restarted) -> client.
+
+**Blast radius if the API boots before this migration.** The API never migrates on boot (no
+`Migrate()` anywhere in `api-server/src`); deploy order is the only guard. An API build with the
+phase 3 model against a database without `20261101000000` fails every read that touches the new
+columns or label, so the core surfaces all 500 at once:
+
+- **Every `Post` query** selects the mapped `Post.taskId`: `42703 column "taskId" does not exist`.
+  That is the home feed, project field notes, a post's detail page, profiles' post lists, likes,
+  replies, shares and bookmarks.
+- **Every `Notification` query** selects `Notification.postId`: `42703`. That is the bell (list,
+  unread count, mark read), and every reply, since a reply now stages a notification.
+- **Every task read** (`TaskServices.cs` `EnrichTaskDtosAsync`, about line 401) reads `Post` to find
+  the task's ask: the same `42703`. Its filter on `type = 'HELP_WANTED'` would fail on its own
+  with `22P02 invalid input value for enum "PostType"`. That is the task board, the task page,
+  "my tasks", and every task create, update, status change and assign. Those writes commit first,
+  so the change lands and only the answer 500s. A person who retries a create makes a second task.
+
+Recovery is to run `migrate deploy`, then restart the API (the enum cache note above). Rolling the
+API back instead also works, because nothing has written the new columns yet.
+
+**Before rolling the API back past this migration**, run
+
 ```sql
 UPDATE "Post" SET "type" = 'POST', "taskId" = NULL WHERE "type" = 'HELP_WANTED';
 ```
+
 An old API build does not know the `HELP_WANTED` label and fails to read any row that carries it
 (22P02).
 
 **If `migrate deploy` fails on `lock_timeout` (5 s):** same recovery as the phase 2 addendum above
 -- the migration is one transaction, so a timeout applies nothing:
+
 ```bash
 npx prisma migrate resolve --rolled-back 20261101000000_feed_help_wanted
 npx prisma migrate deploy
 ```
+
 The retry is safe even after a partial manual apply: every statement is guarded (`IF NOT EXISTS`,
 or `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = ...) THEN ... END IF; END $$;`
 for the two foreign keys and the CHECK, which PostgreSQL has no `ADD CONSTRAINT IF NOT EXISTS` for).
 
 **Readback:**
+
 ```sql
 SELECT conname, contype FROM pg_constraint
 WHERE conname IN ('Post_taskId_fkey', 'Post_taskId_help_wanted_only', 'Notification_postId_fkey');
