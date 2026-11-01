@@ -1,3 +1,4 @@
+// Generated from database-architecture.dbml by generate:csharp - do not edit; hand-written members go in LiquidityPool.Custom.cs
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -8,7 +9,7 @@ using ArdaNova.Domain.Models.Enums;
 namespace ArdaNova.Domain.Models.Entities;
 
 [Table("LiquidityPool")]
-public class LiquidityPool
+public partial class LiquidityPool
 {
 
     [Key]

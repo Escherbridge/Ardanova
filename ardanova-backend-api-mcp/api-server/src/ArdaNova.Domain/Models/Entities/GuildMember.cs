@@ -1,3 +1,4 @@
+// Generated from database-architecture.dbml by generate:csharp - do not edit; hand-written members go in GuildMember.Custom.cs
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -8,7 +9,7 @@ using ArdaNova.Domain.Models.Enums;
 namespace ArdaNova.Domain.Models.Entities;
 
 [Table("GuildMember")]
-public class GuildMember
+public partial class GuildMember
 {
 
     [Key]

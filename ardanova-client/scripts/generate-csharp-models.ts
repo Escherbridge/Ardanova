@@ -80,6 +80,7 @@ interface Field {
   unique: boolean;
   not_null: boolean;
   dbdefault?: { value: string };
+  note?: string;
 }
 
 interface Index {
@@ -155,6 +156,32 @@ const getDecimalPrecision = (field: Field): [number, number] => {
     }
   }
   return CONFIG.DEFAULT_DECIMAL_PRECISION;
+};
+
+// Generated-file contract (partial entities, *.Custom.cs, csharp-default): see
+// ardanova-backend-api-mcp/api-server/src/ArdaNova.Domain/Models/AGENTS.md.
+const entityHeader = (tableName: string): string =>
+  `// Generated from database-architecture.dbml by generate:csharp - do not edit; hand-written members go in ${tableName}.Custom.cs\n`;
+const ENUM_HEADER =
+  "// Generated from database-architecture.dbml by generate:csharp - do not edit; member notes go in Enums/AGENTS.md\n";
+
+/** A column note ending in `csharp-default: <Member.Path>` sets the C# property initializer. */
+const CSHARP_DEFAULT_MARKER = /csharp-default:(.*)$/;
+const CSHARP_MEMBER_PATH = /^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/;
+
+const getCSharpDefault = (
+  tableName: string,
+  field: Field,
+): string | undefined => {
+  const match = CSHARP_DEFAULT_MARKER.exec(field.note ?? "");
+  if (!match) return undefined;
+  const expression = match[1].trim();
+  if (!CSHARP_MEMBER_PATH.test(expression)) {
+    throw new Error(
+      `${tableName}.${field.name}: "csharp-default:" must end the note and name a C# member, got "${expression}"`,
+    );
+  }
+  return expression;
 };
 
 // Types that conflict with System namespace types and need full qualification
@@ -357,7 +384,7 @@ const generateCSharp = async () => {
   // 1. Generate Enums
   console.log("Generating C# Enums...");
   schema.enums.forEach((en) => {
-    let content = `namespace ArdaNova.Domain.Models.Enums;
+    let content = `${ENUM_HEADER}namespace ArdaNova.Domain.Models.Enums;
 
 public enum ${en.name}
 {
@@ -422,7 +449,7 @@ public enum ${en.name}
     // Collect simple unique indexes (single field) for [Index] attributes
     const simpleUniqueFields = table.fields.filter((f) => f.unique && !f.pk);
 
-    let content = `using System;
+    let content = `${entityHeader(table.name)}using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -438,7 +465,7 @@ namespace ArdaNova.Domain.Models.Entities;
     });
 
     content += `[Table("${table.name}")]
-public class ${table.name}
+public partial class ${table.name}
 {
 
 `;
@@ -472,6 +499,11 @@ public class ${table.name}
         content += `    [Required]\n`;
       }
 
+      // [MaxLength(n)] for varchar(n), so the EF model matches the sized column Prisma creates
+      if (baseTypeName === "varchar" && field.type.args) {
+        content += `    [MaxLength(${parseInt(field.type.args, 10)})]\n`;
+      }
+
       // [Column(TypeName = "text")] for text fields
       if (baseTypeName === "text") {
         content += `    [Column(TypeName = "text")]\n`;
@@ -488,9 +520,12 @@ public class ${table.name}
         content += `    [Precision(${precision}, ${scale})]\n`;
       }
 
-      // Handle string defaults to avoid CS8618
+      // A DBML-declared runtime default wins; otherwise string defaults avoid CS8618
+      const csharpDefault = getCSharpDefault(table.name, field);
       let initializer = "";
-      if (csharpType === "string" && !isNullable) {
+      if (csharpDefault) {
+        initializer = ` = ${csharpDefault};`;
+      } else if (csharpType === "string" && !isNullable) {
         initializer = " = string.Empty;";
       } else if (isArrayType(field.type.type_name) && !isNullable) {
         initializer = ` = System.Array.Empty<${csharpType.slice(0, -2)}>();`;
@@ -615,10 +650,12 @@ public class ${table.name}
       generatedModels.map((m) => `${m}.cs`),
     );
     // Only a file shaped like generator output (it maps a table) is stale; hand-written
-    // policy/helper files in Entities/ (e.g. PostVisibilityPolicy.cs) are never removed.
+    // policy/helper files in Entities/ (e.g. PostVisibilityPolicy.cs) and *.Custom.cs
+    // partials are never removed.
     const staleEntityFiles = existingEntityFiles.filter(
       (f) =>
         !generatedEntityFileSet.has(f) &&
+        !f.endsWith(".Custom.cs") &&
         fs.readFileSync(path.join(entityDir, f), "utf-8").includes("[Table("),
     );
 

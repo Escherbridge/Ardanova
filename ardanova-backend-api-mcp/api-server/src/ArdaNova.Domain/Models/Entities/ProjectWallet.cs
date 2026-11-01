@@ -1,3 +1,4 @@
+// Generated from database-architecture.dbml by generate:csharp - do not edit; hand-written members go in ProjectWallet.Custom.cs
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -10,7 +11,7 @@ namespace ArdaNova.Domain.Models.Entities;
 [Index(nameof(projectId), IsUnique = true)]
 [Index(nameof(address), IsUnique = true)]
 [Table("ProjectWallet")]
-public class ProjectWallet
+public partial class ProjectWallet
 {
 
     [Key]

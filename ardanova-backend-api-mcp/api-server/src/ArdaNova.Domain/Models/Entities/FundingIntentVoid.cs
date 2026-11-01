@@ -1,3 +1,4 @@
+// Generated from database-architecture.dbml by generate:csharp - do not edit; hand-written members go in FundingIntentVoid.Custom.cs
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -7,10 +8,8 @@ using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
-/// <summary>A sponsorship request key voided before anything was admitted under it: the tombstone a late create is refused by.</summary>
-/// <remarks>See <c>src/ArdaNova.Application/Services/Implementations/AGENTS.md</c> section Sponsorship void.</remarks>
 [Table("FundingIntentVoid")]
-public class FundingIntentVoid
+public partial class FundingIntentVoid
 {
 
     [Key]
