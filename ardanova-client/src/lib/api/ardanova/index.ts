@@ -434,7 +434,9 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.azoaCustodialAccount = new AzoaCustodialAccountEndpoint(this);
     this.fundingIntents = new FundingIntentsEndpoint(this);
     this.addFunds = new AddFundsEndpoint(this);
-    this.nova = new NovaEndpoint(new BaseApiClient({ ...config, timeout: NOVA_TURN_TIMEOUT_MS }));
+    this.nova = new NovaEndpoint(
+      new BaseApiClient({ ...config, timeout: NOVA_TURN_TIMEOUT_MS }),
+    );
   }
 
   health() {

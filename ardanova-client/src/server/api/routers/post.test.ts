@@ -30,13 +30,21 @@ describe("post.create (HELP_WANTED, plan §2)", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("signs the write as the signed-in session user, never a caller-supplied value", async () => {
-    process.env.ACTOR_ASSERTION_HMAC_KEY = "post-test-signing-key-at-least-32-bytes";
+    process.env.ACTOR_ASSERTION_HMAC_KEY =
+      "post-test-signing-key-at-least-32-bytes";
     let signedSubject: string | undefined;
     posts.create.mockImplementation(async () => {
-      const assertion = getActorAssertion({ method: "POST", url: "/api/posts" });
+      const assertion = getActorAssertion({
+        method: "POST",
+        url: "/api/posts",
+      });
       const payload = assertion?.split(".")[0];
       signedSubject = payload
-        ? (JSON.parse(Buffer.from(payload, "base64url").toString()) as { subject: string }).subject
+        ? (
+            JSON.parse(Buffer.from(payload, "base64url").toString()) as {
+              subject: string;
+            }
+          ).subject
         : undefined;
       return { status: 201, data: { id: "post-1" } };
     });
@@ -64,7 +72,9 @@ describe("post.create (HELP_WANTED, plan §2)", () => {
     });
 
     await expect(create).rejects.toBeInstanceOf(TRPCError);
-    const failure = (await create.catch((error: unknown) => error)) as TRPCError;
+    const failure = (await create.catch(
+      (error: unknown) => error,
+    )) as TRPCError;
     expect(failure.code).toBe("CONFLICT");
     expect(failure.cause).toBeInstanceOf(HelpWantedConflictCause);
     expect((failure.cause as HelpWantedConflictCause).existingPostId).toBe(
@@ -76,10 +86,16 @@ describe("post.create (HELP_WANTED, plan §2)", () => {
     posts.create.mockResolvedValue({ status: 409, error: "Conflict" });
 
     const caller = await callerAs("user-ada");
-    const create = caller.create({ content: "x", type: "HELP_WANTED", taskId: "task-1" });
+    const create = caller.create({
+      content: "x",
+      type: "HELP_WANTED",
+      taskId: "task-1",
+    });
 
     await expect(create).rejects.toMatchObject({ code: "CONFLICT" });
-    const failure = (await create.catch((error: unknown) => error)) as TRPCError;
+    const failure = (await create.catch(
+      (error: unknown) => error,
+    )) as TRPCError;
     expect(failure.cause).toBeUndefined();
   });
 
@@ -91,7 +107,9 @@ describe("post.create (HELP_WANTED, plan §2)", () => {
     posts.create.mockResolvedValue({ status, error: "refused" });
     const caller = await callerAs("user-ada");
 
-    await expect(caller.create({ content: "x" })).rejects.toMatchObject({ code });
+    await expect(caller.create({ content: "x" })).rejects.toMatchObject({
+      code,
+    });
   });
 });
 
@@ -102,10 +120,15 @@ describe("post.delete (manager removes a HELP_WANTED, plan §2)", () => {
     [403, "FORBIDDEN"],
     [404, "NOT_FOUND"],
     [500, "INTERNAL_SERVER_ERROR"],
-  ])("maps the API's %i to %s; the API alone decides who may remove", async (status, code) => {
-    posts.delete.mockResolvedValue({ status, error: "refused" });
-    const caller = await callerAs("user-manager");
+  ])(
+    "maps the API's %i to %s; the API alone decides who may remove",
+    async (status, code) => {
+      posts.delete.mockResolvedValue({ status, error: "refused" });
+      const caller = await callerAs("user-manager");
 
-    await expect(caller.delete({ id: "post-1" })).rejects.toMatchObject({ code });
-  });
+      await expect(caller.delete({ id: "post-1" })).rejects.toMatchObject({
+        code,
+      });
+    },
+  );
 });

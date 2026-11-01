@@ -5,7 +5,15 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { httpLink } from "@trpc/client";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import superjson from "superjson";
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import { feedCardFixture } from "~/lib/feed/card-fixture";
 import { api } from "~/trpc/react";
@@ -37,7 +45,8 @@ const { postRouter } = await import("~/server/api/routers/post");
 const router = createTRPCRouter({ post: postRouter });
 
 /** The .NET API: the only faked collaborator. Everything from the click to this request is real. */
-const dotNetApi = vi.fn<(url: string, init: RequestInit) => Promise<Response>>();
+const dotNetApi =
+  vi.fn<(url: string, init: RequestInit) => Promise<Response>>();
 
 /** Renders `ui` under a real tRPC client whose HTTP requests the real post router answers in-process. */
 function renderSignedIn(ui: ReactNode) {

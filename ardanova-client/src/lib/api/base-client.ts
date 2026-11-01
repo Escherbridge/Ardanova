@@ -181,7 +181,10 @@ function failed<T>(status: number, errorText: string): ApiResponse<T> {
 }
 
 /** A string field a JSON error body carries (money routes' `MoneyRefusal`: `code`, `intentId`; a 409's `conflictId`), if any. */
-function readApiErrorField(errorText: string, field: "code" | "intentId" | "conflictId"): string | undefined {
+function readApiErrorField(
+  errorText: string,
+  field: "code" | "intentId" | "conflictId",
+): string | undefined {
   try {
     const parsed: unknown = JSON.parse(errorText);
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {

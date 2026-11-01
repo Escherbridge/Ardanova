@@ -10,16 +10,16 @@ feed and are unchanged.
 
 ## Component map
 
-| Export | File | Role |
-|---|---|---|
-| `FeedStream` | `feed-stream.tsx` | `feed.getPage` infinite query for one `scope`, sentinel + "Load more", end row, optimistic Follow |
-| `FeedCard` | `feed-card.tsx` | One card: author/time/subject chip, body, attachment, tag chips, reason, counters, one action |
-| `CardAttachment` | `card-attachment.tsx` | Renderer half of `lib/feed/registry.ts`: help state chip, funding mark, event time, launch summary |
-| `InlineReply` | `inline-reply.tsx` | Mounted only while open: newest reply (at most one) + composer. Closed cards make no reply reads |
-| `LikeToggle`, `LikeCount` | `like-toggle.tsx` | The quiet approval toggle beside the counters (§Like toggle); the bare count where there is no toggle |
-| `SubjectChip` | `subject-chip.tsx` | Project/guild link + Follow toggle (handler supplied by the mounting lane) |
-| `ColdStartRow` | `cold-start-row.tsx` | Where `nextCursor` is null: sector chips passed in + "Start a project"; empty platform = one line + same action |
-| `HashtagText`, `HashtagChip`, `HashtagList` | `../hashtags/` | `#tag` → `/tag/[tag]` links; see §Hashtags |
+| Export                                      | File                  | Role                                                                                                            |
+| ------------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `FeedStream`                                | `feed-stream.tsx`     | `feed.getPage` infinite query for one `scope`, sentinel + "Load more", end row, optimistic Follow               |
+| `FeedCard`                                  | `feed-card.tsx`       | One card: author/time/subject chip, body, attachment, tag chips, reason, counters, one action                   |
+| `CardAttachment`                            | `card-attachment.tsx` | Renderer half of `lib/feed/registry.ts`: help state chip, funding mark, event time, launch summary              |
+| `InlineReply`                               | `inline-reply.tsx`    | Mounted only while open: newest reply (at most one) + composer. Closed cards make no reply reads                |
+| `LikeToggle`, `LikeCount`                   | `like-toggle.tsx`     | The quiet approval toggle beside the counters (§Like toggle); the bare count where there is no toggle           |
+| `SubjectChip`                               | `subject-chip.tsx`    | Project/guild link + Follow toggle (handler supplied by the mounting lane)                                      |
+| `ColdStartRow`                              | `cold-start-row.tsx`  | Where `nextCursor` is null: sector chips passed in + "Start a project"; empty platform = one line + same action |
+| `HashtagText`, `HashtagChip`, `HashtagList` | `../hashtags/`        | `#tag` → `/tag/[tag]` links; see §Hashtags                                                                      |
 
 Pure logic lives in `src/lib/feed/` (`primaryActionFor`, `FEED_CARD_REGISTRY`, `reasonFragment`, `feedRoutes`,
 `mergeFeedPages`, `sectorsSeen`) so pages can reuse it without React.
@@ -31,15 +31,15 @@ the accessible name contains the visible label, WCAG 2.5.3). `primaryActionFor` 
 `postType`, `viewer.{isMember,isFollowing,canClaim}`, `task`, and the card's links. It never reads reason text.
 A help ask may add one secondary "Message" (a draft DM; never on your own or a finished ask).
 
-| Card | Action |
-|---|---|
-| POST, PROJECT_UPDATE, GUILD_*, MEMBER_JOINED, PROPOSAL, SHOP_ITEM, PROJECT_LAUNCHED, unknown | Reply (inline) |
-| TASK_COMPLETED, MILESTONE | Open board → `/projects/{slug}/board` |
-| FUNDING_PROGRESS | Back this → `/projects/{slug}/invest` |
-| OPPORTUNITY_OPENED / _UPDATE | Apply → `/opportunities/{slug ?? id}` |
-| EVENT_SCHEDULED | See events → `/events` |
-| DISCUSSION | Reply → native thread (`?tab=comments`, or the opportunity); the API refuses replies on the card |
-| HELP_WANTED, first row wins | no task facts → Reply · DONE → Open board · PICKED_UP → Reply · `canClaim` → **Pick up task** → `/tasks/{id}` (paid or not: the task page makes the one readiness read) · otherwise → Reply. No Apply row (plan Revision 2). |
+| Card                                                                                          | Action                                                                                                                                                                                                                       |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST, PROJECT*UPDATE, GUILD*\*, MEMBER_JOINED, PROPOSAL, SHOP_ITEM, PROJECT_LAUNCHED, unknown | Reply (inline)                                                                                                                                                                                                               |
+| TASK_COMPLETED, MILESTONE                                                                     | Open board → `/projects/{slug}/board`                                                                                                                                                                                        |
+| FUNDING_PROGRESS                                                                              | Back this → `/projects/{slug}/invest`                                                                                                                                                                                        |
+| OPPORTUNITY_OPENED / \_UPDATE                                                                 | Apply → `/opportunities/{slug ?? id}`                                                                                                                                                                                        |
+| EVENT_SCHEDULED                                                                               | See events → `/events`                                                                                                                                                                                                       |
+| DISCUSSION                                                                                    | Reply → native thread (`?tab=comments`, or the opportunity); the API refuses replies on the card                                                                                                                             |
+| HELP_WANTED, first row wins                                                                   | no task facts → Reply · DONE → Open board · PICKED_UP → Reply · `canClaim` → **Pick up task** → `/tasks/{id}` (paid or not: the task page makes the one readiness read) · otherwise → Reply. No Apply row (plan Revision 2). |
 
 A missing fact (no project, no opportunity) falls back to the inline Reply rather than a broken link.
 

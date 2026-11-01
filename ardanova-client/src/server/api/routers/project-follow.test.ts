@@ -40,13 +40,21 @@ describe("project follow (plan §2, §8-6)", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("signs the follow as the signed-in session user, never a caller-supplied follower id", async () => {
-    process.env.ACTOR_ASSERTION_HMAC_KEY = "follow-test-signing-key-at-least-32-bytes";
+    process.env.ACTOR_ASSERTION_HMAC_KEY =
+      "follow-test-signing-key-at-least-32-bytes";
     let signedSubject: string | undefined;
     projects.followProject.mockImplementation(async () => {
-      const assertion = getActorAssertion({ method: "POST", url: "/api/projects/project-1/follow" });
+      const assertion = getActorAssertion({
+        method: "POST",
+        url: "/api/projects/project-1/follow",
+      });
       const payload = assertion?.split(".")[0];
       signedSubject = payload
-        ? (JSON.parse(Buffer.from(payload, "base64url").toString()) as { subject: string }).subject
+        ? (
+            JSON.parse(Buffer.from(payload, "base64url").toString()) as {
+              subject: string;
+            }
+          ).subject
         : undefined;
       return { status: 200, data: followRow };
     });
@@ -69,10 +77,15 @@ describe("project follow (plan §2, §8-6)", () => {
   });
 
   it("following a hidden project surfaces NOT_FOUND", async () => {
-    projects.followProject.mockResolvedValue({ status: 404, error: "Project not found" });
+    projects.followProject.mockResolvedValue({
+      status: 404,
+      error: "Project not found",
+    });
 
     const caller = await callerAs("user-ada");
-    await expect(caller.followProject({ projectId: "project-hidden" })).rejects.toMatchObject({
+    await expect(
+      caller.followProject({ projectId: "project-hidden" }),
+    ).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
   });
@@ -84,7 +97,9 @@ describe("project follow (plan §2, §8-6)", () => {
     });
 
     const caller = await callerAs("user-ada");
-    await expect(caller.unfollowProject({ projectId: "project-1" })).resolves.toEqual({
+    await expect(
+      caller.unfollowProject({ projectId: "project-1" }),
+    ).resolves.toEqual({
       projectId: "project-1",
       isFollowing: false,
     });
@@ -97,7 +112,9 @@ describe("project follow (plan §2, §8-6)", () => {
     });
 
     const caller = await callerAs("user-ada");
-    await expect(caller.getMyFollowState({ projectId: "project-1" })).resolves.toEqual({
+    await expect(
+      caller.getMyFollowState({ projectId: "project-1" }),
+    ).resolves.toEqual({
       projectId: "project-1",
       isFollowing: true,
     });

@@ -18,10 +18,7 @@ import { helpWantedConflictError } from "~/server/api/help-wanted-conflict-error
  * shared with everyone; signed in, it adds the ones that reader is entitled to see.
  */
 
-type FieldNoteReader =
-  | { id?: string | null; role?: string }
-  | null
-  | undefined;
+type FieldNoteReader = { id?: string | null; role?: string } | null | undefined;
 
 /** Runs a read with the reader attached as the actor, or anonymously when signed out. */
 async function readAsViewer<T>(

@@ -25,7 +25,9 @@ export function parseTaskClaimRefusalCode(
 }
 
 /** The claim code on a thrown tRPC client error (`error.data.taskClaimCode`), or null for anything else. */
-export function taskClaimRefusalOf(error: unknown): TaskClaimRefusalCode | null {
+export function taskClaimRefusalOf(
+  error: unknown,
+): TaskClaimRefusalCode | null {
   if (typeof error !== "object" || error === null) return null;
   const data = (error as { data?: unknown }).data;
   return typeof data === "object" && data !== null

@@ -14,8 +14,7 @@ export function LikeCount({ likes }: { likes: number }) {
   return (
     <span className="inline-flex items-center gap-1">
       <Heart aria-hidden className="size-3" />
-      {likes}{" "}
-      <span className="sr-only">{likes === 1 ? "like" : "likes"}</span>
+      {likes} <span className="sr-only">{likes === 1 ? "like" : "likes"}</span>
     </span>
   );
 }
@@ -59,10 +58,7 @@ export function LikeToggle({
       .catch((error: unknown) => {
         setSettled(before);
         toast.error(
-          describeMutationError(
-            error,
-            next ? "like this" : "remove your like",
-          ),
+          describeMutationError(error, next ? "like this" : "remove your like"),
         );
       })
       .finally(() => setPending(false));
@@ -82,10 +78,7 @@ export function LikeToggle({
           liked && "text-foreground",
         )}
       >
-        <Heart
-          aria-hidden
-          className={cn("size-3", liked && "fill-current")}
-        />
+        <Heart aria-hidden className={cn("size-3", liked && "fill-current")} />
         Like
       </button>
       <LikeCount likes={shown} />

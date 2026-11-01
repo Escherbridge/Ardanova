@@ -98,27 +98,30 @@ describe("task.claim refusals reach the browser with the API's code", () => {
     ["TASK_UNDER_AGREEMENT", "TASK_UNDER_AGREEMENT"],
     // A code a newer API added: still CONFLICT with the API's words, just no code to branch on.
     ["TASK_ARCHIVED", null],
-  ] as const)("a 409 naming %s is CONFLICT with taskClaimCode %s", async (code, expected) => {
-    const backend = vi.fn(
-      async () =>
-        new Response(
-          JSON.stringify({ error: "This task was just picked up.", code }),
-          { status: 409, headers: { "Content-Type": "application/json" } },
-        ),
-    );
-    vi.stubGlobal("fetch", backend);
+  ] as const)(
+    "a 409 naming %s is CONFLICT with taskClaimCode %s",
+    async (code, expected) => {
+      const backend = vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ error: "This task was just picked up.", code }),
+            { status: 409, headers: { "Content-Type": "application/json" } },
+          ),
+      );
+      vi.stubGlobal("fetch", backend);
 
-    const failure = await browser.task.claim.mutate({ id: "task-1" }).then(
-      () => null,
-      (error: unknown) => error,
-    );
+      const failure = await browser.task.claim.mutate({ id: "task-1" }).then(
+        () => null,
+        (error: unknown) => error,
+      );
 
-    expect(failure).toBeInstanceOf(TRPCClientError);
-    const data = (failure as TRPCClientError<AppRouter>).data;
-    expect(data?.code).toBe("CONFLICT");
-    expect(taskClaimRefusalOf(failure)).toBe(expected);
-    expect(describeMutationError(failure, "pick up this task")).toContain(
-      "This task was just picked up.",
-    );
-  });
+      expect(failure).toBeInstanceOf(TRPCClientError);
+      const data = (failure as TRPCClientError<AppRouter>).data;
+      expect(data?.code).toBe("CONFLICT");
+      expect(taskClaimRefusalOf(failure)).toBe(expected);
+      expect(describeMutationError(failure, "pick up this task")).toContain(
+        "This task was just picked up.",
+      );
+    },
+  );
 });

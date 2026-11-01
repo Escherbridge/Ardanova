@@ -17,7 +17,10 @@ import {
 type Reader = { id?: string | null; role?: string } | null | undefined;
 
 /** Runs a read with the reader attached as the actor, or anonymously when signed out. */
-async function readAsViewer<T>(reader: Reader, call: () => Promise<T>): Promise<T> {
+async function readAsViewer<T>(
+  reader: Reader,
+  call: () => Promise<T>,
+): Promise<T> {
   if (!reader?.id) return call();
   return runWithActorAssertion({ subject: reader.id, role: reader.role }, call);
 }
@@ -349,7 +352,10 @@ export const taskRouter = createTRPCRouter({
   claim: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      const response = await apiClient.tasks.assign(input.id, ctx.session.user.id);
+      const response = await apiClient.tasks.assign(
+        input.id,
+        ctx.session.user.id,
+      );
 
       if (response.error || !response.data) {
         // The API's 409 body is `{ error, code }`; the code rides to the browser as `error.data.taskClaimCode`.
