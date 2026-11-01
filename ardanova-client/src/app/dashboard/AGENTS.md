@@ -32,6 +32,20 @@ sits at the top once (same id), showing the stream's copy, which the composer pa
 project or guild looked up in the composer's attach lists, which share its query cache, so a guild note names its
 guild and a joined project names its project without another read.
 
+## Hydration (walkthrough W-L3)
+
+The walkthrough saw an intermittent dev hydration mismatch at `HomePage > FieldNoteComposer > form[data-prompt="moved"]`
+on a first Home load. The dashboard layout passes the server's session to `SessionProvider`, so the composer IS in the
+server HTML. Its first render reads props only: prompt from `mode`/`taskId`, empty words, PUBLIC, no attachment, ids
+from `useId`; it restores no draft (there is no saved-draft feature) and reads no storage, `Date` or random value
+during render; `SetupPrompt` reads `sessionStorage` only in an effect. `page.hydration.test.tsx` pins that: it renders
+Home to a string with no storage, then hydrates it with something stored under every key, and fails on any recoverable
+error or hydration log (mutation-checked: a render-time `localStorage` read in the composer turns it red). It does not
+reproduce the walkthrough's warning, so that one is unexplained: a browser extension that injects into forms or
+textareas before hydration (password managers, grammar checkers) is consistent with "intermittent" and with a diff at
+the `<form>`, but is unconfirmed. Trigger: if it recurs, re-run in a clean browser profile and read the `+`/`-` lines
+of React's diff for the attribute or child that differs.
+
 ## Cold-start row data source
 
 No API reports "sectors with content" (`taxonomy.getAll` lists terms, not usage), so the chips are the sectors on
