@@ -388,7 +388,9 @@ describe("FieldNoteComposer: each prompt writes its post type (plan §1-§2)", (
       );
 
       fireEvent.click(screen.getByRole("radio", { name: prompt }));
+      // The two attach lists are separate reads: wait for both, or a project pick can land before its option exists.
       await screen.findByRole("option", { name: "Timber framers" });
+      await screen.findByRole("option", { name: "Barn raising" });
       if (attach) pick("Attach", attach);
       pick("Who can read", audience);
       // The scope line says who can read it wherever it shows (Home, tag pages), not just on the subject's page.
