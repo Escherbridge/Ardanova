@@ -8,7 +8,7 @@ import { EquityOrRedemptionRightKindSchema } from '../inputTypeSchemas/EquityOrR
 
 export const EquityOrRedemptionRightPolicySchema = z.object({
   kind: EquityOrRedemptionRightKindSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   version: z.number().int(),
   jurisdiction: z.string(),

@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client'
 /////////////////////////////////////////
 
 export const TreasurySchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   balance: z.instanceof(Prisma.Decimal, { message: "Field 'balance' must be a Decimal. Location: ['Models', 'Treasury']"}),
   shareAssetId: z.string().nullable(),

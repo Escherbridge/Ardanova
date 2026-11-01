@@ -8,7 +8,7 @@ import { TransactionTypeSchema } from '../inputTypeSchemas/TransactionTypeSchema
 
 export const TreasuryTransactionSchema = z.object({
   type: TransactionTypeSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   treasuryId: z.string(),
   amount: z.instanceof(Prisma.Decimal, { message: "Field 'amount' must be a Decimal. Location: ['Models', 'TreasuryTransaction']"}),
   description: z.string().nullable(),

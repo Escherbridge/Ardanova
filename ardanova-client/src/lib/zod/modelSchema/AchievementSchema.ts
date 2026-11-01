@@ -11,7 +11,7 @@ import { AchievementRaritySchema } from '../inputTypeSchemas/AchievementRaritySc
 export const AchievementSchema = z.object({
   category: AchievementCategorySchema,
   rarity: AchievementRaritySchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   name: z.string(),
   description: z.string(),
   criteria: JsonValueSchema,

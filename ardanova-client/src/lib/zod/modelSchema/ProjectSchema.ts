@@ -12,7 +12,7 @@ export const ProjectSchema = z.object({
   projectType: ProjectTypeSchema,
   duration: ProjectDurationSchema.nullable(),
   status: ProjectStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   title: z.string(),
   slug: z.string(),
   description: z.string(),

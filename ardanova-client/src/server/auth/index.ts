@@ -141,7 +141,7 @@ function isSessionEndpoint(request: NextRequest): boolean {
 /** Auth.js route handlers; under the preview, `/session` reports the same identity as `auth()`. */
 const handlers = {
   POST: providerHandlers.POST,
-  async GET(request: NextRequest) {
+  GET: async (request: NextRequest) => {
     if (
       isDevelopmentAuthPreviewEnabled &&
       isSessionEndpoint(request) &&

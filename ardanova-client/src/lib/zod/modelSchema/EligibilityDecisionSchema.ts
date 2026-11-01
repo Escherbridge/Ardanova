@@ -7,7 +7,7 @@ import { EligibilityDecisionStatusSchema } from '../inputTypeSchemas/Eligibility
 
 export const EligibilityDecisionSchema = z.object({
   status: EligibilityDecisionStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   userId: z.string(),
   equityOrRedemptionRightPolicyId: z.string(),
   evidenceDigest: z.string(),

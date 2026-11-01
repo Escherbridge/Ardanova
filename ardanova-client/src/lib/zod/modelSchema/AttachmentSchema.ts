@@ -7,7 +7,7 @@ import { MimeTypeSchema } from '../inputTypeSchemas/MimeTypeSchema'
 
 export const AttachmentSchema = z.object({
   type: MimeTypeSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   uploadedById: z.string(),
   bucketPath: z.string().nullable(),
   createdAt: z.coerce.date(),

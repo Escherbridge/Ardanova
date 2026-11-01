@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const GuildFollowSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   userId: z.string(),
   guildId: z.string(),
   notifyUpdates: z.boolean(),

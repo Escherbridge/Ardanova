@@ -8,7 +8,7 @@ import { SprintStatusSchema } from '../inputTypeSchemas/SprintStatusSchema'
 
 export const SprintSchema = z.object({
   status: SprintStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   epicId: z.string().nullable(),
   milestoneId: z.string().nullable(),

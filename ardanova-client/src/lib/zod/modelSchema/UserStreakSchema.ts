@@ -7,7 +7,7 @@ import { StreakTypeSchema } from '../inputTypeSchemas/StreakTypeSchema'
 
 export const UserStreakSchema = z.object({
   streakType: StreakTypeSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   userId: z.string(),
   currentStreak: z.number().int(),
   longestStreak: z.number().int(),

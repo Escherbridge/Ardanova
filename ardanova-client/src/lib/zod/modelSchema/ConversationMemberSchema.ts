@@ -7,7 +7,7 @@ import { ConversationRoleSchema } from '../inputTypeSchemas/ConversationRoleSche
 
 export const ConversationMemberSchema = z.object({
   role: ConversationRoleSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   conversationId: z.string(),
   userId: z.string(),
   lastReadAt: z.coerce.date().nullable(),

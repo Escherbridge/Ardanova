@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client'
 /////////////////////////////////////////
 
 export const DelegatedVoteSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   delegatorId: z.string(),
   delegateeId: z.string(),

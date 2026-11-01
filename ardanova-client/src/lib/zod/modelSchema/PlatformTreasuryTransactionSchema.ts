@@ -7,7 +7,7 @@ import { PlatformTreasuryTransactionTypeSchema } from '../inputTypeSchemas/Platf
 
 export const PlatformTreasuryTransactionSchema = z.object({
   type: PlatformTreasuryTransactionTypeSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   amount: z.number(),
   fromBucket: z.string().nullable(),
   toBucket: z.string().nullable(),

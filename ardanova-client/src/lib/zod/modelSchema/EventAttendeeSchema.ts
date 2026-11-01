@@ -7,7 +7,7 @@ import { AttendeeStatusSchema } from '../inputTypeSchemas/AttendeeStatusSchema'
 
 export const EventAttendeeSchema = z.object({
   status: AttendeeStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   eventId: z.string(),
   userId: z.string(),
   rsvpAt: z.coerce.date(),

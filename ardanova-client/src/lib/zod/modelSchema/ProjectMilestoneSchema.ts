@@ -10,7 +10,7 @@ import { PrioritySchema } from '../inputTypeSchemas/PrioritySchema'
 export const ProjectMilestoneSchema = z.object({
   status: MilestoneStatusSchema,
   priority: PrioritySchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   guildId: z.string().nullable(),
   title: z.string(),

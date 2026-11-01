@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const PostShareSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   postId: z.string(),
   userId: z.string(),
   sharedToProjectId: z.string().nullable(),

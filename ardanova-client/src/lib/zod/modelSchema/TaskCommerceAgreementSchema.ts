@@ -9,7 +9,7 @@ import { TaskCommerceAgreementStatusSchema } from '../inputTypeSchemas/TaskComme
 
 export const TaskCommerceAgreementSchema = z.object({
   status: TaskCommerceAgreementStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   semanticKey: z.string(),
   projectId: z.string(),
   taskId: z.string(),

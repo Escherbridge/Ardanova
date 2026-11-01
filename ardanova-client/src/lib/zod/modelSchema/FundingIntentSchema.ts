@@ -8,7 +8,7 @@ import { FundingIntentStatusSchema } from '../inputTypeSchemas/FundingIntentStat
 
 export const FundingIntentSchema = z.object({
   status: FundingIntentStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   semanticKey: z.string(),
   idempotencyKey: z.string(),
   funderUserId: z.string(),

@@ -9,7 +9,7 @@ import { InvitationStatusSchema } from '../inputTypeSchemas/InvitationStatusSche
 export const ProjectInvitationSchema = z.object({
   role: ProjectRoleSchema,
   status: InvitationStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   invitedById: z.string(),
   invitedUserId: z.string().nullable(),

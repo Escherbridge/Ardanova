@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const PlatformTreasurySchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   singletonKey: z.string(),
   ardaTotalSupply: z.bigint(),
   ardaCirculatingSupply: z.bigint(),

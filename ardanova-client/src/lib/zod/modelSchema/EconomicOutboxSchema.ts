@@ -7,7 +7,7 @@ import { EconomicOutboxStatusSchema } from '../inputTypeSchemas/EconomicOutboxSt
 
 export const EconomicOutboxSchema = z.object({
   status: EconomicOutboxStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   settlementId: z.string(),
   payloadVersion: z.number().int(),
   attemptCount: z.number().int(),

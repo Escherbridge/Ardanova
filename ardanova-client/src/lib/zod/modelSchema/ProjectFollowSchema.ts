@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const ProjectFollowSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   userId: z.string(),
   projectId: z.string(),
   notifyUpdates: z.boolean(),

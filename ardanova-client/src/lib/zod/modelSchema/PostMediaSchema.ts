@@ -7,7 +7,7 @@ import { MimeTypeSchema } from '../inputTypeSchemas/MimeTypeSchema'
 
 export const PostMediaSchema = z.object({
   type: MimeTypeSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   postId: z.string(),
   url: z.string(),
   thumbnailUrl: z.string().nullable(),

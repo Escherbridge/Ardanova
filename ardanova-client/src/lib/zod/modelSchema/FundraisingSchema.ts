@@ -8,7 +8,7 @@ import { FundraisingStatusSchema } from '../inputTypeSchemas/FundraisingStatusSc
 
 export const FundraisingSchema = z.object({
   status: FundraisingStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   shareId: z.string(),
   fundingGoal: z.instanceof(Prisma.Decimal, { message: "Field 'fundingGoal' must be a Decimal. Location: ['Models', 'Fundraising']"}),
   currentFunding: z.instanceof(Prisma.Decimal, { message: "Field 'currentFunding' must be a Decimal. Location: ['Models', 'Fundraising']"}),

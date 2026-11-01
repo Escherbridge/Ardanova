@@ -9,7 +9,7 @@ import { LeaderboardCategorySchema } from '../inputTypeSchemas/LeaderboardCatego
 export const LeaderboardSchema = z.object({
   period: LeaderboardPeriodSchema,
   category: LeaderboardCategorySchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
   createdAt: z.coerce.date(),

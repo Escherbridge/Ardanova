@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const SessionSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   sessionToken: z.string(),
   userId: z.string(),
   expires: z.coerce.date(),

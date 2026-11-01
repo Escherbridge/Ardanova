@@ -7,7 +7,7 @@ import { EconomicSettlementLegKindSchema } from '../inputTypeSchemas/EconomicSet
 
 export const EconomicSettlementLegSchema = z.object({
   kind: EconomicSettlementLegKindSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   economicSettlementId: z.string(),
   position: z.number().int(),
   assetDefinitionId: z.string(),

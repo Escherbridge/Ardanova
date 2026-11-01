@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const ProjectUpdateSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   userId: z.string(),
   title: z.string(),

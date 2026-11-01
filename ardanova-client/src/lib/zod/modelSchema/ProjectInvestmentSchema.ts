@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const ProjectInvestmentSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectTokenConfigId: z.string(),
   userId: z.string(),
   usdAmount: z.number(),

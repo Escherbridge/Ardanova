@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const EventCoHostSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   eventId: z.string(),
   userId: z.string(),
   addedAt: z.coerce.date(),

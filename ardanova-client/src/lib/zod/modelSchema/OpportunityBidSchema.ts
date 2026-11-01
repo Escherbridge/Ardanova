@@ -8,7 +8,7 @@ import { BidStatusSchema } from '../inputTypeSchemas/BidStatusSchema'
 
 export const OpportunityBidSchema = z.object({
   status: BidStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   opportunityId: z.string(),
   bidderId: z.string(),
   guildId: z.string().nullable(),

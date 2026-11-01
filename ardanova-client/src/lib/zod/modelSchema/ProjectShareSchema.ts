@@ -7,7 +7,7 @@ import { Prisma } from '@prisma/client'
 /////////////////////////////////////////
 
 export const ProjectShareSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   assetId: z.string().nullable(),
   name: z.string(),

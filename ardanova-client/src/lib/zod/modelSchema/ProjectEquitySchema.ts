@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client'
 /////////////////////////////////////////
 
 export const ProjectEquitySchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   userId: z.string(),
   sharePercent: z.instanceof(Prisma.Decimal, { message: "Field 'sharePercent' must be a Decimal. Location: ['Models', 'ProjectEquity']"}),

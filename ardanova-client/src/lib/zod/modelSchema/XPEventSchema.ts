@@ -8,7 +8,7 @@ import { XPEventTypeSchema } from '../inputTypeSchemas/XPEventTypeSchema'
 
 export const XPEventSchema = z.object({
   eventType: XPEventTypeSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   userId: z.string(),
   amount: z.number().int(),
   source: z.string(),

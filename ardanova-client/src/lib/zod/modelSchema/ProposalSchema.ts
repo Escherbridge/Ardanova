@@ -10,7 +10,7 @@ import { ProposalStatusSchema } from '../inputTypeSchemas/ProposalStatusSchema'
 export const ProposalSchema = z.object({
   type: ProposalTypeSchema,
   status: ProposalStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   creatorId: z.string(),
   title: z.string(),

@@ -8,7 +8,7 @@ import { NotificationTypeSchema } from '../inputTypeSchemas/NotificationTypeSche
 
 export const NotificationSchema = z.object({
   type: NotificationTypeSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   userId: z.string(),
   title: z.string(),
   message: z.string(),

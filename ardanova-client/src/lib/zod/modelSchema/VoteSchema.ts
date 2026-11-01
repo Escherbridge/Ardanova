@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client'
 /////////////////////////////////////////
 
 export const VoteSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   proposalId: z.string(),
   voterId: z.string(),
   choice: z.number().int(),

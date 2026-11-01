@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const UserSkillSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   userId: z.string(),
   skill: z.string(),
   level: z.number().int(),

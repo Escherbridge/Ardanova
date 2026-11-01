@@ -8,7 +8,7 @@ import { ActivityTypeSchema } from '../inputTypeSchemas/ActivityTypeSchema'
 
 export const ActivitySchema = z.object({
   type: ActivityTypeSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   userId: z.string(),
   projectId: z.string().nullable(),
   entityType: z.string(),

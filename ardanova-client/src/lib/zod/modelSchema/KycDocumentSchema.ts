@@ -7,7 +7,7 @@ import { KycDocumentTypeSchema } from '../inputTypeSchemas/KycDocumentTypeSchema
 
 export const KycDocumentSchema = z.object({
   type: KycDocumentTypeSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   submissionId: z.string(),
   fileUrl: z.string(),
   fileName: z.string(),

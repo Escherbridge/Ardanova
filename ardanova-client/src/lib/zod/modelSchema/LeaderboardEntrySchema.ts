@@ -6,7 +6,7 @@ import { JsonValueSchema } from '../inputTypeSchemas/JsonValueSchema'
 /////////////////////////////////////////
 
 export const LeaderboardEntrySchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   leaderboardId: z.string(),
   userId: z.string(),
   rank: z.number().int(),

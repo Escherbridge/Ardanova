@@ -8,7 +8,7 @@ import { EscrowStatusSchema } from '../inputTypeSchemas/EscrowStatusSchema'
 
 export const TaskEscrowSchema = z.object({
   status: EscrowStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   taskId: z.string(),
   funderId: z.string(),
   shareId: z.string(),

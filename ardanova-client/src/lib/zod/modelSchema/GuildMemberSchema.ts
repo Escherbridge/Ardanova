@@ -7,7 +7,7 @@ import { GuildMemberRoleSchema } from '../inputTypeSchemas/GuildMemberRoleSchema
 
 export const GuildMemberSchema = z.object({
   role: GuildMemberRoleSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   guildId: z.string(),
   userId: z.string(),
   joinedAt: z.coerce.date(),

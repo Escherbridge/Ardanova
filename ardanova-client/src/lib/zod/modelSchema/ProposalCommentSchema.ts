@@ -5,7 +5,7 @@ import { z } from 'zod';
 /////////////////////////////////////////
 
 export const ProposalCommentSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   proposalId: z.string(),
   userId: z.string(),
   content: z.string(),

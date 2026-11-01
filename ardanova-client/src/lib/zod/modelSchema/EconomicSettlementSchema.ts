@@ -11,7 +11,7 @@ import { EconomicSettlementStatusSchema } from '../inputTypeSchemas/EconomicSett
 export const EconomicSettlementSchema = z.object({
   kind: EconomicSettlementKindSchema,
   status: EconomicSettlementStatusSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   idempotencyKey: z.string(),
   externalEventId: z.string().nullable(),
   beneficiaryUserId: z.string(),

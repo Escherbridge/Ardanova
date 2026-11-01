@@ -6,7 +6,7 @@ import { JsonValueSchema } from '../inputTypeSchemas/JsonValueSchema'
 /////////////////////////////////////////
 
 export const SwapQuoteSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   semanticKey: z.string(),
   actorUserId: z.string(),
   sourceAssetDefinitionId: z.string(),

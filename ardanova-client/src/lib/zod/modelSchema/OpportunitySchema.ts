@@ -16,7 +16,7 @@ export const OpportunitySchema = z.object({
   status: OpportunityStatusSchema,
   experienceLevel: ExperienceLevelSchema,
   projectRole: ProjectRoleSchema.nullable(),
-  id: z.string().cuid(),
+  id: z.cuid(),
   title: z.string(),
   slug: z.string(),
   description: z.string(),

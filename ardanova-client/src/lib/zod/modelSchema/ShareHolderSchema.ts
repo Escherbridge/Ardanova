@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client'
 /////////////////////////////////////////
 
 export const ShareHolderSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   shareId: z.string(),
   userId: z.string(),
   balance: z.instanceof(Prisma.Decimal, { message: "Field 'balance' must be a Decimal. Location: ['Models', 'ShareHolder']"}),

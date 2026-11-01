@@ -7,7 +7,7 @@ import { AssetDefinitionKindSchema } from '../inputTypeSchemas/AssetDefinitionKi
 
 export const AssetDefinitionSchema = z.object({
   kind: AssetDefinitionKindSchema,
-  id: z.string().cuid(),
+  id: z.cuid(),
   chainType: z.string(),
   chainNetwork: z.string(),
   canonicalAssetId: z.string(),

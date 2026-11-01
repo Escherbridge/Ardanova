@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client'
 /////////////////////////////////////////
 
 export const GuildSchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   name: z.string(),
   slug: z.string(),
   description: z.string(),

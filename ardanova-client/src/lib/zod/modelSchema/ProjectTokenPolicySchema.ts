@@ -6,7 +6,7 @@ import { JsonValueSchema } from '../inputTypeSchemas/JsonValueSchema'
 /////////////////////////////////////////
 
 export const ProjectTokenPolicySchema = z.object({
-  id: z.string().cuid(),
+  id: z.cuid(),
   projectId: z.string(),
   assetDefinitionId: z.string(),
   version: z.number().int(),
