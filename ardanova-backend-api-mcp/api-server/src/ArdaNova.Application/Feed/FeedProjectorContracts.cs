@@ -31,6 +31,7 @@ public interface IFeedEnvelopeStore
     Task<FeedInsertOutcome> InsertAsync(FeedEnvelope envelope, DateTime projectedAt, CancellationToken ct = default);
 
     /// <summary>Deletes envelopes and their likes, replies, bookmarks, shares and media; never a person's post.</summary>
+    /// <remarks>Only for an envelope whose source row is GONE; a withdrawn source is <see cref="RetractAsync"/>.</remarks>
     Task<int> RemoveAsync(IReadOnlyCollection<string> envelopeIds, CancellationToken ct = default);
 
     /// <summary>Moves an envelope to the audience its source now has.</summary>
@@ -39,6 +40,22 @@ public interface IFeedEnvelopeStore
         PostVisibility visibility,
         DateTime changedAt,
         CancellationToken ct = default);
+
+    /// <summary>Withdraws live envelopes from every read, keeping the row and its engagement; never a person's post.</summary>
+    Task<int> RetractAsync(IReadOnlyCollection<string> envelopeIds, DateTime retractedAt, CancellationToken ct = default);
+
+    /// <summary>Puts a retracted envelope back, on the same row, with the audience its source now has.</summary>
+    Task<int> RestoreAsync(
+        string envelopeId,
+        PostVisibility visibility,
+        DateTime restoredAt,
+        CancellationToken ct = default);
+
+    /// <summary>Re-tags an envelope from its source's current copy; never a person's post.</summary>
+    Task<int> SetHashtagsAsync(string envelopeId, string[] hashtags, CancellationToken ct = default);
+
+    /// <summary>Stores a post's viewer-independent quality score (Post.trendingScore) and when it was computed.</summary>
+    Task<int> SetQualityAsync(string postId, decimal quality, DateTime computedAt, CancellationToken ct = default);
 }
 
 /// <summary>What one envelope insert did.</summary>
@@ -64,6 +81,9 @@ public enum FeedProjectorOutcome
 /// <summary>What one projector pass did (or, for a dry run, would do).</summary>
 /// <param name="SourceReadsFailed">Reads of one source kind that threw; those rows were skipped, never treated as deleted.</param>
 /// <param name="CardsFailed">Single envelopes whose rule, insert, removal or re-audience threw; the rest went ahead.</param>
+/// <param name="Retracted">Live cards withdrawn because their source, still present, no longer earns one.</param>
+/// <param name="Restored">Retracted cards put back on the same row because their source earns one again.</param>
+/// <param name="Retagged">Cards whose hashtags were re-read from their source's edited copy.</param>
 public sealed record FeedProjectorRun(
     FeedProjectorOutcome Outcome,
     bool DryRun,
@@ -76,13 +96,17 @@ public sealed record FeedProjectorRun(
     int Resynced,
     IReadOnlyList<FeedEnvelope> PendingEnvelopes,
     int SourceReadsFailed = 0,
-    int CardsFailed = 0)
+    int CardsFailed = 0,
+    int Retracted = 0,
+    int Restored = 0,
+    int Retagged = 0)
 {
     public static FeedProjectorRun RunnerBusy { get; } = new(
         FeedProjectorOutcome.RunnerBusy, false, false, 0, 0, 0, 0, 0, 0, []);
 
     /// <summary>True when the pass changed any row.</summary>
-    public bool ChangedAnything => !DryRun && (Projected > 0 || Removed > 0 || Resynced > 0);
+    public bool ChangedAnything
+        => !DryRun && (Projected > 0 || Removed > 0 || Resynced > 0 || Retracted > 0 || Restored > 0 || Retagged > 0);
 
     /// <summary>True when part of the pass was skipped because something threw.</summary>
     public bool HadFailures => SourceReadsFailed > 0 || CardsFailed > 0;

@@ -1,9 +1,10 @@
-# Feed projector (SR-03 Phase 1, Lane A)
+# Feed: projector (SR-03 Phase 1) and ranked read side (Phase 2)
 
 Every feedable event becomes ONE envelope row in `Post`: `type` (PostType), provenance
 `(sourceType, sourceId)` (UNIQUE, CHECK both-or-neither), and nullable target FKs
 `projectId / guildId / opportunityId / eventId` (ON DELETE SET NULL). A post a person wrote keeps
-`sourceType` NULL. Ranking and body hydration are Phase 2 (Lane B), not here.
+`sourceType` NULL. The read side (Phase 2: retraction, hashtags, quality score, ranker, paging, cards) is
+described from §Retraction on; the projector sections below it are Phase 1 unless marked.
 
 ## Why a pull projector
 
@@ -41,6 +42,10 @@ for whom). Retain is never narrower than Enter, and never wider on privacy.
 | Event | EVENT_SCHEDULED | the event's own: PUBLIC / PROJECT_MEMBERS / GUILD_MEMBERS | organizer | SCHEDULED or LIVE, not INVITE_ONLY | deleted / DRAFT / CANCELLED / INVITE_ONLY |
 
 Proposals and products are excluded for MVP.
+
+"Leaves when" splits in two since Phase 2 (§Retraction): a source that is **deleted** loses its card (hard
+delete, with its engagement); a source that still exists but stops earning one (DRAFT, CANCELLED, INVITE_ONLY,
+`completedAt` cleared) has its card **retracted** - kept, hidden from every read, restored on re-entry.
 
 Project-scoped envelopes (including an opportunity's or event's project) carry `projectId`, so
 `PostService.OnAVisibleProject` hides every card of a DRAFT project from strangers, exactly as it hides its
@@ -116,8 +121,8 @@ of which is indexed, so every cycle scans those tables. Fine at MVP sizes; add p
 ## Cycle, sweep, backfill
 
 - **Cycle (~5 s):** sources in the window -> insert missing envelopes; re-judge the envelope each source
-  already has (`Retain`): delete it, or move it to the source's current audience. An event made
-  INVITE_ONLY loses its card on the next cycle, not the next sweep.
+  already has (`Retain`): retract it, restore it, move it to the source's current audience, or re-tag it from
+  the source's edited copy. An event made INVITE_ONLY loses its card on the next cycle, not the next sweep.
 - **Moved targets:** the judge also compares the stored card's targets with `FeedProjectionRules.TargetsOf(source)`
   (the one function `Enter` builds targets from, so they cannot disagree). Targets decide who may see a card - a
   DRAFT project hides its cards - so a card still pointing at the old rows is wrong about its audience: it is
@@ -160,7 +165,8 @@ of which is indexed, so every cycle scans those tables. Fine at MVP sizes; add p
 database, so a Development default turned any laptop into the shared database's feed writer - and the first
 cycle sweeps, i.e. hard-deletes). The local stack (`.omc/scripts/local-stack.ps1`, local DB on 5433) sets it
 explicitly. `IntervalSeconds` (5), `LookBackMinutes` (10), `SweepIntervalMinutes` (60), `SweepBatchSize` (500,
-the sweep's full-table reconciliation batch; see §Cycle, sweep, backfill).
+the sweep's full-table reconciliation batch; see §Cycle, sweep, backfill), `ScoreIntervalMinutes` (5, the quality
+pass; see §Quality score).
 
 **A malformed value never stops the API** (owner decision, review M5): `AddFeedProjector` uses
 `TryFromConfiguration`; on a bad value the projector stays OFF (whatever `Enabled` says - a half-read
@@ -168,26 +174,133 @@ configuration is not one to run) and `FeedProjectorMisconfiguredAlarm` logs the 
 starts. Payments and sign-in live in the same process, so a feed typo must not take them down. The cycle and
 stores are registered regardless, so the admin backfill works with the timer off.
 
-## Phase 2 handoff (not built here)
+## Retraction (Phase 2, precondition SR-03-P2-PRE)
 
-**PRECONDITION for Phase 2 (review M2, deferred from Phase 1):** retraction is currently a HARD delete. An
-opportunity sent back to DRAFT, or an event moved to DRAFT / CANCELLED / INVITE_ONLY, makes `Retain` return null and
-`FeedEnvelopeStore.RemoveAsync` deletes the card WITH other people's replies, likes, bookmarks and shares; re-opening
-it later projects a FRESH card (new id, zero engagement, new `updatedAt`) that ranking would treat as new and bump.
-Before the read API ships, retraction must become a state, not a delete: an additive nullable column on `Post`
-(e.g. `retractedAt`, DBML first) that the projector sets instead of deleting and clears on re-entry, restoring the
-SAME row; every feed/hydration read filters it out. Deletion stays only for a source that is actually gone.
+Withdrawal is a state, not a delete. `Post.retractedAt` (migration `20261031000000_feed_retraction_and_hashtags`):
 
-Ranking (`trendingScore`, Reasons[], diversity caps), the feed read API, and HYDRATION: envelopes store a
-title snapshot and, for system kinds, a plain sentence (`FeedEnvelopeCopy`, vocabulary-checked in
-`FeedProjectionRulesTests`); user-written bodies (updates, comments) are stored as "" and must be read live
-from the source row.
+- `FeedProjectorCycle.Plan.Judge` order matters: **moved targets first** (remove + re-insert, unchanged from
+  Phase 1 - a card re-homed to a different audience must not carry replies written for the old one), **then**
+  `Retain(source) == null` -> retract (only if not already retracted, so a steady state writes nothing), **then**
+  a retracted card whose source earns one again -> restore (`RestoreAsync`: `retractedAt = NULL` and the current
+  audience, one statement). `createdAt` is never touched, so a restored card is not bumped as new. Retain, not
+  Enter, decides restore: Retain is "may a stored card stay", and a retracted card is a stored card.
+- **Hard delete only when the source row is gone** (sweep: `ReadByIdsAsync` misses it, or `HasLostItsTarget`).
+- **Reads:** `PostVisibilityPolicy.VisibleTo` (Domain) carries `retractedAt == null` in both its branches, and every
+  read seam composes it (`PostReadFilters.ReadableBy`), so detail, comments, like, reply, share and bookmark all
+  answer a retracted card with the same NotFound as a missing post - author included. `IsPubliclyVisible` (the
+  legacy viewer-less reads) is compiled from the same expression.
 
-**Defence in depth, required, not optional:** the sweep now reconciles the whole table every hour (see
-§Cycle, sweep, backfill), but it is still a background pass with an hour's cadence and a batch loop that
-can be mid-flight when a reader hits the card. Hydration MUST independently check that the source row it is
-about to read live still exists (and still earns the card - the same `Retain` question) and drop the card
-from the response, in-line, if it does not; it cannot assume the sweep already caught a since-deleted or
-since-ineligible source. This is the second of two checks on the same invariant, not a substitute for the
-first - it is what keeps a reader from ever seeing a stale or revoked card during the window between a
-source changing and the next sweep (or batch) reaching that envelope.
+## Hashtags (owner direction 2026-10-31: light, copy-driven metadata)
+
+`Post.hashtags text[] NOT NULL DEFAULT '{}'` + GIN index. `Hashtags.Extract`: NFKC, then
+`(?<![\p{L}\p{N}\p{M}_/&#-])#([\p{L}\p{N}\p{M}_-]{2,40})(?![\p{L}\p{N}\p{M}_-])`, lowercased, ends trimmed of `-`/`_`,
+deduped, first-seen order, at most 10. The look-behind is what keeps `example.com/#anchor`, `page#frag`, `&#39;` and
+`##x` out; a markdown heading (`# Title`) never matches because a space is not a tag character. `\p{M}` is added to
+the owner's class so Devanagari/Thai words are not cut at a vowel sign; NFKC has already composed every mark that
+can be. A run longer than 40 is not truncated into a tag - it is not a tag.
+
+- **Written by:** `PostService.CreateAsync/UpdateAsync` (title + content) and the projector
+  (`FeedProjectionRules.HashtagsOf(source)` over `FeedSource.Copy`: project title/summary/description, update
+  title/content, comment content, opportunity/event/guild descriptions, milestone/task title+description). `Judge`
+  re-tags a stored card when its source's copy changed. Copy edits to sources without `updatedAt`
+  (ProjectUpdate, GuildUpdate, comments) are seen by the hourly sweep, not the 5 s window.
+- **Canonical layer, not a taxonomy** (`FeedTopicCanon`): a tag resolves to an existing `TaxonomyTerm` by slug or
+  label in any of `_`/`-`/joined spellings (`#food-and-drink`, `#foodbeverage` -> SECTOR FOOD_BEVERAGE); on a shared
+  spelling SECTOR > SKILL > PROJECT_TYPE (RESEARCH is both a sector and a project type). A SKILL also stands for its
+  parent SECTOR. Anything else stays a free-form topic (`tag:x`) and still matches itself. **No aliases table** -
+  revisit when two spellings of one subject both trend (e.g. `#permaculture` and `#permaculture-design` each in the
+  top tags of a week); then add `TaxonomyTerm` rows or an alias column, not code.
+
+## Quality score
+
+Stored in `Post.trendingScore` (`trendingAt` = when), viewer-independent, recomputed by `FeedQualityPass` every
+`ScoreIntervalMinutes` under the projector's runner lock (same advisory-lock pattern; the hosted loop runs it after
+the cycle in its own scope) and after an executed backfill.
+
+**Capped-reply log-engagement score:** `Q = 1 + ln(1 + A + 0.5*min(R, A) + 2*S + 1.5*B) + 1.0*novelty`, where
+A = likes, R = replies (a DISCUSSION card's native-thread replies included), S = shares, B = bookmarks,
+novelty = 1 on the day the card's project opened, fading linearly to 0 over 14 days. Why each term:
+
+- **Replies capped by approvals.** Reply volume is what a flame war produces; approvals are what a good thread
+  earns. `min(R, A)` means a reply only counts while someone has vouched for the post, and at half weight.
+- **Shares (2) > bookmarks (1.5) > likes (1).** Passing a card on and saving it for later are deliberate, costly
+  endorsements; a like is cheap. All are explicit, positive, viewer-initiated acts.
+- **ln damping + a floor of 1.** A runaway card cannot bury everything else for days, and a fresh card with no
+  engagement still ranks on recency and affinity (an unscored row - stored 0 - also ranks at 1).
+- **FORBIDDEN, by construction:** views, dwell time and negative reactions. `FeedQualitySignals` has no field for
+  them, so no caller can feed them in (`viewsCount` is still counted by `PostService`; nothing ranks on it).
+
+The pass reads every live post id, then signals in `SweepBatchSize` batches, and writes only rows whose score moved.
+
+## Ranking (`FeedRanking`, pure; table-driven `FeedRankingTests`)
+
+`score = max(Q, 1) x decay x affinity x novelty`:
+
+- **decay** = `0.5^(age / 48h)` against the cursor's pinned `asOf` (a card dated after asOf counts as new).
+- **affinity** = 1 + project link (team or follow, +2) + guild link (+1.5) + followed author (+1) + one interest
+  match, only when there is no project/guild link: a specific tag topic (skill / project type / free tag, +0.75) >
+  a sector reached through a tag (+0.5) > a sector reached through the card's project (+0.5). The viewer's
+  interests: tags on their 200 most recent posts written, liked or replied to; sectors of projects they follow,
+  created or work on; their `UserSkill` names - all through the canon. Own posts carry "Your activity", no boost.
+- **novelty** = 1 + 0.5 x freshness when the card's project is new AND in one of the viewer's sectors. (Q already
+  carries a viewer-independent new-project boost; this one is the "New in Construction" lift for people in
+  construction.)
+- **Diversity per page** (`SelectPage`, greedy in rank order): home <= 2 per subject (project, else guild,
+  opportunity, event, else author) and <= 3 per author; every 5th slot prefers a **discovery** card - no follow,
+  team or author link and no interest match (tag or sector). A discovery slot with no discovery card left is filled
+  by the next best card, never left empty. Caps relax only when nothing further can be drawn (window at its cap or
+  the platform exhausted) - a page is never shortened to save a round trip.
+
+## Paging (`FeedService`, `FeedCursor`)
+
+Per scope (owner addenda 2-3):
+
+| scope | order | caps | discovery |
+|---|---|---|---|
+| home | ranked windows | 2/subject, 3/author | every 5th slot |
+| `tag:{tag}` | ranked windows | 3/author only | none |
+| `project:{id}`, `guild:{id}` | newest first, keyset `(createdAt, id)` | none | none |
+
+A tag naming a SECTOR term also matches cards whose project carries that sector (untagged updates on a
+CONSTRUCTION project are `#construction`); visibility is re-applied identically in every mode.
+
+**Ranked windows.** Ranking all candidates per request is unbounded; ranking a fixed recency window is not. The
+cursor pins `asOf` (so decay cannot reshuffle) and an open window `[Floor, Top)` in `(createdAt desc, id desc)`
+keyset order, plus 48-bit fingerprints of the window's cards already served. Each page re-reads the window under the
+viewer's visibility, ranks what is unserved, fills a page; a page that cannot fill under the caps opens the next
+60-card chunk (window cap 150) before caps relax. When a window is spent, `Top` drops to `Floor` and the served set
+empties, so the cursor stays ~1 KB however far the scroll goes. **No "caught up" end:** after the followed cards in a
+window come its discovery cards, then the next (older) window; `nextCursor` is null only when nothing visible is left.
+Trade-off: ranking is exact within a window; across windows recency wins, which a 48 h half-life makes close to
+the global order unless more than ~150 cards land per half-life (then a followed card older than the window waits for
+its window). Trigger to revisit: a materialised per-viewer candidate list once volume crosses that.
+
+**A cursor can only skip, never reveal.** It is unsigned on purpose: every read composes `PostReadFilters.ReadableBy`
+(audience + draft project + retraction) and the scope filter; a forged window just selects a range of what the viewer
+may see, a forged served set hides cards, a future `asOf` is clamped to now, and a cursor whose scope or mode differs
+from the request is refused (400). A scoped project the viewer cannot see answers 404 exactly like a missing one.
+
+## Cards (`FeedCardDto`) and defence in depth
+
+Hydration re-reads the page's posts through the read gate, then for every envelope reads its source
+(`IFeedSourceReader.ReadByIdsAsync`) and drops the card if the source is gone, `Retain(source)` differs from the
+stored audience (fail closed: the next cycle will move it), or `TargetsOf(source)` differs - the second of two checks
+on the projector's invariant, so a reader never sees a card the sweep has not reached yet. Dropped cards are skipped
+and the page refilled; the scroll does not end. A source kind whose read throws drops its cards for that page only.
+
+- **Body**: a person's post shows its content; an envelope shows its source's live `Body` (updates, comments) when a
+  person wrote it, else the envelope's system sentence (`BodyIsUserWritten` says which).
+- **Funding**: `Funding.Percent` from the envelope's `{"percent":N}` - never an amount, never a backer; the project
+  summary on a card carries no funding fields.
+- **Viewer** (`isMember`, `isFollowing`, `canClaim`): computed server-side; Phase 3 picks the primary action from
+  it, never from reason text. `canClaim` is false until claimable (help-wanted / task-linked) cards exist.
+- **Reasons**: stable `kind` + rendered `text` with live names (`FeedReasonText`).
+
+## Deferred (with the trigger to revisit)
+
+- **Project follow has no write path** (only guild and user follows have services). The feed reads `ProjectFollow`;
+  until an endpoint writes it, project affinity comes from team membership. Trigger: Phase 3 "Follow" button.
+- **Full-pass quality scoring** reads every live post each interval. Trigger: > ~50k posts or a pass > 10 s in the
+  logs - then score only posts touched since the last pass plus those in a novelty window.
+- **Tag scope with a sector match** ORs a join condition with the GIN containment, so Postgres cannot use the index
+  alone. Trigger: tag-scope latency in the logs; then denormalise the project's sectors onto envelopes' hashtags.

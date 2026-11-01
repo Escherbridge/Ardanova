@@ -668,8 +668,8 @@ internal sealed class PrismaSources
 
             var field = PrismaField.Match(line);
             if (!field.Success) continue;
-            if (field.Groups["modifier"].Value == "[]") continue;
             if (field.Groups["attributes"].Value.Contains("@relation", StringComparison.Ordinal)) continue;
+            // A list of a model is a relation (no column); a scalar list such as String[] is a real array column.
             if (modelNames.Contains(field.Groups["type"].Value)) continue;
 
             Members(models, name).Add(field.Groups["name"].Value);

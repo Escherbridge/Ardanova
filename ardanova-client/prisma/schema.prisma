@@ -2042,6 +2042,8 @@ model Post {
   sourceId      String?
   opportunityId String?
   eventId       String?
+  retractedAt   DateTime?
+  hashtags      String[]        @default([])
   author        User            @relation("Post_authorId", fields: [authorId], references: [id])
   project       Project?        @relation("Post_projectId", fields: [projectId], references: [id])
   guild         Guild?          @relation("Post_guildId", fields: [guildId], references: [id])
@@ -2061,6 +2063,7 @@ model Post {
   @@index([authorId, createdAt])
   @@index([opportunityId])
   @@index([eventId])
+  @@index([hashtags], type: Gin)
 }
 
 model PostMedia {

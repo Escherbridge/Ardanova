@@ -93,7 +93,7 @@ export interface CreatePostShareDto {
 }
 
 /**
- * Posts are project-scoped field notes. There is no global feed endpoint: every read
+ * Posts are project-scoped field notes (the ranked feed is `feed.ts`). Every read
  * is filtered server-side to what the signed actor may see, and every write is bound
  * to that same actor.
  */

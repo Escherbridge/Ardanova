@@ -113,6 +113,49 @@ public sealed class FeedEnvelopeStore : IFeedEnvelopeStore
                 .SetProperty(post => post.visibility, visibility)
                 .SetProperty(post => post.updatedAt, changedAt), ct);
 
+    /// <inheritdoc/>
+    /// <remarks>createdAt is never touched, so a card that comes back is not bumped as new.</remarks>
+    public Task<int> RetractAsync(IReadOnlyCollection<string> envelopeIds, DateTime retractedAt, CancellationToken ct = default)
+    {
+        if (envelopeIds.Count == 0)
+            return Task.FromResult(0);
+
+        var ids = envelopeIds.ToArray();
+        return _context.Posts
+            .Where(post => ids.Contains(post.id) && post.sourceType != null && post.retractedAt == null)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(post => post.retractedAt, retractedAt)
+                .SetProperty(post => post.updatedAt, retractedAt), ct);
+    }
+
+    /// <inheritdoc/>
+    public Task<int> RestoreAsync(
+        string envelopeId,
+        PostVisibility visibility,
+        DateTime restoredAt,
+        CancellationToken ct = default)
+        => _context.Posts
+            .Where(post => post.id == envelopeId && post.sourceType != null && post.retractedAt != null)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(post => post.retractedAt, (DateTime?)null)
+                .SetProperty(post => post.visibility, visibility)
+                .SetProperty(post => post.updatedAt, restoredAt), ct);
+
+    /// <inheritdoc/>
+    public Task<int> SetHashtagsAsync(string envelopeId, string[] hashtags, CancellationToken ct = default)
+        => _context.Posts
+            .Where(post => post.id == envelopeId && post.sourceType != null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(post => post.hashtags, hashtags), ct);
+
+    /// <inheritdoc/>
+    /// <remarks>updatedAt is left alone: a score is derived state, not an edit to the post.</remarks>
+    public Task<int> SetQualityAsync(string postId, decimal quality, DateTime computedAt, CancellationToken ct = default)
+        => _context.Posts
+            .Where(post => post.id == postId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(post => post.trendingScore, quality)
+                .SetProperty(post => post.trendingAt, computedAt), ct);
+
     private static bool HasSqlState(DbUpdateException failure, string sqlState)
         => failure.InnerException is PostgresException postgres && postgres.SqlState == sqlState;
 

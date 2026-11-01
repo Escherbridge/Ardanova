@@ -1657,6 +1657,8 @@ Table Post {
   sourceId varchar [note: 'Projected envelope: the source row id. NULL for a post a person wrote']
   opportunityId varchar [note: 'Opportunity this post is about']
   eventId varchar [note: 'Event this post is about']
+  retractedAt datetime [note: 'Projected envelope withdrawn while its source still exists (opportunity re-drafted, event cancelled). NULL = live; re-entry clears it on the SAME row']
+  hashtags "text[]" [not null, default: '{}', note: 'Lowercased NFKC #tags from the post copy (envelopes: the source copy), deduped, max 10, first-seen order']
 
   indexes {
     createdAt
@@ -1667,6 +1669,7 @@ Table Post {
     (sourceType, sourceId) [unique, note: 'One envelope per source row; NULL pairs (authored posts) never collide']
     opportunityId
     eventId
+    hashtags [note: 'gin: serves the feed tag scope (hashtags @> ARRAY[tag])']
   }
 }
 Ref: Post.authorId > User.id

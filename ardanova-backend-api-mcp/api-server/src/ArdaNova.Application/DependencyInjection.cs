@@ -86,6 +86,8 @@ public static class DependencyInjection
         services.AddScoped<IPostService, PostService>();
         // Viewer-aware post reads: the same scoped instance under its own interface.
         services.AddScoped<IPostFieldNotesService>(sp => (IPostFieldNotesService)sp.GetRequiredService<IPostService>());
+        // The ranked feed; its read ports (IFeedSourceReader, IFeedReadStore) are registered by AddFeedProjector.
+        services.AddScoped<ArdaNova.Application.Feed.IFeedService, ArdaNova.Application.Feed.FeedService>();
 
         // Task services
         services.AddScoped<ITaskService, TaskService>();
