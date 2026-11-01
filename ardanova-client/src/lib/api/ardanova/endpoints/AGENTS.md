@@ -71,3 +71,11 @@ raw body through is how `isFollowing` read `undefined` before the join). Like `p
 is no follower id in the request: the follower is the signed actor. By design there is **no**
 follower-list/count route, unlike `users.ts`'s legacy `getFollowers`/`getFollowCounts` - the plan's
 own pushback (§8-6) names guild follow's public follower list as a flaw to not repeat.
+
+## Memberships (SR-03 Phase 3 final join)
+
+`projects.getMine()` → `GET /api/projects/mine` and `guilds.getMine()` → `GET /api/guilds/mine`: what the signed
+actor belongs to (created/owns, or a member row). No userId in the request. The `project.getMyMemberships` and
+`guild.getMyMemberships` procedures feed the composer's attach picker; `getMyProjects`/`getMyGuilds` keep their
+creator/owner meaning for the profile page and the opportunity entity picker. Proof:
+`server/api/routers/memberships.test.ts`.

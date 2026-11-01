@@ -575,6 +575,13 @@ not find-then-delete: a double-tap unfollow used to make the second request's tr
 `DbUpdateConcurrencyException` and 500; now it deletes nothing and answers success. There is no follower-list route and no read
 of another user's follow state — `GET .../follow` only ever answers for the signed actor.
 
+**§Memberships (SR-03 P3 final join).** `GET /api/projects/mine` (`IProjectVisibility.GetMembershipsAsync`) and
+`GET /api/guilds/mine` (`IGuildService.GetMembershipsAsync`) list what the signed actor belongs to: created or a
+`ProjectMember` row; owned or a `GuildMember` row. That is exactly who `PostsController.ActorMayPostToAsync` lets
+write into a project or guild, so the composer's attach picker (client `components/feed/composer/AGENTS.md`) never
+offers a subject the post would be refused on. Actor-only, no userId parameter; the project read still composes
+`ProjectQueryFilters.VisibleTo`, and an admin reads only their own team. Proof: `MembershipListFlowTests` (real PG).
+
 # Project member authority
 
 `ProjectMemberRolePolicy` is the rank rule `ProjectsController` applies after its manager gate

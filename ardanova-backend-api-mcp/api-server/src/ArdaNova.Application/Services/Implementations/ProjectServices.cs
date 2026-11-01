@@ -70,6 +70,11 @@ public interface IProjectVisibility
         string userId,
         CancellationToken ct = default);
 
+    /// <summary>The viewer's own team: projects they created or are a member of, by title. Anonymous reads none.</summary>
+    Task<Result<IReadOnlyList<ProjectDto>>> GetMembershipsAsync(
+        ProjectViewer viewer,
+        CancellationToken ct = default);
+
     Task<Result<IReadOnlyList<ProjectDto>>> GetVisibleByStatusAsync(
         ProjectViewer viewer,
         ProjectStatus status,
@@ -446,6 +451,23 @@ public class ProjectService : IProjectService, IProjectVisibility
             await ListVisibleAsync(
                 ProjectQueryFilters.VisibleTo(viewer).And(project => project.createdById == userId),
                 ct));
+
+    public async Task<Result<IReadOnlyList<ProjectDto>>> GetMembershipsAsync(
+        ProjectViewer viewer,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(viewer.UserId))
+            return Result<IReadOnlyList<ProjectDto>>.Success(Array.Empty<ProjectDto>());
+
+        var userId = viewer.UserId;
+        var projects = await ListVisibleAsync(
+            ProjectQueryFilters.VisibleTo(viewer).And(project =>
+                project.createdById == userId
+                || project.ProjectMembers.Any(member => member.userId == userId)),
+            ct);
+        return Result<IReadOnlyList<ProjectDto>>.Success(
+            projects.OrderBy(project => project.Title, StringComparer.OrdinalIgnoreCase).ToList());
+    }
 
     public Task<Result<IReadOnlyList<ProjectDto>>> GetByStatusAsync(ProjectStatus status, CancellationToken ct = default)
         => GetVisibleByStatusAsync(ProjectViewer.Anonymous, status, ct);

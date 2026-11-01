@@ -16,7 +16,7 @@ writer). The public component is `FieldNoteComposer` in `../field-note-composer.
 | `hashtag-suggestions.ts`   | Pure: the `#fragment` at the caret, ranking, insertion                                      |
 | `published-card.ts`        | Pure: the created/edited PostDto as a contract `FeedCard`                                   |
 | `help-conflict.ts`         | Pure: `error.data.helpWantedExistingPostId` from a 409                                      |
-| `use-composer-subjects.ts` | Attach lists (my projects, my guilds) and the help task list                                |
+| `use-composer-subjects.ts` | Attach lists (projects and guilds I belong to) and the help task list                       |
 | `composer-select.tsx`      | Native select with the mono ledger label                                                    |
 
 ## Props
@@ -90,11 +90,20 @@ the picked task's `equityReward` (omitted when unknown).
 private. Inside a project the scope line is the existing `audienceDescription` verbatim (consent wording untouched);
 the new contexts (nothing attached, a guild) read "Anyone can read it." for PUBLIC.
 
+## Attach list
+
+Every project and guild the writer belongs to: `project.getMyMemberships` → .NET `GET /api/projects/mine` (created
+or a `ProjectMember` row, drafts of their own team included, by title) and `guild.getMyMemberships` → `GET
+/api/guilds/mine` (owned or a `GuildMember` row, by name). Both routes are actor-only: .NET reads the signed actor
+and there is no userId parameter. These match who the API lets write into a project or guild, so the picker never
+offers a subject the post would be refused on. Proof: `MembershipListFlowTests` (real Postgres) and
+`server/api/routers/memberships.test.ts`.
+
 ## Reads
 
 | When                                                     | Reads                                        |
 | -------------------------------------------------------- | -------------------------------------------- |
-| Mounted without a fixed attachment                       | `project.getMyProjects`, `guild.getMyGuilds` |
+| Mounted without a fixed attachment                       | `project.getMyMemberships`, `guild.getMyMemberships` |
 | "Who can help?" with a project                           | `task.getAll({ projectId, limit: 100 })`     |
 | First `#`                                                | `taxonomy.getAll`                            |
 | Publish with `onPublished`, subject not in a picker list | `project.getById` / `guild.getById`          |
@@ -103,10 +112,6 @@ The project page (fixed `projectId`, no `onPublished`) makes none of these until
 
 ## Deferred
 
-- **Attach list = projects you created + guilds you own.** `project.getMyProjects` reads `createdById` and
-  `guild.getMyGuilds` reads `ownerId`; no procedure lists projects or guilds you are a member of. A member who is not
-  the creator attaches only where a page fixes `projectId` (project page, work-item modal). Trigger: a member reports
-  they cannot attach from Home → add a memberships read in Lane P's routers.
 - **Task list capped at 100** per project (one `task.getAll` page). Trigger: a project with >100 tasks.
 - **Escape inside a Radix dialog** closes the dialog, not just the suggestions: Radix listens on `document` in the
   capture phase, before React. Trigger: Lane W mounts the composer in the modal → its `onEscapeKeyDown` can

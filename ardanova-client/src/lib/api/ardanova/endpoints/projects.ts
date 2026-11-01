@@ -394,6 +394,11 @@ export class ProjectsEndpoint {
     return this.client.get<Project[]>(apiPath`/api/projects/user/${userId}`);
   }
 
+  /** The signed actor's own projects (created or a member of); no userId, the actor is the member. */
+  getMine(): Promise<ApiResponse<Project[]>> {
+    return this.client.get<Project[]>(apiPath`/api/projects/mine`);
+  }
+
   getByStatus(status: ProjectStatus): Promise<ApiResponse<Project[]>> {
     return this.client.get<Project[]>(apiPath`/api/projects/status/${status}`);
   }

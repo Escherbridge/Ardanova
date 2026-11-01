@@ -270,6 +270,11 @@ export class GuildsEndpoint {
     );
   }
 
+  /** The signed actor's own guilds (owned or a member of); no userId, the actor is the member. */
+  getMine(): Promise<ApiResponse<Guild[]>> {
+    return this.client.get<Guild[]>("/api/guilds/mine");
+  }
+
   getVerified(): Promise<ApiResponse<Guild[]>> {
     return this.client.get<Guild[]>("/api/guilds/verified");
   }

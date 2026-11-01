@@ -11,6 +11,8 @@ public interface IGuildService
     Task<Result<IReadOnlyList<GuildDto>>> GetAllAsync(CancellationToken ct = default);
     Task<Result<PagedResult<GuildDto>>> GetPagedAsync(int page, int pageSize, CancellationToken ct = default);
     Task<Result<GuildDto>> GetByOwnerIdAsync(string ownerId, CancellationToken ct = default);
+    /// <summary>Guilds the user owns or is a member of, by name.</summary>
+    Task<Result<IReadOnlyList<GuildDto>>> GetMembershipsAsync(string userId, CancellationToken ct = default);
     Task<Result<IReadOnlyList<GuildDto>>> GetVerifiedAsync(CancellationToken ct = default);
     Task<Result<GuildDto>> CreateAsync(GuildActor actor, CreateGuildDto dto, CancellationToken ct = default);
     Task<Result<GuildDto>> UpdateAsync(string id, GuildActor actor, UpdateGuildDto dto, CancellationToken ct = default);

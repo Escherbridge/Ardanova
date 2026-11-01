@@ -186,6 +186,19 @@ public class GuildService : IGuildService
         return Result<GuildDto>.Success(await WithProjectCountAsync(_mapper.Map<GuildDto>(guild), ct));
     }
 
+    public async Task<Result<IReadOnlyList<GuildDto>>> GetMembershipsAsync(string userId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(userId))
+            return Result<IReadOnlyList<GuildDto>>.Success(Array.Empty<GuildDto>());
+
+        var guilds = await _repository.FindAsync(
+            g => g.ownerId == userId || g.GuildMembers.Any(member => member.userId == userId),
+            ct);
+        var ordered = guilds.OrderBy(g => g.name, StringComparer.OrdinalIgnoreCase).ToList();
+        return Result<IReadOnlyList<GuildDto>>.Success(
+            await WithProjectCountsAsync(_mapper.Map<IReadOnlyList<GuildDto>>(ordered), ct));
+    }
+
     public async Task<Result<IReadOnlyList<GuildDto>>> GetVerifiedAsync(CancellationToken ct = default)
     {
         var guilds = await _repository.FindAsync(g => g.isVerified, ct);

@@ -466,6 +466,18 @@ export const projectRouter = createTRPCRouter({
       return { items, nextCursor: undefined };
     }),
 
+  /** Projects the session user created or is a member of (the composer's attach list); .NET reads the signed actor. */
+  getMyMemberships: protectedProcedure.query(async () => {
+    const response = await apiClient.projects.getMine();
+    if (response.error) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: response.error,
+      });
+    }
+    return parseProjects(response.data ?? [], "Member projects response");
+  }),
+
   /** Projects linked to a user (public profile) */
   getByUserId: publicProcedure
     .input(

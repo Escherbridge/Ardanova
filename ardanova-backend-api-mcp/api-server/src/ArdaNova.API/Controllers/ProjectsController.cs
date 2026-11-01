@@ -129,6 +129,12 @@ public class ProjectsController : ControllerBase
         return ToActionResult(result);
     }
 
+    /// <summary>The signed actor's own projects (created or a member of); there is no route that takes another userId.</summary>
+    [HttpGet("mine")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> GetMine(CancellationToken ct)
+        => ToActionResult(await _projectVisibility.GetMembershipsAsync(Viewer, ct));
+
     [HttpGet("status/{status}")]
     public async Task<IActionResult> GetByStatus(ProjectStatus status, CancellationToken ct)
     {

@@ -130,6 +130,13 @@ export const guildRouter = createTRPCRouter({
     return normalizeGuilds(ownedGuildResponse.data);
   }),
 
+  /** Guilds the session user owns or is a member of (the composer's attach list); .NET reads the signed actor. */
+  getMyMemberships: protectedProcedure.query(async () => {
+    const response = await apiClient.guilds.getMine();
+    if (response.error) throw apiError(response, "Failed to load your guilds");
+    return response.data ?? [];
+  }),
+
   getVerified: publicProcedure.query(async () => {
     const response = await apiClient.guilds.getVerified();
     if (response.error) throw apiError(response, "Failed to load guilds");

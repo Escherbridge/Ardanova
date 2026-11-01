@@ -24,18 +24,18 @@ export interface AttachableGuild {
 
 const listOptions = { staleTime: 60_000, refetchOnWindowFocus: false } as const;
 
-/** Projects and guilds the author may attach a note to. Not read when the mounting page fixed the attachment. */
+/** Projects and guilds the author belongs to (created/owns or a member of). Not read when the page fixed the attachment. */
 export function useAttachableSubjects(enabled: boolean) {
-  const projects = api.project.getMyProjects.useQuery(
-    {},
-    { ...listOptions, enabled },
-  );
-  const guilds = api.guild.getMyGuilds.useQuery(undefined, {
+  const projects = api.project.getMyMemberships.useQuery(undefined, {
+    ...listOptions,
+    enabled,
+  });
+  const guilds = api.guild.getMyMemberships.useQuery(undefined, {
     ...listOptions,
     enabled,
   });
   return {
-    projects: (projects.data?.items ?? []).map(
+    projects: (projects.data ?? []).map(
       (project): AttachableProject => ({
         id: project.id,
         name: project.title,

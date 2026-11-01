@@ -140,7 +140,7 @@ const projectDto = {
   assignedGuildId: null,
 };
 
-/** .NET GuildDto (`GET /api/guilds/owner/{id}` answers one guild). */
+/** .NET GuildDto, as `GET /api/guilds/mine` lists it. */
 const guildDto = {
   id: "guild-g",
   name: "Timber framers",
@@ -261,8 +261,8 @@ const createdFromRequest: DotNetRoute = ({ body }) => ({
 
 function serve(overrides: Record<string, DotNetRoute> = {}) {
   routes = {
-    "GET /api/projects/user/user-b": () => ok([projectDto]),
-    "GET /api/guilds/owner/user-b": () => ok(guildDto),
+    "GET /api/projects/mine": () => ok([projectDto]),
+    "GET /api/guilds/mine": () => ok([guildDto]),
     "GET /api/projects/project-p": () => ok(projectDto),
     "GET /api/taxonomy": () => ok(taxonomy),
     "POST /api/posts": createdFromRequest,
@@ -670,8 +670,8 @@ describe("existing usage: the project page's field notes (projectId + onPosted)"
     expect(
       calls.filter(
         (call) =>
-          call.path.startsWith("/api/projects/user/") ||
-          call.path.startsWith("/api/guilds/owner/"),
+          call.path === "/api/projects/mine" ||
+          call.path === "/api/guilds/mine",
       ),
     ).toEqual([]);
   });
