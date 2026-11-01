@@ -175,7 +175,17 @@ public sealed class AzoaSettlementGateway : IAzoaSettlementGateway, ISelectedNod
                 "The recipient has no usable node account reference, so nothing was settled.");
         }
 
-        var command = terms.ToExchangeCommand();
+        // Past its own deadline the node would refuse to admit it anyway; not sending is the same fact, earlier.
+        if (request.AdmitBefore is { } admitBefore && _timeProvider.GetUtcNow() >= admitBefore)
+        {
+            _logger.LogWarning(
+                "Settlement {SettlementId} reached the node boundary after its admission deadline {AdmitBefore:O}; it was not sent.",
+                request.SettlementId,
+                admitBefore);
+            return AdmissionDeadlinePassed();
+        }
+
+        var command = terms.ToExchangeCommand() with { AdmitBefore = request.AdmitBefore };
         var exchange = await _exchange.ExchangeAsync(avatarId, command, request.IdempotencyKey, ct);
         return ToGatewayResult(request, terms, exchange, "dispatch");
     }
@@ -314,6 +324,13 @@ public sealed class AzoaSettlementGateway : IAzoaSettlementGateway, ISelectedNod
             operation,
             exchange.Type);
 
+        // The node's own word that THIS attempt was refused before admission; checked before the generic 409.
+        if (exchange.Type == ResultType.Conflict
+            && string.Equals(exchange.Code, UpstreamFailureCodes.AdmissionDeadlinePassed, StringComparison.Ordinal))
+        {
+            return AdmissionDeadlinePassed();
+        }
+
         return exchange.Type switch
         {
             ResultType.Forbidden => AzoaSettlementGatewayResult.Retry(
@@ -336,6 +353,12 @@ public sealed class AzoaSettlementGateway : IAzoaSettlementGateway, ISelectedNod
                 "The node returned no durable outcome; this settlement must be reconciled before another dispatch."),
         };
     }
+
+    /// <summary>This attempt admitted nothing - a Retry for the attempt, never proof the key is unused (§Node proof).</summary>
+    private static AzoaSettlementGatewayResult AdmissionDeadlinePassed()
+        => AzoaSettlementGatewayResult.Retry(
+            EconomicSettlementFailureCodes.AdmissionDeadlinePassed,
+            "This attempt reached the node after its admission deadline, so it admitted nothing; it will be sent again.");
 
     /// <summary>
     /// Derives gross, fee and net for the settlement's own leg. Returns false only when the node

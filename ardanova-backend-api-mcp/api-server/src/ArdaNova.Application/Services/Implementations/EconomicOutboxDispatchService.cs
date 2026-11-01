@@ -29,6 +29,12 @@ public static class EconomicSettlementFailureCodes
     /// <summary>The node reported no operation before the last dispatch's lease could have died; read again later.</summary>
     public const string ExchangeAbsenceUnsettled = "AZOA_EXCHANGE_ABSENCE_UNSETTLED";
 
+    /// <summary>
+    /// This attempt admitted nothing: the node refused it past its <c>Admit-Before</c>, or it was never sent
+    /// because the deadline had already passed. A Retry for THIS attempt only - never proof the key is unused.
+    /// </summary>
+    public const string AdmissionDeadlinePassed = "AZOA_ADMISSION_DEADLINE_PASSED";
+
     /// <summary>True for the bookkeeping-only reconciliation outcomes that must not spend a dispatch attempt.</summary>
     public static bool IsNoEffectBookkeeping(string? code)
         => code is ExchangeNeverLanded or ExchangeAbsenceUnsettled;
@@ -151,9 +157,12 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
     /// <summary>Receipt-404 reopens one settlement may take before it parks for an operator instead.</summary>
     public const int MaximumNoEffectReopens = 5;
 
-    /// <summary>How long after a row turned ambiguous a 404 is believed: past it, the dispatch lease is dead.</summary>
-    /// <remarks>Equal to the lease, which bounds every dispatch call; see <c>Infrastructure/Outbox/AGENTS.md</c>, "No-effect reopen".</remarks>
-    public static TimeSpan NoEffectQuietWindow => LeaseDuration;
+    /// <summary>How long after a row turned ambiguous a 404 is believed under the DEFAULT admission policy.</summary>
+    /// <remarks>
+    /// The instance uses its <see cref="ExchangeAdmissionPolicy.ProofWindow"/>; see <c>Infrastructure/Outbox/AGENTS.md</c>,
+    /// "No-effect reopen", and <c>Implementations/AGENTS.md</c> §Node proof.
+    /// </remarks>
+    public static TimeSpan NoEffectQuietWindow => ExchangeAdmissionPolicy.Default.ProofWindow;
 
     private readonly IEconomicOutboxLeaseStore _store;
     private readonly IAzoaSettlementGateway _gateway;
@@ -162,6 +171,7 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
     private readonly TimeSpan _gatewayOperationDeadline;
     private readonly TimeSpan _readinessHoldingWindow;
     private readonly int _maximumAttempts;
+    private readonly ExchangeAdmissionPolicy _admission;
     private readonly ILogger<EconomicOutboxDispatchService>? _logger;
 
     public EconomicOutboxDispatchService(
@@ -172,8 +182,12 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
         int? maximumAttempts = null,
         ILogger<EconomicOutboxDispatchService>? logger = null,
         IOperatorAlertService? operatorAlerts = null,
-        TimeSpan? readinessHoldingWindow = null)
+        TimeSpan? readinessHoldingWindow = null,
+        ExchangeAdmissionPolicy? admission = null)
     {
+        var admissionPolicy = admission ?? ExchangeAdmissionPolicy.Default;
+        admissionPolicy.Validate();
+
         var deadline = gatewayOperationDeadline ?? DefaultGatewayOperationDeadline;
         if (deadline <= TimeSpan.Zero || deadline >= LeaseDuration)
             throw new ArgumentOutOfRangeException(nameof(gatewayOperationDeadline));
@@ -195,6 +209,7 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
         _gatewayOperationDeadline = deadline;
         _readinessHoldingWindow = holdingWindow;
         _maximumAttempts = attempts;
+        _admission = admissionPolicy;
         _logger = logger;
     }
 
@@ -252,6 +267,21 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
         }
         var finalizedAt = DateTime.UtcNow;
         var decision = ToDecision(lease, gatewayResult, finalizedAt);
+        if (decision.Closing is { } closing)
+        {
+            // A terminal "nothing was paid" is the node's to prove, never the lease's (§Node proof).
+            var proven = await DecideClosingAsync(lease, closing, ct);
+            if (proven is null)
+            {
+                return new EconomicOutboxDispatchRun(
+                    EconomicOutboxRecordedOutcome.StaleLease,
+                    lease.OutboxId,
+                    lease.SettlementId);
+            }
+
+            (lease, decision, finalizedAt) = proven.Value;
+        }
+
         // Deliberately before the write: a duplicate alert costs an operator one glance, while an
         // alert lost because the row was finalized terminally costs somebody their money.
         await RaiseAsync(decision.Alert, ct);
@@ -260,6 +290,135 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             finalized ? decision.Finalization.Outcome : EconomicOutboxRecordedOutcome.StaleLease,
             lease.OutboxId,
             lease.SettlementId);
+    }
+
+    /// <summary>
+    /// Before a settlement is closed as "nothing was paid": if any send under its key went unanswered
+    /// (<see cref="EconomicOutboxLease.SubmittedAt"/>), the node's receipt decides. Accepted completes it; a
+    /// NOT_FOUND closes it only when it is PROOF (<see cref="ExchangeAdmissionPolicy.AbsenceIsBelievable"/>: an
+    /// enforcing node, read started past the quiet window); inside the window on an enforcing node it defers;
+    /// anything else - including any NOT_FOUND while enforcement is not attested - keeps it OPEN for an operator.
+    /// Null when the lease was lost before the read. See Implementations/AGENTS.md §Node proof.
+    /// </summary>
+    private async Task<(EconomicOutboxLease Lease, EconomicOutboxDecision Decision, DateTime At)?> DecideClosingAsync(
+        EconomicOutboxLease lease,
+        ClosingDecision closing,
+        CancellationToken ct)
+    {
+        if (lease.SubmittedAt is not { } latestUnansweredSend)
+            return (lease, closing.Close(NeverSentBasis), DateTime.UtcNow);
+
+        var renewed = await RenewLeaseAsync(lease, ct);
+        if (renewed is null)
+            return null;
+
+        // Stamped BEFORE the read: a NOT_FOUND is only as late as the moment the read began, and the read itself
+        // may take most of the gateway deadline - far longer than the window's spare margin.
+        var readStartedAt = DateTime.UtcNow;
+        var receipt = await ExecuteGatewayAsync(deadline => _gateway.ReconcileAsync(renewed.Request, deadline), ct);
+        var now = DateTime.UtcNow;
+        if (receipt.Outcome == AzoaSettlementGatewayOutcome.Accepted && !string.IsNullOrWhiteSpace(receipt.OperationId))
+        {
+            _logger?.LogWarning(
+                "Economic settlement {SettlementId} (outbox {OutboxId}) was about to be closed as unpaid, but the node "
+                + "holds exchange {OperationId} under its key from an earlier send. It is recorded as accepted instead.",
+                renewed.SettlementId,
+                renewed.OutboxId,
+                receipt.OperationId);
+            return (renewed, AcceptedDecision(now, receipt), now);
+        }
+
+        if (receipt is not { Outcome: AzoaSettlementGatewayOutcome.Retry, Code: EconomicSettlementFailureCodes.ExchangeNeverLanded })
+            return (renewed, ClosingUnproven(renewed, now, receipt, ReceiptUnreadable), now);
+
+        if (_admission.AbsenceIsBelievable(latestUnansweredSend, readStartedAt))
+            return (renewed, closing.Close(NodeAbsenceBasis(latestUnansweredSend)), now);
+
+        // An enforcing node's NOT_FOUND becomes proof once the window passes; without enforcement it never does.
+        return _admission.NodeEnforcesAdmitBefore
+            ? (renewed, DeferClosing(closing, _admission.BelievableAt(latestUnansweredSend)), now)
+            : (renewed, ClosingUnproven(renewed, now, receipt, AdmissionNotEnforced), now);
+    }
+
+    /// <summary>The proof sentence for a settlement no send ever left unanswered.</summary>
+    private const string NeverSentBasis =
+        "No send under this key ever went unanswered: every attempt was refused before or by the node.";
+
+    /// <summary>The proof sentence for an enforcing node's NOT_FOUND read past the quiet window.</summary>
+    private string NodeAbsenceBasis(DateTime latestUnansweredSend)
+        => $"The node holds no exchange under this key, read more than {_admission.QuietWindow.TotalMinutes:0} minutes after "
+            + $"the last unanswered send ({latestUnansweredSend:O}); the node refuses admission past each send's deadline, "
+            + "so none can land later.";
+
+    /// <summary>Why a close was refused: the receipt could not be read at all.</summary>
+    private const string ReceiptUnreadable =
+        "an earlier send under this key went unanswered and the node's receipt could not be read";
+
+    /// <summary>Why a close was refused: a NOT_FOUND that is no proof, because no node is attested to refuse late admissions.</summary>
+    private const string AdmissionNotEnforced =
+        "an earlier send under this key went unanswered, and although the node holds no exchange for it now, the node "
+        + "is not attested to refuse late admissions (Azoa:Exchange:NodeEnforcesAdmitBefore is false), so that send "
+        + "could still land";
+
+    /// <summary>An accepted receipt found on the way to closing: record it like any accepted dispatch.</summary>
+    private static EconomicOutboxDecision AcceptedDecision(DateTime now, AzoaSettlementGatewayResult receipt)
+        => new(
+            new EconomicOutboxFinalization(
+                EconomicOutboxRecordedOutcome.Accepted,
+                now,
+                receipt.OperationId,
+                receipt.Receipt,
+                receipt.Replayed,
+                null,
+                null),
+            null);
+
+    /// <summary>An enforcing node's NOT_FOUND inside the window: stay dispatchable and decide again once it is proof.</summary>
+    private static EconomicOutboxDecision DeferClosing(ClosingDecision closing, DateTime believableAt)
+        => new(
+            new EconomicOutboxFinalization(
+                EconomicOutboxRecordedOutcome.Retry,
+                believableAt,
+                null,
+                null,
+                null,
+                closing.OpenFailureCode,
+                "The node holds no exchange under this key yet, but an earlier send may still be landing; it is read "
+                + "again before this settlement is closed."),
+            null);
+
+    /// <summary>Closing without the node's proof: never terminal, value MAY have moved, and an operator is told why.</summary>
+    private EconomicOutboxDecision ClosingUnproven(
+        EconomicOutboxLease lease,
+        DateTime now,
+        AzoaSettlementGatewayResult receipt,
+        string reason)
+    {
+        _logger?.LogCritical(
+            "Economic settlement {SettlementId} (outbox {OutboxId}) reached a terminal ceiling, but {Reason} "
+            + "(receipt {ReceiptCode}). It was NOT closed: value MAY have moved. Reconcile it; do not refund it.",
+            lease.SettlementId,
+            lease.OutboxId,
+            reason,
+            receipt.Code ?? "AZOA_AMBIGUOUS_RESULT");
+
+        return new EconomicOutboxDecision(
+            new EconomicOutboxFinalization(
+                EconomicOutboxRecordedOutcome.Unknown,
+                now.Add(CeilingBackoff),
+                null,
+                null,
+                null,
+                EconomicSettlementFailureCodes.ReconciliationAttentionRequired,
+                $"This settlement stays open on purpose - value may have moved: {reason}. It needs an operator."),
+            Alert(
+                lease,
+                EconomicOperatorAlertCodes.ReconciliationAttentionRequired,
+                OperatorAlertSeverity.Critical,
+                receipt.Code ?? "AZOA_AMBIGUOUS_RESULT",
+                $"Value MAY have moved: {reason}. This settlement was NOT closed.",
+                "Reconcile this settlement against the node by its idempotency key. Do NOT refund or return anything "
+                + "until the node's receipt has been read under an attested admission deadline."));
     }
 
     /// <summary>Delivers an operator alert without ever letting the alert channel cost a finalization.</summary>
@@ -293,21 +452,33 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
         CancellationToken ct)
     {
         var renewedLease = await RenewLeaseAsync(lease, ct);
-        return renewedLease is null ? null : await ExecuteGatewayAsync(renewedLease, ct);
+        if (renewedLease is null)
+            return null;
+
+        return renewedLease.ClaimKind == EconomicOutboxClaimKind.Dispatch
+            ? await ExecuteGatewayAsync(deadline => _gateway.DispatchAsync(WithAdmissionDeadline(renewedLease), deadline), ct)
+            : await ExecuteGatewayAsync(deadline => _gateway.ReconcileAsync(renewedLease.Request, deadline), ct);
     }
 
+    /// <summary>
+    /// The worker's send carries <c>Admit-Before</c> = this claim's durable <c>lastAttemptAt</c> + W_admit, the
+    /// stamp every later NOT_FOUND is measured from (§Node proof). A lease without the stamp sends none.
+    /// </summary>
+    private AzoaSettlementRequest WithAdmissionDeadline(EconomicOutboxLease lease)
+        => lease.LastAttemptAt is { } claimedAt
+            ? lease.Request with { AdmitBefore = _admission.AdmitBefore(claimedAt) }
+            : lease.Request;
+
+    /// <summary>Runs one gateway call under the deadline shorter than the lease; a local timeout is ambiguous, never a refusal.</summary>
     private async Task<AzoaSettlementGatewayResult> ExecuteGatewayAsync(
-        EconomicOutboxLease lease,
+        Func<CancellationToken, Task<AzoaSettlementGatewayResult>> call,
         CancellationToken ct)
     {
         using var gatewayDeadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         gatewayDeadline.CancelAfter(_gatewayOperationDeadline);
         try
         {
-            var gatewayCall = lease.ClaimKind == EconomicOutboxClaimKind.Dispatch
-                ? _gateway.DispatchAsync(lease.Request, gatewayDeadline.Token)
-                : _gateway.ReconcileAsync(lease.Request, gatewayDeadline.Token);
-            return await gatewayCall.WaitAsync(gatewayDeadline.Token);
+            return await call(gatewayDeadline.Token).WaitAsync(gatewayDeadline.Token);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -409,7 +580,14 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
     /// </remarks>
     private sealed record EconomicOutboxDecision(
         EconomicOutboxFinalization Finalization,
-        EconomicOperatorAlert? Alert);
+        EconomicOperatorAlert? Alert,
+        ClosingDecision? Closing = null);
+
+    /// <summary>
+    /// A decision that would END the settlement as unpaid. It is written only through <see cref="Close"/>,
+    /// with the sentence that proves it; <see cref="OpenFailureCode"/> is what a deferred close keeps instead.
+    /// </summary>
+    private sealed record ClosingDecision(string? OpenFailureCode, Func<string, EconomicOutboxDecision> Close);
 
     private EconomicOutboxDecision ToDecision(
         EconomicOutboxLease lease,
@@ -473,9 +651,13 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             // A Retry is the gateway's word that nothing moved. On the dispatch path that makes
             // the ceiling safely terminal; on the reconciliation path it does not, because the
             // row only reached reconciliation after an outcome nobody could read.
-            return lease.ClaimKind == EconomicOutboxClaimKind.Dispatch
-                ? DispatchCeiling(lease, now, result)
-                : ReconciliationCeiling(lease, now, result);
+            if (lease.ClaimKind != EconomicOutboxClaimKind.Dispatch)
+                return ReconciliationCeiling(lease, now, result);
+
+            return Closes(
+                now,
+                result.Code ?? "AZOA_RETRY",
+                basis => DispatchCeiling(lease, now, result, basis));
         }
 
         return new EconomicOutboxDecision(
@@ -497,8 +679,10 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
         DateTime now,
         AzoaSettlementGatewayResult result)
     {
-        var believableAt = (lease.ReconciliationRequiredAt ?? now).Add(NoEffectQuietWindow);
-        if (now < believableAt)
+        // Timing only, never "nothing was taken": a reopen re-sends under the SAME key, which cannot double-pay.
+        // Measured at the claim, before the read began, like every NOT_FOUND (§Node proof).
+        var believableAt = (lease.ReconciliationRequiredAt ?? now).Add(_admission.ProofWindow);
+        if ((lease.LastAttemptAt ?? now) < believableAt)
         {
             return new EconomicOutboxDecision(
                 new EconomicOutboxFinalization(
@@ -588,7 +772,7 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
     {
         var reasonCode = result.Code ?? EconomicSettlementReadinessCodes.BeneficiaryNotReady;
         if (lease.AttemptCount >= ReadinessRefundAttempts)
-            return ReadinessRefundDue(lease, now, reasonCode);
+            return Closes(now, reasonCode, basis => ReadinessRefundDue(lease, now, reasonCode, basis));
 
         if (lease.AttemptCount < ReadinessHoldingEntryAttempts)
         {
@@ -643,29 +827,52 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             alert);
     }
 
+    /// <summary>
+    /// A decision that ends the settlement as unpaid, built (and logged) only once its proof is known. Until
+    /// then it carries a non-terminal retry, so nothing can write the close without going through the proof.
+    /// </summary>
+    private static EconomicOutboxDecision Closes(
+        DateTime now,
+        string? openFailureCode,
+        Func<string, EconomicOutboxDecision> close)
+        => new(
+            new EconomicOutboxFinalization(
+                EconomicOutboxRecordedOutcome.Retry,
+                now.Add(CeilingBackoff),
+                null,
+                null,
+                null,
+                openFailureCode,
+                "This settlement is due to be closed; the node's receipt is read first."),
+            null,
+            new ClosingDecision(openFailureCode, close));
+
     /// <summary>Ends the hold: no further attempt, and the reserved amount is owed back to its source.</summary>
     /// <remarks>
     /// The finalization carries <see cref="EconomicSettlementFailureCodes.DispatchAttemptCeiling"/>
     /// because that is the only code <c>EconomicOutboxLeaseStore</c> makes terminal on the dispatch
     /// path, and a refund-due row must stop being retried. The refund itself is a node operation
     /// this seam cannot perform, so it is handed over as a critical alert naming the destination -
-    /// never as a silent FAILED row that looks settled.
+    /// never as a silent FAILED row that looks settled. Reached only through <see cref="DecideClosingAsync"/>,
+    /// whose <paramref name="proof"/> says why nothing was paid.
     /// </remarks>
     private EconomicOutboxDecision ReadinessRefundDue(
         EconomicOutboxLease lease,
         DateTime now,
-        string reasonCode)
+        string reasonCode,
+        string proof)
     {
         _logger?.LogCritical(
             "Economic settlement {SettlementId} (outbox {OutboxId}, kind {SettlementKind}) was held on "
             + "readiness for {AttemptCount} attempts, past its {HoldingWindowDays}-day window, and will "
-            + "not be dispatched. Nothing was paid out. The reserved amount MUST be returned: {RefundAction} "
+            + "not be dispatched. Nothing was paid out: {Proof} Required: {RefundAction} "
             + "Readiness reason: {ReasonCode}.",
             lease.SettlementId,
             lease.OutboxId,
             lease.SettlementKind,
             lease.AttemptCount,
             ReadinessHoldingWindowDays,
+            proof,
             RefundAction(lease.SettlementKind),
             reasonCode);
 
@@ -686,24 +893,27 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
                 OperatorAlertSeverity.Critical,
                 reasonCode,
                 $"The {ReadinessHoldingWindowDays}-day holding window elapsed with {ReadinessSubject(reasonCode)} "
-                + "still not set up. Nothing was paid out and the amount is still reserved.",
+                + $"still not set up. Nothing was paid out: {proof}",
                 RefundAction(lease.SettlementKind)));
     }
 
-    /// <summary>Parks a never-dispatched settlement and tells an operator; the lease store makes it terminal.</summary>
+    /// <summary>Parks a never-landed settlement and tells an operator; the lease store makes it terminal.</summary>
+    /// <remarks>Reached only through <see cref="DecideClosingAsync"/>, whose <paramref name="proof"/> says why nothing was settled.</remarks>
     private EconomicOutboxDecision DispatchCeiling(
         EconomicOutboxLease lease,
         DateTime now,
-        AzoaSettlementGatewayResult result)
+        AzoaSettlementGatewayResult result,
+        string proof)
     {
         _logger?.LogCritical(
             "Economic settlement {SettlementId} (outbox {OutboxId}) reached the dispatch attempt ceiling of "
-            + "{MaximumAttempts} after {AttemptCount} attempts and was parked as failed. Nothing was settled. "
+            + "{MaximumAttempts} after {AttemptCount} attempts and was parked as failed. Nothing was settled: {Proof} "
             + "Last gateway code: {GatewayCode}.",
             lease.SettlementId,
             lease.OutboxId,
             _maximumAttempts,
             lease.AttemptCount,
+            proof,
             result.Code ?? "AZOA_RETRY");
 
         return new EconomicOutboxDecision(
@@ -721,8 +931,8 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
                 EconomicOperatorAlertCodes.DispatchAttemptCeiling,
                 OperatorAlertSeverity.Critical,
                 result.Code ?? "AZOA_RETRY",
-                "Dispatch was refused on every attempt up to the ceiling. Nothing was settled.",
-                "Resolve the refusal and reopen the settlement, or return the reserved amount to its source. "
+                $"Dispatch was refused on every attempt up to the ceiling. Nothing was settled: {proof}",
+                "Resolve the refusal and reopen the settlement, or close it out: "
                 + RefundAction(lease.SettlementKind)));
     }
 
@@ -802,7 +1012,12 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
             EconomicSettlementKind.TASK_REWARD or EconomicSettlementKind.HOLD_RELEASE
                 => "Return the reserved amount to the project's contributor pool and tell both sides why; "
                     + "the work reward was never paid out.",
-            EconomicSettlementKind.EXCHANGE or EconomicSettlementKind.FUNDING_ALLOCATION
+            // An exchange debits the sponsor only when the node admits it, and the node holds none under this
+            // key: there is nothing to give back, and "returning" funds would pay the sponsor out of nothing.
+            EconomicSettlementKind.EXCHANGE
+                => "Tell the sponsor this sponsorship did not go through. They were never debited, so do NOT "
+                    + "credit or return anything.",
+            EconomicSettlementKind.FUNDING_ALLOCATION
                 => "Return the sponsor's funds and tell them why; the project was never credited.",
             EconomicSettlementKind.ESCROW_REFUND
                 => "Return the reserved amount to whoever funded it; the refund was never delivered.",

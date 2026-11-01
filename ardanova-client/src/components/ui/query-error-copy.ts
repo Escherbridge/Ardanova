@@ -1,5 +1,7 @@
 /** User-facing copy and retry policy for failed tRPC queries, plus the cash-out gate copy. See `src/components/ui/AGENTS.md` §query-error-state. */
 
+import { moneyCodeOf } from "~/lib/commerce/money-refusal";
+
 /** tRPC error codes that a retry cannot fix: the answer will be the same until the user acts. */
 const TERMINAL_CODES = new Set([
   "UNAUTHORIZED",
@@ -220,12 +222,12 @@ interface CashOutRead {
   available: boolean | undefined;
 }
 
-/** True when a cash-out read failed because this deployment has no way to send money to a bank. */
+/**
+ * True ONLY when the server's money code says this deployment has no way to send money to a bank.
+ * A 503 alone also means "could not confirm" (`unconfirmed`), which must not read as "not available".
+ */
 export function isCashOutGateError(error: unknown): boolean {
-  if (readErrorCode(error) === "SERVICE_UNAVAILABLE") return true;
-  if (isOperatorMessage(error)) return true;
-  const message = (error as { message?: unknown } | null)?.message;
-  return typeof message === "string" && /not switched on/i.test(message);
+  return moneyCodeOf(error) === "payments_not_configured";
 }
 
 /** Folds the withdraw availability (and optionally destination) reads into one cash-out state. */

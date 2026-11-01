@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using ArdaNova.Application.Common.Results;
+using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -96,6 +97,9 @@ public sealed class AzoaExchangeClient
             Content = JsonContent.Create(ToWire(command)),
         };
         message.Headers.Add("Idempotency-Key", idempotencyKey.Trim());
+        // A header, not a body field: the node hashes the body for its key, and every attempt re-stamps this.
+        if (command.AdmitBefore is { } admitBefore)
+            message.Headers.Add(ExchangeAdmissionPolicy.AdmitBeforeHeader, ExchangeAdmissionPolicy.FormatAdmitBefore(admitBefore));
 
         return SendAsync(message, IsExchangePath(path), ct);
     }
@@ -220,11 +224,11 @@ public sealed class AzoaExchangeClient
             HoldReleasesAt: wire.HoldReleasesAt,
             FailureCode: wire.FailureCode);
 
-    /// <summary>Re-wraps a transport failure, keeping the result type (including KYC_FORBIDDEN).</summary>
+    /// <summary>Re-wraps a transport failure, keeping the result type (including KYC_FORBIDDEN) and the node's machine code.</summary>
     private static Result<ArdaNovaExchangeReceipt> MapFailure(Result<AzoaExchangeWireReceipt> source)
     {
         var error = source.Error ?? "AZOA exchange failed.";
-        return source.Type switch
+        return (source.Type switch
         {
             ResultType.NotFound => Result<ArdaNovaExchangeReceipt>.NotFound(error),
             ResultType.Forbidden => Result<ArdaNovaExchangeReceipt>.Forbidden(error),
@@ -233,7 +237,7 @@ public sealed class AzoaExchangeClient
             ResultType.ValidationError => Result<ArdaNovaExchangeReceipt>.ValidationError(error),
             ResultType.BadRequest => Result<ArdaNovaExchangeReceipt>.BadRequest(error),
             _ => Result<ArdaNovaExchangeReceipt>.Failure(error),
-        };
+        }).WithCode(source.Code);
     }
 
     /// <summary>POST target: the exchange route for exactly one avatar.</summary>

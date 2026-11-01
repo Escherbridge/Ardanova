@@ -16,6 +16,18 @@ import {
 
 import { buildSignInHref } from "~/lib/auth-navigation";
 import {
+  ADD_FUNDS_REQUEST_FLOW,
+  endsSavedPayment,
+  isSamePaymentId,
+  savedPaymentLocksContinue,
+  setAsideSavedPayment,
+  settleAddFundsFailure,
+  type AddFundsKeySettlement,
+  type AddFundsServer,
+  type AddFundsWire,
+} from "~/lib/commerce/add-funds-request";
+import { moneyCodeOf, moneyIntentIdOf } from "~/lib/commerce/money-refusal";
+import {
   ADD_FUNDS_MAXIMUM_DOLLARS,
   ADD_FUNDS_MINIMUM_DOLLARS,
   describeAddFundsAmountProblem,
@@ -27,6 +39,13 @@ import {
   type OnRampPresentation,
   type OnRampReport,
 } from "~/lib/commerce/on-ramp-status";
+import {
+  claimRequestKey,
+  clearSavedRequest,
+  readSavedRequest,
+  recordAdmittedId,
+  type SavedRequest,
+} from "~/lib/commerce/persisted-request-key";
 import { api } from "~/trpc/react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -42,6 +61,26 @@ const MAXIMUM_DOLLARS = ADD_FUNDS_MAXIMUM_DOLLARS;
 
 const AMOUNT_ERROR_ID = "custom-amount-error";
 const READINESS_DETAIL_ID = "add-funds-readiness-detail";
+const SAVED_PAYMENT_LOCK_ID = "add-funds-saved-payment-lock";
+
+const SAVED_PAYMENT_UNCONFIRMED_MESSAGE =
+  "We couldn't confirm what happened to that earlier payment, so it stays saved. Nothing new was started - try again in a moment.";
+
+const SAVED_PAYMENT_CLOSED_MESSAGE =
+  "That earlier payment request is closed and nothing can be paid under it. You can start a new payment.";
+
+const SAVED_PAYMENT_REVEALED_MESSAGE =
+  "That earlier payment may already have gone through, so it stays saved and nothing new was started. Its latest state is shown above.";
+
+const SAVED_PAYMENT_HELD_MESSAGE =
+  "That earlier payment is held for a manual check, so it can't be cancelled from here and nothing new was started.";
+
+/** Honest copy for a payment the server holds for a manual check: no resend, and the id to quote. */
+function describeHeldPayment(paymentId: string | undefined): string {
+  return paymentId
+    ? `This payment is held for a manual check - quote ${paymentId} if you contact us. It won't be sent again from here.`
+    : "This payment is held for a manual check. It won't be sent again from here.";
+}
 
 function formatDollars(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -81,8 +120,21 @@ function AddFundsFlow() {
   const [selectedDollars, setSelectedDollars] = useState<number | null>(25);
   const [customAmount, setCustomAmount] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Load-bearing: persisted to storage BEFORE a request leaves, so a reload resumes the SAME
+  // admission instead of the node opening a second payment page for one intent. Rules:
+  // ~/lib/commerce/AGENTS.md §Persisted request keys.
+  const [savedRequest, setSavedRequest] =
+    useState<SavedRequest<AddFundsWire> | null>(null);
+  // What became of a saved payment this page resolved without a return (shown once it is cleared).
+  const [resolvedSavedPayment, setResolvedSavedPayment] =
+    useState<OnRampPresentation | null>(null);
+  const [settingAside, setSettingAside] = useState(false);
+  // The request in flight, for the callbacks; `savedRequest` only reflects what is on screen.
+  const activeRequestRef = useRef<SavedRequest<AddFundsWire> | null>(null);
 
+  const subjectId = session?.user?.id ?? null;
   const queryEnabled = Boolean(session?.user?.id);
+  const utils = api.useUtils();
   const accountStatus = api.azoaCustodialAccount.getStatus.useQuery(undefined, {
     enabled: queryEnabled,
     retry: false,
@@ -91,34 +143,138 @@ function AddFundsFlow() {
     enabled: queryEnabled,
     retry: false,
   });
-  // The server is the only thing allowed to say what happened to a payment, so a return polls the
-  // real record and stops the moment that record is settled.
-  const returningPayment = api.addFunds.getPayment.useQuery(
-    { paymentId: returningIntentId ?? "" },
+  // The server is the only thing allowed to say what happened to a payment. A return polls the
+  // payment it came back for; with no return, the saved key's own payment is read once on mount,
+  // so an abandoned or paid-but-never-returned checkout resolves instead of looping on a 409.
+  const trackedPaymentId = returningIntentId ?? savedRequest?.admittedId ?? null;
+  const trackedPayment = api.addFunds.getPayment.useQuery(
+    { paymentId: trackedPaymentId ?? "" },
     {
-      enabled: queryEnabled && Boolean(returningIntentId),
+      enabled: queryEnabled && Boolean(trackedPaymentId),
       retry: false,
+      // A return polls briskly; a saved payment with no return is re-read slowly, so a Continue it
+      // keeps locked unlocks once that payment settles.
       refetchInterval: (query) =>
         query.state.data && isOnRampSettled(query.state.data as OnRampReport)
           ? false
-          : 5000,
+          : returningIntentId
+            ? 5000
+            : 15000,
     },
   );
+  const voidRequest = api.addFunds.voidRequest.useMutation();
+  // The two server calls the key lifecycle may make. `fetch` fills the same cache entry the
+  // tracked-payment query reads, so a payment read here is what the page then shows.
+  const keyServer: AddFundsServer = {
+    readPayment: (paymentId) =>
+      utils.addFunds.getPayment.fetch({ paymentId }, { staleTime: 0 }),
+    voidRequest: (requestKey) => voidRequest.mutateAsync({ requestKey }),
+  };
+
+  /** Puts a settled key on screen: released, followed (with its payment), or kept as it was. */
+  function showSettlement(settled: AddFundsKeySettlement, closedNotice?: string) {
+    if (settled.kind === "released") {
+      setSavedRequest(null);
+      if (closedNotice) setSubmitError(closedNotice);
+      return;
+    }
+    setSavedRequest(settled.saved ?? activeRequestRef.current);
+  }
+
   const begin = api.addFunds.begin.useMutation({
-    onSuccess: (payment) => {
-      if (payment.paymentUrl) window.location.assign(payment.paymentUrl);
+    onSuccess: (payment, variables) => {
+      // Saved BEFORE leaving: the payment id is how a later visit asks the server what became of
+      // this key, whether or not the person ever comes back from the payment page.
+      const recorded =
+        subjectId &&
+        recordAdmittedId(
+          window.localStorage,
+          ADD_FUNDS_REQUEST_FLOW,
+          subjectId,
+          variables.requestKey,
+          payment.paymentId,
+        );
+      if (payment.paymentUrl) {
+        window.location.assign(payment.paymentUrl);
+        return;
+      }
+      // A resumed payment with no page left is already paid or closed: read its real state.
+      if (recorded) setSavedRequest(recorded);
+      router.replace(
+        `/portfolio/add-funds?intent=${encodeURIComponent(payment.paymentId)}`,
+      );
     },
-    onError: (error) => setSubmitError(error.message),
+    onError: (error, variables) => {
+      setSubmitError(error.message);
+      if (!subjectId) return;
+      // Kept on screen until the server says otherwise.
+      setSavedRequest(
+        readSavedRequest(window.localStorage, ADD_FUNDS_REQUEST_FLOW, subjectId) ??
+          activeRequestRef.current,
+      );
+      // A code never releases a key that names a payment - that payment is read instead (C-1).
+      // Without one, a final-looking code goes to the server's void-or-reveal; a held payment is
+      // recorded by its id and locks Continue (round-4 #3); anything else keeps.
+      const moneyCode = moneyCodeOf(error);
+      void settleAddFundsFailure({
+        storage: window.localStorage,
+        subjectId,
+        requestKey: variables.requestKey,
+        moneyCode,
+        heldPaymentId: moneyIntentIdOf(error),
+        server: keyServer,
+      }).then((settled) =>
+        // A `definite` refusal already explains itself; a `finished` one only now has its answer.
+        showSettlement(settled, moneyCode === "finished" ? SAVED_PAYMENT_CLOSED_MESSAGE : undefined),
+      );
+    },
   });
-  // Load-bearing: the server resumes an open payment for a REPEATED key, so a fresh key per tap
-  // would open a second payment page for one intent.
-  const requestKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (sessionStatus === "unauthenticated") {
       router.replace(buildSignInHref("/portfolio/add-funds"));
     }
   }, [router, sessionStatus]);
+
+  // Surfaces an unfinished attempt from BEFORE a reload (or a closed tab), so Continue below
+  // resumes it instead of quietly starting a second payment for the same money. Pre-selects the
+  // saved amount so a plain Continue is the resuming path, not a fresh one.
+  useEffect(() => {
+    if (!subjectId) return;
+    const saved = readSavedRequest(
+      window.localStorage,
+      ADD_FUNDS_REQUEST_FLOW,
+      subjectId,
+    );
+    setSavedRequest(saved);
+    if (!saved) return;
+
+    const savedDollars = saved.wire.amountMinorUnits / 100;
+    if ((PRESET_DOLLAR_AMOUNTS as readonly number[]).includes(savedDollars)) {
+      setSelectedDollars(savedDollars);
+    } else {
+      setSelectedDollars(null);
+      setCustomAmount(String(savedDollars));
+    }
+  }, [subjectId]);
+
+  // Ends the saved key only when the server reports THAT key's own payment finished either way.
+  // An unconfirmed read, an unfinished page, or a return for some other payment keeps it.
+  useEffect(() => {
+    if (!subjectId || !savedRequest || !trackedPayment.data) return;
+    if (!endsSavedPayment(savedRequest, trackedPayment.data)) return;
+
+    clearSavedRequest(
+      window.localStorage,
+      ADD_FUNDS_REQUEST_FLOW,
+      subjectId,
+      savedRequest.requestKey,
+    );
+    setSavedRequest(null);
+    if (!returningIntentId) {
+      setResolvedSavedPayment(getOnRampPresentation(trackedPayment.data));
+    }
+  }, [trackedPayment.data, savedRequest, subjectId, returningIntentId]);
 
   const amountMinorUnits = useMemo(() => {
     if (selectedDollars !== null) return selectedDollars * 100;
@@ -155,9 +311,9 @@ function AddFundsFlow() {
   // Never inferred from the redirect: until the record itself is read back, the return reads as
   // "we're confirming this" rather than either outcome.
   const returnPresentation: OnRampPresentation | null = !returningIntentId
-    ? null
-    : returningPayment.data
-      ? getOnRampPresentation(returningPayment.data as OnRampReport)
+    ? resolvedSavedPayment
+    : trackedPayment.data
+      ? getOnRampPresentation(trackedPayment.data as OnRampReport)
       : getOnRampConfirmingPresentation();
 
   function startAddFunds() {
@@ -165,13 +321,93 @@ function AddFundsFlow() {
       setSubmitError(amountProblem);
       return;
     }
-    if (amountMinorUnits === null) return;
+    if (amountMinorUnits === null || !subjectId || continueLockedBySavedPayment) return;
+
+    const claim = claimRequestKey(
+      window.localStorage,
+      ADD_FUNDS_REQUEST_FLOW,
+      subjectId,
+      { amountMinorUnits },
+      amountMinorUnits,
+    );
+    if (claim.kind === "pending") {
+      // Never silently replaced: an unresolved key for a DIFFERENT amount must be resumed or
+      // explicitly set aside first, or one lost payment page becomes two.
+      setSavedRequest(claim.pending);
+      setSubmitError(
+        `You have an unfinished payment for ${formatDollars(claim.pending.displayMinorUnits / 100)}. Finish that one, or start a new payment instead below, before starting a different amount.`,
+      );
+      return;
+    }
+
+    // Not re-shown here: the "resuming" banner is for what a RELOAD (or a kept-key failure)
+    // finds saved; a brand-new first attempt redirects away on success.
+    activeRequestRef.current = claim.request;
     setSubmitError(null);
-    requestKeyRef.current ??= crypto.randomUUID();
-    begin.mutate({ amountMinorUnits, requestKey: requestKeyRef.current });
+    begin.mutate({
+      amountMinorUnits: claim.request.wire.amountMinorUnits,
+      requestKey: claim.request.requestKey,
+    });
+  }
+
+  /**
+   * "Start a new payment instead" (M-1) asks the server to void the saved key: `voided` (an open
+   * page is expired first) releases it; `revealed` keeps it and shows that payment; anything else
+   * keeps it unchanged. Settled on the void's own answer, never on a read's code (L-2).
+   */
+  async function setAsideSavedRequest() {
+    if (!subjectId || settingAside) return;
+    setSettingAside(true);
+    setSubmitError(null);
+
+    try {
+      const settled = await setAsideSavedPayment({
+        storage: window.localStorage,
+        subjectId,
+        server: keyServer,
+      });
+      if (settled.kind === "none") {
+        setSavedRequest(null);
+        return;
+      }
+      showSettlement(settled, SAVED_PAYMENT_CLOSED_MESSAGE);
+      if (settled.kind === "tracking")
+        setSubmitError(
+          settled.saved?.heldForReview
+            ? SAVED_PAYMENT_HELD_MESSAGE
+            : SAVED_PAYMENT_REVEALED_MESSAGE,
+        );
+      if (settled.kind === "kept")
+        setSubmitError(
+          settled.saved?.heldForReview
+            ? SAVED_PAYMENT_HELD_MESSAGE
+            : SAVED_PAYMENT_UNCONFIRMED_MESSAGE,
+        );
+    } finally {
+      setSettingAside(false);
+    }
   }
 
   const notice = submitError;
+  // Rendered whenever a key is saved - including on a `?intent=` return, where Stripe's success
+  // AND cancel both land - so the way out is always on screen.
+  const showResumeNotice = savedRequest !== null;
+
+  // The saved key's own payment, when the tracked read IS that payment.
+  const savedPayment =
+    savedRequest?.admittedId &&
+    trackedPayment.data &&
+    isSamePaymentId(savedRequest.admittedId, trackedPayment.data.paymentId)
+      ? trackedPayment.data
+      : null;
+  const savedPaymentPresentation = savedPayment
+    ? getOnRampPresentation(savedPayment)
+    : null;
+  // C-1: no fresh payment may start while the saved one has no settled, resumable view.
+  const continueLockedBySavedPayment = savedPaymentLocksContinue(
+    savedRequest,
+    savedPayment,
+  );
 
   // A disabled Continue must say why: point it at whichever reason is on screen.
   const continueDescribedBy =
@@ -180,6 +416,7 @@ function AddFundsFlow() {
         ? READINESS_DETAIL_ID
         : null,
       showAmountError ? AMOUNT_ERROR_ID : null,
+      continueLockedBySavedPayment ? SAVED_PAYMENT_LOCK_ID : null,
     ]
       .filter(Boolean)
       .join(" ") || undefined;
@@ -212,6 +449,65 @@ function AddFundsFlow() {
 
         {returnPresentation && (
           <ReturnState presentation={returnPresentation} />
+        )}
+
+        {showResumeNotice && savedRequest && (
+          <section
+            role="status"
+            className="border-foreground bg-secondary flex flex-col gap-3 border-2 p-5 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="flex items-start gap-3">
+              <Clock className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <h2 className="font-mono text-sm font-black uppercase">
+                  {savedRequest.heldForReview
+                    ? "A payment held for a manual check"
+                    : "Resuming an unfinished payment"}
+                </h2>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  You started adding{" "}
+                  {formatDollars(savedRequest.displayMinorUnits / 100)} and
+                  never saw it finish.{" "}
+                  {savedRequest.heldForReview
+                    ? describeHeldPayment(savedRequest.admittedId)
+                    : continueLockedBySavedPayment
+                      ? "A new payment can't start until we know where that one stands."
+                      : "Continue below to pick up that same payment — nothing is charged twice."}{" "}
+                  Starting a new one asks us to cancel this one first, and it
+                  is only cancelled if nothing was or can be paid on it.
+                </p>
+                {savedPaymentPresentation && !returningIntentId && (
+                  <p className="mt-2 text-sm">
+                    <strong>{savedPaymentPresentation.heading}.</strong>{" "}
+                    {savedPaymentPresentation.detail}
+                  </p>
+                )}
+                {continueLockedBySavedPayment && (
+                  <p
+                    id={SAVED_PAYMENT_LOCK_ID}
+                    className="text-muted-foreground mt-2 text-xs"
+                  >
+                    {savedRequest.heldForReview
+                      ? savedRequest.admittedId
+                        ? "Continue is paused while that payment is checked by hand. This page checks it again on its own."
+                        : "Continue is paused while that payment is checked by hand."
+                      : savedPayment
+                        ? "Continue is paused until that payment settles. This page checks it again on its own."
+                        : "Continue is paused while we confirm that earlier payment. This page checks it again on its own."}
+                  </p>
+                )}
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="shrink-0"
+              disabled={settingAside || begin.isPending}
+              onClick={() => void setAsideSavedRequest()}
+            >
+              {settingAside ? "Checking…" : "Start a new payment instead"}
+            </Button>
+          </section>
         )}
 
         <section
@@ -407,7 +703,9 @@ function AddFundsFlow() {
             disabled={
               !readiness.canContinue ||
               amountProblem !== null ||
-              begin.isPending
+              begin.isPending ||
+              settingAside ||
+              continueLockedBySavedPayment
             }
             onClick={startAddFunds}
           >

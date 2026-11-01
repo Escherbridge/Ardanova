@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
   Check,
+  Clock,
   Loader2,
   Lock,
   Plus,
@@ -21,6 +23,14 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { ConversionChain } from "~/components/equity/conversion-chain";
 import { describeFundingError } from "~/lib/commerce/funding-intent-status";
+import { moneyCodeOf } from "~/lib/commerce/money-refusal";
+import {
+  claimRequestKey,
+  clearSavedRequest,
+  readSavedRequest,
+  type SavedRequest,
+  type VoidSettlement,
+} from "~/lib/commerce/persisted-request-key";
 import { fundingProjectTokenConfigSchema } from "~/lib/commerce/investment-preview-contract";
 import {
   SPONSOR_AMOUNT_HELP,
@@ -28,8 +38,15 @@ import {
   formatSponsorDollars,
   parseSponsorDollars,
   platformUnitsToDollars,
-  toPlatformUnitApiAmount,
 } from "~/lib/commerce/sponsor-amount-contract";
+import {
+  cancelSavedSponsorship,
+  draftSponsorshipRequest,
+  settleSponsorshipFailure,
+  sponsorshipRequestFlow,
+  type RevealedSponsorship,
+  type SponsorshipWire,
+} from "~/lib/commerce/sponsorship-request";
 import { reviewContactHref } from "~/components/azoa/custodial-account-card";
 import { evaluateValueActionAccount } from "~/lib/contracts/project-create-contract";
 import { cn } from "~/lib/utils";
@@ -42,6 +59,17 @@ const STEP_LABELS = ["Amount", "Review", "Support"];
 function intentStorageKey(slug: string) {
   return `ardanova:funding-intent:${slug}`;
 }
+
+/** The review-step quote a send was made from; null when the bytes sent are a resumed request. */
+type SentQuote = {
+  quantity: number;
+  unitName: string;
+  supplySharePercent: number | null;
+  dollarAmount: number | null;
+} | null;
+
+/** One send in flight: the exact saved request, and the quote it matches (if any). */
+type ActiveSend = { request: SavedRequest<SponsorshipWire>; quote: SentQuote };
 
 /** What this page persists for the success page to show as "as quoted", never as confirmed. */
 interface QuotedIntent {
@@ -69,6 +97,28 @@ function formatUnits(value: number, unit: string) {
 
 function formatPct(value: number) {
   return `${value.toFixed(4)}%`;
+}
+
+const REQUEST_CANCELLED_NOTICE =
+  "That earlier request is cancelled. Nothing was taken under it, and nothing ever will be. You can start a new sponsorship.";
+
+const REQUEST_REVEALED_NOTICE =
+  "That earlier request may already be moving funds, so it can't be cancelled. It stays saved, and its latest state is shown here.";
+
+const REQUEST_UNCHECKED_NOTICE =
+  "We couldn't check that earlier request just now, so it stays saved and nothing new was started. Try again in a moment.";
+
+/** Where a revealed sponsorship stands, in words a sponsor can act on. Never claims it settled unless it did. */
+function describeRevealedSponsorship(revealed: RevealedSponsorship): string {
+  switch (revealed.status) {
+    case "SETTLED":
+      return "It went through: the project units are recorded as yours.";
+    case "DRAFT":
+    case "SETTLEMENT_PENDING":
+      return "It is still being completed. Nothing is taken twice.";
+    default:
+      return revealed.holdingReasonDetail ?? "It is closed.";
+  }
 }
 
 /** Only ever navigates within this app. A same-origin path is required, never trusted as-is. */
@@ -118,10 +168,71 @@ function StepIndicator({ current }: { current: number }) {
   );
 }
 
+/** The step-2 acknowledgements, shown verbatim for a fresh sponsorship and for "Try again" alike. */
+function RequiredAcknowledgements({
+  checkLocked,
+  checkTrust,
+  onCheckLocked,
+  onCheckTrust,
+}: {
+  checkLocked: boolean;
+  checkTrust: boolean;
+  onCheckLocked: (checked: boolean) => void;
+  onCheckTrust: (checked: boolean) => void;
+}) {
+  return (
+    <>
+      <p className="text-muted-foreground font-mono text-xs font-bold tracking-widest uppercase">
+        Required acknowledgements
+      </p>
+
+      <label className="border-border flex cursor-pointer items-start gap-3 border p-4">
+        <Checkbox
+          checked={checkLocked}
+          onCheckedChange={(value) => onCheckLocked(Boolean(value))}
+          className="mt-0.5"
+        />
+        <span>
+          <span className="block text-sm font-semibold">
+            Project-unit availability
+          </span>
+          <span className="text-muted-foreground mt-1 block text-xs leading-relaxed">
+            I understand any resulting project-unit position follows
+            the recorded gate and settlement state, and sits in a
+            hold before it&apos;s mine to move. This preview does not
+            make the position liquid or transferable.
+          </span>
+        </span>
+      </label>
+
+      <label className="border-border flex cursor-pointer items-start gap-3 border p-4">
+        <Checkbox
+          checked={checkTrust}
+          onCheckedChange={(value) => onCheckTrust(Boolean(value))}
+          className="mt-0.5"
+        />
+        <span>
+          <span className="block text-sm font-semibold">
+            Protection is conditional
+          </span>
+          <span className="text-muted-foreground mt-1 block text-xs leading-relaxed">
+            I understand protection eligibility and amount depend on the
+            recorded terms, gate state, configured treasury rate, and
+            payout processing. It is not a guaranteed full refund. A
+            protection record is not proof that funds were paid out.
+          </span>
+        </span>
+      </label>
+    </>
+  );
+}
+
 export default function InvestPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { data: session, status: sessionStatus } = useSession();
+  const subjectId = session?.user?.id ?? null;
   const slug = params.slug as string;
   // Dollars. The project page hands this over already in dollars (equity-preview.tsx).
   const initialAmount = searchParams.get("amount") ?? "100";
@@ -135,22 +246,77 @@ export default function InvestPage() {
   const [checkLocked, setCheckLocked] = useState(false);
   const [checkTrust, setCheckTrust] = useState(false);
   const [showName, setShowName] = useState(false);
-  const checkoutIdempotencyKey = useRef<string | undefined>(undefined);
+  // Load-bearing: the key AND the exact bytes it covers, persisted BEFORE a request leaves, so a
+  // reload or Retry resends the SAME request and `FundingIntentService` replays the intent it
+  // already admitted instead of debiting twice. Rules: ~/lib/commerce/AGENTS.md §Persisted request keys.
+  const [savedRequest, setSavedRequest] =
+    useState<SavedRequest<SponsorshipWire> | null>(null);
+  // The send in flight: state for the step-3 render, a ref for the callbacks that outlive it.
+  const [activeSend, setActiveSend] = useState<ActiveSend | null>(null);
+  const activeSendRef = useRef<ActiveSend | null>(null);
+  // "Try again": the SAVED request being re-acknowledged at step 2 before its exact bytes resend.
+  const [resumeRequest, setResumeRequest] =
+    useState<SavedRequest<SponsorshipWire> | null>(null);
+  // What the void route said about the saved key, and the sentence that goes with it.
+  const [revealedSponsorship, setRevealedSponsorship] =
+    useState<RevealedSponsorship | null>(null);
+  const [keyNotice, setKeyNotice] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  // True ONLY when the void route answered `voided` for the key this attempt used: the one fact that
+  // lets the page say "closed, nothing was or will be taken". An empty `savedRequest` is not that fact.
+  const [released, setReleased] = useState(false);
+
+  const voidSponsorship = api.fundingIntent.voidRequest.useMutation();
+  const voidCall = (idempotencyKey: string) =>
+    voidSponsorship.mutateAsync({ idempotencyKey });
+
+  /** Puts a void-settled key on screen: released, revealed (kept, with its state), or kept. */
+  const showSponsorshipSettlement = (
+    settled: VoidSettlement<SponsorshipWire, RevealedSponsorship>,
+  ) => {
+    if (settled.kind === "released") {
+      setSavedRequest(null);
+      setRevealedSponsorship(null);
+      setReleased(true);
+      return;
+    }
+    setReleased(false);
+    setSavedRequest(settled.saved ?? activeSendRef.current?.request ?? null);
+    if (settled.kind === "revealed") setRevealedSponsorship(settled.revealed);
+  };
 
   const checkout = api.fundingIntent.createCheckout.useMutation({
     onSuccess: ({ intentId, checkoutUrl }, variables) => {
-      // amount was sent in ARDA; recompute the display quote from the same review-step numbers
-      // so the success page can show "as quoted" without a new field on the status DTO.
+      // A 200 hands over the server's intent id - SETTLEMENT_PENDING included - so from here the
+      // success page decides by that intent's STATE and the key's job (one admission) is done. This
+      // is a release by state, not by a code; see ~/lib/commerce/AGENTS.md §Persisted request keys.
+      if (subjectId) {
+        clearSavedRequest(
+          window.localStorage,
+          sponsorshipRequestFlow(variables.projectTokenConfigId),
+          subjectId,
+          variables.idempotencyKey,
+        );
+      }
+      setSavedRequest(null);
+      setRevealedSponsorship(null);
+      setKeyNotice(null);
+
+      // The success page shows "as quoted" only for a send that matched the review-step quote;
+      // a resumed request's bytes predate this screen, so it carries no quote of its own.
+      const sent = activeSendRef.current;
       try {
         window.sessionStorage.setItem(
           intentStorageKey(slug),
           JSON.stringify({
             intentId,
-            dollarAmount: lastQuoteRef.current?.dollarAmount ?? null,
+            dollarAmount:
+              sent?.quote?.dollarAmount ??
+              (sent ? sent.request.displayMinorUnits / 100 : null),
             ardaAmount: Number(variables.amount),
-            quantity: lastQuoteRef.current?.quantity ?? 0,
-            unitName: lastQuoteRef.current?.unitName ?? "",
-            supplySharePercent: lastQuoteRef.current?.supplySharePercent ?? null,
+            quantity: sent?.quote?.quantity ?? 0,
+            unitName: sent?.quote?.unitName ?? "",
+            supplySharePercent: sent?.quote?.supplySharePercent ?? null,
           } satisfies QuotedIntent),
         );
       } catch {
@@ -163,6 +329,26 @@ export default function InvestPage() {
           `/projects/${slug}/invest/success?intent=${encodeURIComponent(intentId)}`,
         ),
       );
+    },
+    onError: (error, variables) => {
+      if (!subjectId) return;
+      const flow = sponsorshipRequestFlow(variables.projectTokenConfigId);
+      // Kept until the server says otherwise, so "closed" never shows while the void is in flight.
+      setSavedRequest(
+        readSavedRequest(window.localStorage, flow, subjectId) ??
+          activeSendRef.current?.request ??
+          null,
+      );
+      // No code releases the key on its own. A final-looking one (`definite`, `finished`) asks the
+      // void route, whose `voided` is the only release; a post-commit 400 with no code keeps it.
+      void settleSponsorshipFailure({
+        storage: window.localStorage,
+        flow,
+        subjectId,
+        requestKey: variables.idempotencyKey,
+        moneyCode: moneyCodeOf(error),
+        voidRequest: voidCall,
+      }).then(showSponsorshipSettlement);
     },
   });
 
@@ -192,6 +378,16 @@ export default function InvestPage() {
   const config = configResult.success ? configResult.data : undefined;
   const configContractInvalid =
     configQuery.data !== undefined && !configResult.success;
+
+  // Surfaces an unfinished sponsorship from BEFORE a reload (or a closed tab), so the "Retry
+  // uses the same idempotency key" promise at step 3 holds even after one, and a changed amount
+  // is never silently admitted as a second sponsorship of the same project.
+  useEffect(() => {
+    if (!config?.id || !subjectId) return;
+    setSavedRequest(
+      readSavedRequest(window.localStorage, sponsorshipRequestFlow(config.id), subjectId),
+    );
+  }, [config?.id, subjectId]);
 
   // What the person typed, in DOLLARS. The platform-unit figure is derived from it below
   // and never typed - the founder's ask was inverted this way first, and a sponsor
@@ -270,6 +466,14 @@ export default function InvestPage() {
     quantity > 0 &&
     chargedArda !== null;
 
+  // "Try again" estimates the SAVED amount at today's rate - what a never-admitted request will cost.
+  // An admitted dormant DRAFT keeps the quote locked when it was admitted, so the copy says both.
+  const resumeArda = resumeRequest ? Number(resumeRequest.wire.amount) : null;
+  const resumeQuantity =
+    resumeArda !== null && Number.isFinite(resumeArda) && ardaPerUnit && ardaPerUnit > 0
+      ? Math.floor(resumeArda / ardaPerUnit)
+      : null;
+
   // The review step re-reads these at submit time, so the intent stored for the success page
   // reflects what the person actually saw on the review screen.
   const lastQuoteRef = useRef<{
@@ -295,19 +499,122 @@ export default function InvestPage() {
     setDebouncedInput(next);
   }, []);
 
-  const beginCheckout = () => {
-    if (!config || !currentArda || !hasQuote || !previewMatchesInput) return;
+  // What a FRESH sponsorship of the typed dollars would send at today's rate. Only ever used to
+  // mint a key or to recognise the saved request; a saved request is never rebuilt from it.
+  const currentDraft =
+    config && currentDollars
+      ? draftSponsorshipRequest({
+          projectTokenConfigId: config.id,
+          dollars: currentDollars.value,
+          usdPerArda,
+          displayNameConsent: showName,
+        })
+      : null;
+  const sessionReady = sessionStatus !== "loading" && subjectId !== null;
 
-    checkoutIdempotencyKey.current ??= window.crypto.randomUUID();
+  /** Sends EXACTLY the saved bytes under their key. */
+  const sendSponsorship = (request: SavedRequest<SponsorshipWire>) => {
+    const send: ActiveSend = {
+      request,
+      quote:
+        currentDraft?.amount === request.wire.amount ? lastQuoteRef.current : null,
+    };
+    activeSendRef.current = send;
+    setActiveSend(send);
+    setReleased(false);
     setStep(3);
-    checkout.mutate({
-      projectTokenConfigId: config.id,
-      // The route settles in platform units; the person never typed one.
-      amount: toPlatformUnitApiAmount(currentArda),
-      disclosureVersion: "funding-disclosure-v1",
-      displayNameConsent: showName,
-      idempotencyKey: checkoutIdempotencyKey.current,
-    });
+    checkout.mutate({ ...request.wire, idempotencyKey: request.requestKey });
+  };
+
+  const beginCheckout = () => {
+    if (
+      !config ||
+      !currentDraft ||
+      !hasQuote ||
+      !previewMatchesInput ||
+      !currentDollars ||
+      !sessionReady ||
+      !subjectId
+    ) {
+      return;
+    }
+
+    const claim = claimRequestKey(
+      window.localStorage,
+      sponsorshipRequestFlow(config.id),
+      subjectId,
+      currentDraft,
+      Math.round(currentDollars.value * 100),
+    );
+    if (claim.kind === "pending") {
+      // Never silently replaced: an unresolved key for a DIFFERENT request must be resumed
+      // first, or one lost sponsorship becomes two debits.
+      setSavedRequest(claim.pending);
+      setStep(1);
+      return;
+    }
+
+    sendSponsorship(claim.request);
+  };
+
+  /**
+   * "Try again" (H-1): the SAVED request - its own bytes, never recomputed at today's rate - is
+   * re-acknowledged at step 2 before it resends, because a request that was never admitted is
+   * priced when it finally is.
+   */
+  const beginResume = () => {
+    if (!config || !sessionReady || !subjectId) return;
+    const saved =
+      readSavedRequest(window.localStorage, sponsorshipRequestFlow(config.id), subjectId) ??
+      savedRequest;
+    if (!saved) return;
+    setResumeRequest(saved);
+    setCheckLocked(false);
+    setCheckTrust(false);
+    setKeyNotice(null);
+    checkout.reset();
+    setStep(2);
+  };
+
+  const sendResumedSponsorship = () => {
+    if (!resumeRequest || !checkLocked || !checkTrust || !sessionReady) return;
+    const request = resumeRequest;
+    setResumeRequest(null);
+    sendSponsorship(request);
+  };
+
+  /**
+   * "Cancel that request" (H-1): the server voids the saved key - a tombstone if nothing was
+   * admitted, a cancel if nothing was sent - or reveals the sponsorship that may move funds.
+   */
+  const cancelSavedRequest = async () => {
+    if (!config || !sessionReady || !subjectId || cancelling) return;
+    setCancelling(true);
+    setKeyNotice(null);
+    try {
+      const settled = await cancelSavedSponsorship({
+        storage: window.localStorage,
+        flow: sponsorshipRequestFlow(config.id),
+        subjectId,
+        voidRequest: voidCall,
+      });
+      if (settled.kind === "none" || settled.kind === "released") {
+        setSavedRequest(null);
+        setRevealedSponsorship(null);
+        setResumeRequest(null);
+        setReleased(settled.kind === "released");
+        if (settled.kind === "released") setKeyNotice(REQUEST_CANCELLED_NOTICE);
+        checkout.reset();
+        setStep(1);
+        return;
+      }
+      showSponsorshipSettlement(settled);
+      setKeyNotice(
+        settled.kind === "revealed" ? REQUEST_REVEALED_NOTICE : REQUEST_UNCHECKED_NOTICE,
+      );
+    } finally {
+      setCancelling(false);
+    }
   };
 
   const handleNext = () => {
@@ -318,6 +625,7 @@ export default function InvestPage() {
 
   const handleBack = () => {
     if (step > 1) {
+      setResumeRequest(null);
       setStep((current) => current - 1);
       return;
     }
@@ -487,6 +795,68 @@ export default function InvestPage() {
       <div className="my-6">
         <StepIndicator current={step} />
       </div>
+
+      {keyNotice && (
+        <p
+          role="status"
+          className="border-border bg-muted/30 mb-5 border-2 p-4 text-sm"
+        >
+          {keyNotice}
+        </p>
+      )}
+
+      {savedRequest && step < 3 && !resumeRequest && (
+        <section
+          role="status"
+          className="border-foreground bg-secondary mb-5 flex flex-col gap-3 border-2 p-5"
+        >
+          <div className="flex items-start gap-3">
+            <Clock className="mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <h2 className="font-mono text-sm font-black uppercase">
+                An unfinished sponsorship
+              </h2>
+              <p className="text-muted-foreground mt-1 text-sm">
+                You started sponsoring this project with{" "}
+                {formatSponsorDollars(savedRequest.displayMinorUnits / 100)}{" "}
+                and never saw it finish. It may already be on its way, so it
+                can&apos;t simply be dropped. Try it again to send exactly the
+                same request - if it already went through, nothing is taken
+                twice. Or ask us to cancel it: it is cancelled only if nothing
+                was or can be taken under it.
+              </p>
+              {revealedSponsorship && (
+                <p className="mt-2 text-sm">
+                  {describeRevealedSponsorship(revealedSponsorship)}{" "}
+                  <Link
+                    className="underline"
+                    href={`/projects/${slug}/invest/success?intent=${encodeURIComponent(revealedSponsorship.intentId)}`}
+                  >
+                    See that sponsorship
+                  </Link>
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!sessionReady || checkout.isPending || cancelling}
+              onClick={() => void cancelSavedRequest()}
+            >
+              {cancelling ? "Checking…" : "Cancel that request"}
+            </Button>
+            <Button
+              type="button"
+              disabled={!sessionReady || checkout.isPending || cancelling}
+              onClick={beginResume}
+            >
+              Try again
+            </Button>
+          </div>
+        </section>
+      )}
 
       {step === 1 && (
         <section className="space-y-5" aria-labelledby="amount-heading">
@@ -695,7 +1065,65 @@ export default function InvestPage() {
         </section>
       )}
 
-      {step === 2 && hasQuote && currentDollars && quantity && chargedArda !== null && (
+      {step === 2 && resumeRequest && (
+        <section className="space-y-5" aria-labelledby="resume-heading">
+          <Card className="border-foreground">
+            <CardContent className="space-y-4 p-5 sm:p-6">
+              <div>
+                <p className="text-muted-foreground font-mono text-xs font-bold tracking-widest uppercase">
+                  02 · Send that sponsorship again
+                </p>
+                <h2 id="resume-heading" className="mt-2 text-2xl font-bold">
+                  The same request, sent again
+                </h2>
+              </div>
+              <p className="text-sm leading-relaxed">
+                This sends exactly the request you started before, for{" "}
+                {formatSponsorDollars(resumeRequest.displayMinorUnits / 100)}.
+                If it already went through, you&apos;ll see its result and
+                nothing is taken twice. If we recorded it but never sent it, it
+                completes at the price it was given when we recorded it. Only if
+                it never reached us is it priced now, at today&apos;s rate
+                {resumeQuantity !== null && resumeQuantity > 0
+                  ? `: about ${formatUnits(resumeQuantity, config.unitName)}`
+                  : ""}
+                .
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {resumeRequest.wire.displayNameConsent
+                  ? "Your name is shown to other backers, as you chose before."
+                  : "Your name is not shown to other backers, as you chose before."}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-foreground">
+            <CardContent className="space-y-5 p-5 sm:p-6">
+              <p className="text-muted-foreground font-mono text-xs font-bold tracking-widest uppercase">
+                Required acknowledgements
+              </p>
+              <RequiredAcknowledgements
+                checkLocked={checkLocked}
+                checkTrust={checkTrust}
+                onCheckLocked={setCheckLocked}
+                onCheckTrust={setCheckTrust}
+              />
+            </CardContent>
+          </Card>
+
+          <Button
+            type="button"
+            className="h-12 w-full font-mono font-bold tracking-wide uppercase"
+            disabled={!checkLocked || !checkTrust || checkout.isPending || !sessionReady}
+            onClick={sendResumedSponsorship}
+          >
+            {sessionReady ? "Send it again" : "Checking your session…"}
+            <ArrowRight className="size-4" />
+          </Button>
+        </section>
+      )}
+
+      {step === 2 && !resumeRequest && hasQuote && currentDollars && quantity && chargedArda !== null && (
         <section className="space-y-5" aria-labelledby="review-heading">
           <Card className="border-foreground">
             <CardContent className="space-y-4 p-5 sm:p-6">
@@ -739,47 +1167,12 @@ export default function InvestPage() {
 
           <Card className="border-foreground">
             <CardContent className="space-y-5 p-5 sm:p-6">
-              <p className="text-muted-foreground font-mono text-xs font-bold tracking-widest uppercase">
-                Required acknowledgements
-              </p>
-
-              <label className="border-border flex cursor-pointer items-start gap-3 border p-4">
-                <Checkbox
-                  checked={checkLocked}
-                  onCheckedChange={(value) => setCheckLocked(Boolean(value))}
-                  className="mt-0.5"
-                />
-                <span>
-                  <span className="block text-sm font-semibold">
-                    Project-unit availability
-                  </span>
-                  <span className="text-muted-foreground mt-1 block text-xs leading-relaxed">
-                    I understand any resulting project-unit position follows
-                    the recorded gate and settlement state, and sits in a
-                    hold before it&apos;s mine to move. This preview does not
-                    make the position liquid or transferable.
-                  </span>
-                </span>
-              </label>
-
-              <label className="border-border flex cursor-pointer items-start gap-3 border p-4">
-                <Checkbox
-                  checked={checkTrust}
-                  onCheckedChange={(value) => setCheckTrust(Boolean(value))}
-                  className="mt-0.5"
-                />
-                <span>
-                  <span className="block text-sm font-semibold">
-                    Protection is conditional
-                  </span>
-                  <span className="text-muted-foreground mt-1 block text-xs leading-relaxed">
-                    I understand protection eligibility and amount depend on the
-                    recorded terms, gate state, configured treasury rate, and
-                    payout processing. It is not a guaranteed full refund. A
-                    protection record is not proof that funds were paid out.
-                  </span>
-                </span>
-              </label>
+              <RequiredAcknowledgements
+                checkLocked={checkLocked}
+                checkTrust={checkTrust}
+                onCheckLocked={setCheckLocked}
+                onCheckTrust={setCheckTrust}
+              />
 
               <label className="border-border flex cursor-pointer items-start gap-3 border p-4">
                 <Checkbox
@@ -804,10 +1197,14 @@ export default function InvestPage() {
           <Button
             type="button"
             className="h-12 w-full font-mono font-bold tracking-wide uppercase"
-            disabled={!checkLocked || !checkTrust || checkout.isPending}
+            // Until the session resolves there is no subject to save a key under, and a press
+            // that silently does nothing reads as a broken button.
+            disabled={
+              !checkLocked || !checkTrust || checkout.isPending || !sessionReady
+            }
             onClick={handleNext}
           >
-            Support this project
+            {sessionReady ? "Support this project" : "Checking your session…"}
             <ArrowRight className="size-4" />
           </Button>
         </section>
@@ -865,28 +1262,69 @@ export default function InvestPage() {
                     Amount spent
                   </span>
                   <span className="font-mono font-bold">
-                    {chargedDollars !== null
-                      ? formatSponsorDollars(chargedDollars)
-                      : currentDollars
-                        ? formatSponsorDollars(currentDollars.value)
+                    {activeSend?.quote?.dollarAmount != null
+                      ? formatSponsorDollars(activeSend.quote.dollarAmount)
+                      : activeSend
+                        ? formatSponsorDollars(activeSend.request.displayMinorUnits / 100)
                         : "Unavailable"}
                   </span>
                 </div>
               </div>
 
-              {checkout.error && (
+              {checkout.error && savedRequest && (
+                <div className="w-full space-y-3">
+                  {revealedSponsorship && (
+                    <p className="text-sm">
+                      {describeRevealedSponsorship(revealedSponsorship)}{" "}
+                      <Link
+                        className="underline"
+                        href={`/projects/${slug}/invest/success?intent=${encodeURIComponent(revealedSponsorship.intentId)}`}
+                      >
+                        See that sponsorship
+                      </Link>
+                    </p>
+                  )}
+                  {keyNotice && <p className="text-sm">{keyNotice}</p>}
+                  <p className="text-muted-foreground text-xs leading-relaxed">
+                    Trying again sends exactly the same request under the same
+                    key, so the server replays this sponsorship rather than
+                    create a second one. Cancelling asks the server to close it,
+                    which it does only if nothing was or can be taken.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void cancelSavedRequest()}
+                      disabled={!sessionReady || cancelling || voidSponsorship.isPending}
+                    >
+                      {cancelling ? "Checking…" : "Cancel that request"}
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={beginResume}
+                      disabled={!sessionReady || cancelling || voidSponsorship.isPending}
+                    >
+                      Try again
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {checkout.error && !savedRequest && (
                 <div className="w-full space-y-3">
                   <p className="text-muted-foreground text-xs leading-relaxed">
-                    Retry uses the same idempotency key, so the server can
-                    safely replay this sponsorship rather than create a
-                    second one.
+                    {released
+                      ? "The server confirmed that request is closed and nothing was or will be taken under it. You can start a new one."
+                      : "We couldn't confirm what happened to that request, so we won't say either way. Reload this page to check it again before starting a new one."}
                   </p>
                   <Button
                     type="button"
-                    onClick={beginCheckout}
+                    variant="outline"
+                    onClick={() => setStep(1)}
                     className="w-full"
                   >
-                    Retry sponsorship
+                    Change the amount
                   </Button>
                 </div>
               )}

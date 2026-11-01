@@ -12,6 +12,7 @@
  * put in front of a sponsor.
  */
 
+import type { MoneyRefusalCode } from "~/lib/commerce/money-refusal";
 import {
   describeValueActionUnderReview,
   evaluateValueActionAccount,
@@ -143,6 +144,41 @@ export function isOnRampSettled(report?: OnRampReport | null): boolean {
 /** What a person is told when this deployment cannot take a payment at all. No internals. */
 export const ADD_FUNDS_UNAVAILABLE_MESSAGE =
   "Adding funds isn't switched on for this site yet. Nothing you do on this page can charge you.";
+
+/** The add-funds sentence for an outcome nobody could confirm. It never says nothing was charged. */
+export const ADD_FUNDS_UNCONFIRMED_MESSAGE =
+  "We couldn't confirm whether this payment started. It stays saved, so trying again picks up the same payment instead of starting a second one.";
+
+/**
+ * The fallback for a failed add-funds call, chosen by the server's money code. Only a code that
+ * proves nothing could charge may say so; an unknown or missing code gets the unconfirmed sentence.
+ */
+export function addFundsFallbackMessage(moneyCode: MoneyRefusalCode | null): string {
+  switch (moneyCode) {
+    case "payments_not_configured":
+      return ADD_FUNDS_UNAVAILABLE_MESSAGE;
+    case "definite":
+      return "This payment couldn't be started, so nothing was charged. You can try again.";
+    case "finished":
+      return "That earlier payment already reached a final answer. We're checking what it was before anything new can start.";
+    case "needs_review":
+      return "This payment is held for a manual check, so it won't be sent again from here. Nothing new was started.";
+    case "rail_busy":
+      return "The payment service is busy right now. Your payment stays saved - try again in a moment and it picks up the same one.";
+    case "setup_required":
+    case "kyb_required":
+    case "account_holder_required":
+      return "Finish setting up your account before adding funds.";
+    case "under_review":
+      return "Your account is being reviewed, so adding funds is paused until that check is done.";
+    case "consent_revoked":
+      return "ArdaNova no longer has your permission to add funds to your account. Renew it in your account settings, then try again.";
+    case "unauthenticated":
+      return "Your session has ended. Sign in again, then try again.";
+    default:
+      return ADD_FUNDS_UNCONFIRMED_MESSAGE;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Who may add funds

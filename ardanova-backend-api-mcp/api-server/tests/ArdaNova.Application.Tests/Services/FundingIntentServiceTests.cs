@@ -6,6 +6,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
+using ArdaNova.Application.Tests.Support;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Outbox;
@@ -40,10 +41,29 @@ public class FundingIntentServiceTests
     private readonly Mock<IFundingSettlementReadiness> _settlementReadiness = new();
     private readonly Mock<IAzoaValueEligibilityService> _valueEligibility = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    private readonly Mock<IRepository<FundingIntentVoid>> _voids = new();
+    private readonly Mock<IEconomicOutboxLeaseStore> _leases = new();
     private readonly FundingIntentService _sut;
 
     public FundingIntentServiceTests()
     {
+        // The outbox compare-and-sets land unless a test says a worker or a void got there first.
+        _leases.Setup(store => store.TryReleaseForDispatchAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _leases.Setup(store => store.TryCancelUnleasedAsync(
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _leases.Setup(store => store.TryCancelUndispatchedAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _leases.Setup(store => store.TryConfirmOpenAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _leases.Setup(store => store.TryParkUnleasedForReconciliationAsync(
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _leases.Setup(store => store.TryLeaveUnleasedToWorkerAsync(
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
         _settlementReadiness.SetupGet(readiness => readiness.IsReady).Returns(true);
         _settlementReadiness.SetupGet(readiness => readiness.UnavailableReason).Returns(string.Empty);
         _valueEligibility
@@ -58,8 +78,19 @@ public class FundingIntentServiceTests
         _projectGate
             .Setup(service => service.EvaluateGate1Async(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<GateTransitionResultDto>.Success(new GateTransitionResultDto()));
+        // The EF unit of work's precondition, so a mirror naming no column (or a column the row lacks) fails here too.
+        _unitOfWork.Setup(unitOfWork => unitOfWork.MarkPersisted(It.IsAny<object>(), It.IsAny<string[]>()))
+            .Callback<object, string[]>(InMemoryUnitOfWork.RequireWrittenProperties);
 
-        _sut = new FundingIntentService(
+        // These tests are about the node's word deciding, so the node is attested to enforce Admit-Before;
+        // what a NOT_FOUND may NOT do without that attestation is pinned separately below.
+        _sut = Service(EnforcingNode);
+    }
+
+    private static readonly ExchangeAdmissionPolicy EnforcingNode = new() { NodeEnforcesAdmitBefore = true };
+
+    private FundingIntentService Service(ExchangeAdmissionPolicy admission)
+        => new(
             _users.Object,
             _projects.Object,
             _configs.Object,
@@ -74,8 +105,10 @@ public class FundingIntentServiceTests
             _projectGate.Object,
             _settlementReadiness.Object,
             _valueEligibility.Object,
-            _unitOfWork.Object);
-    }
+            _unitOfWork.Object,
+            _voids.Object,
+            _leases.Object,
+            admission: admission);
 
     [Fact]
     public async Task CreateCheckoutAsync_RefusesBeforeAnyRowWhenThisDeploymentCannotSettle()
@@ -361,6 +394,8 @@ public class FundingIntentServiceTests
 
         result.Type.Should().Be(ResultType.Conflict);
         result.Error.Should().EndWith("Nothing was taken.");
+        // Final for the key, said in a code - which the caller resolves through the void route, never by releasing on it.
+        result.Code.Should().Be(UpstreamFailureCodes.IntentFinished);
         captured.Intent!.status.Should().Be(FundingIntentStatus.HOLDING);
         captured.Intent.heldAt.Should().NotBeNull();
         captured.Intent.holdingReasonCode.Should().Be("AZOA_ACCOUNT_NOT_READY");
@@ -368,6 +403,14 @@ public class FundingIntentServiceTests
         // Terminal on both rows: nothing left for a worker to pick up and retry.
         captured.Settlement!.status.Should().Be(EconomicSettlementStatus.CANCELLED);
         captured.Outbox!.status.Should().Be(EconomicOutboxStatus.CANCELLED);
+        // Released by THIS call and refused before the gateway sent: the one hold that needs no node
+        // read, and it records that nothing was submitted, so a later void can believe a 404 at once.
+        captured.Settlement.submittedAt.Should().BeNull();
+        _leases.Verify(store => store.TryCancelUnleasedAsync(
+            captured.Settlement.id, It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), true, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()));
+        _gateway.Verify(
+            gateway => gateway.ReconcileAsync(It.IsAny<AzoaSettlementRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
         _investments.Verify(
             repository => repository.AddAsync(It.IsAny<ProjectInvestment>(), It.IsAny<CancellationToken>()),
             Times.Never);
@@ -415,7 +458,56 @@ public class FundingIntentServiceTests
 
         result.Type.Should().Be(ResultType.Conflict);
         result.Error.Should().Be("That key was already used for a different sponsorship");
+        result.Code.Should().Be(UpstreamFailureCodes.RequestKeyInUse);
         VerifyNothingWasSettled();
+    }
+
+    [Fact]
+    public async Task CreateCheckoutAsync_RetryOfAnAdmittedSponsorshipReplaysEvenAfterTheSponsorWentUnderReview()
+    {
+        var fixture = ArrangeEligibleFunding();
+        var settled = SettledIntent(fixture, requestedBaseUnits: 900);
+        _intents
+            .Setup(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<FundingIntent, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(settled);
+        // Readiness moved on after the first call: a fresh sponsorship would now be refused.
+        _valueEligibility
+            .Setup(service => service.RequireReadyAsync(ActorId, "fund a project", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<AzoaCustodialAccountStatusDto>.Forbidden(
+                ValueEligibilityMessages.UnderReview(reviewDueAt: null)));
+
+        var result = await _sut.CreateCheckoutAsync(Request("9.00"), ActorId, IdempotencyKey);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.IntentId.Should().Be(settled.id);
+        _gateway.Verify(
+            gateway => gateway.DispatchAsync(It.IsAny<AzoaSettlementRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateCheckoutAsync_ASponsorshipStillBeingCompletedNamesNoFinalCode()
+    {
+        var fixture = ArrangeEligibleFunding();
+        var (draft, _, _) = PendingSponsorship(fixture);
+        draft.status = FundingIntentStatus.DRAFT;
+        draft.settlementAttemptCount = 5;
+        _intents
+            .Setup(repository => repository.FindOneAsync(
+                It.IsAny<Expression<Func<FundingIntent, bool>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(draft);
+
+        var result = await _sut.CreateCheckoutAsync(Request("9.00"), ActorId, IdempotencyKey);
+
+        // It may still settle, so this 409 must never let the caller drop the key.
+        result.Type.Should().Be(ResultType.Conflict);
+        result.Code.Should().BeNull();
+        _gateway.Verify(
+            gateway => gateway.DispatchAsync(It.IsAny<AzoaSettlementRequest>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
@@ -478,13 +570,12 @@ public class FundingIntentServiceTests
     }
 
     [Fact]
-    public async Task GetStatusAsync_TurnsAReadinessLapseLeftOnAQueuedSettlementIntoHolding()
+    public async Task GetStatusAsync_TurnsAReadinessLapseIntoHolding_OnlyOnTheNodesNotFound()
     {
         var fixture = ArrangeEligibleFunding();
         var (intent, settlement, outbox) = PendingSponsorship(fixture);
-        settlement.status = EconomicSettlementStatus.PENDING_DISPATCH;
-        settlement.failureCode = "AZOA_PROJECT_OWNER_NOT_READY";
-        settlement.failureDetail = "Funding settlement remains pending until the project owner completes account setup.";
+        ArrangeLapseSettledLongAgo(intent, settlement);
+        ArrangeReceipt(NodeHasNoOperation());
 
         var result = await _sut.GetStatusAsync(intent.id, ActorId);
 
@@ -493,8 +584,66 @@ public class FundingIntentServiceTests
         settlement.status.Should().Be(EconomicSettlementStatus.CANCELLED);
         outbox.status.Should().Be(EconomicOutboxStatus.CANCELLED);
         _gateway.Verify(
+            gateway => gateway.ReconcileAsync(It.IsAny<AzoaSettlementRequest>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        _gateway.Verify(
             gateway => gateway.DispatchAsync(It.IsAny<AzoaSettlementRequest>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_UntilTheNodeIsAttestedToEnforceAdmitBefore_ANotFoundNeverHoldsALapse()
+    {
+        var fixture = ArrangeEligibleFunding();
+        var (intent, settlement, outbox) = PendingSponsorship(fixture);
+        ArrangeLapseSettledLongAgo(intent, settlement);
+        ArrangeReceipt(NodeHasNoOperation());
+
+        var result = await Service(ExchangeAdmissionPolicy.Default).GetStatusAsync(intent.id, ActorId);
+
+        // Ten minutes after the send, the node holds nothing - but a stalled send could still be admitted.
+        result.Value!.Status.Should().Be(nameof(FundingIntentStatus.SETTLEMENT_PENDING));
+        settlement.status.Should().Be(EconomicSettlementStatus.PENDING_DISPATCH);
+        outbox.status.Should().NotBe(EconomicOutboxStatus.CANCELLED);
+        intent.heldAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_ALapseTheNodeCannotAccountFor_IsNeverHeld()
+    {
+        var fixture = ArrangeEligibleFunding();
+        var (intent, settlement, outbox) = PendingSponsorship(fixture);
+        ArrangeLapseSettledLongAgo(intent, settlement);
+        // A 5xx or a timeout reading the receipt: an earlier request's send may still have landed.
+        ArrangeReceipt(AzoaSettlementGatewayResult.Unknown("AZOA_TRANSPORT_UNCERTAIN"));
+
+        var result = await _sut.GetStatusAsync(intent.id, ActorId);
+
+        result.Value!.Status.Should().Be(nameof(FundingIntentStatus.SETTLEMENT_PENDING));
+        settlement.status.Should().Be(EconomicSettlementStatus.PENDING_DISPATCH);
+        outbox.status.Should().NotBe(EconomicOutboxStatus.CANCELLED);
+        intent.heldAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_ALapseWhoseOutboxAWorkerHoldsIsNotHeldAndCancelsNothing()
+    {
+        var fixture = ArrangeEligibleFunding();
+        var (intent, settlement, outbox) = PendingSponsorship(fixture);
+        ArrangeLapseSettledLongAgo(intent, settlement);
+        ArrangeReceipt(NodeHasNoOperation());
+        outbox.status = EconomicOutboxStatus.LEASED;
+        // The store's compare-and-set loses to the worker's lease: that worker may be mid-dispatch.
+        _leases.Setup(store => store.TryCancelUnleasedAsync(
+                settlement.id, It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+
+        var result = await _sut.GetStatusAsync(intent.id, ActorId);
+
+        result.Value!.Status.Should().Be(nameof(FundingIntentStatus.SETTLEMENT_PENDING));
+        settlement.status.Should().Be(EconomicSettlementStatus.PENDING_DISPATCH);
+        outbox.status.Should().Be(EconomicOutboxStatus.LEASED);
+        intent.heldAt.Should().BeNull();
     }
 
     [Fact]
@@ -612,20 +761,19 @@ public class FundingIntentServiceTests
     }
 
     [Fact]
-    public async Task GetStatusAsync_RepeatsTheServersOwnSentenceForASponsorshipOnHold()
+    public async Task GetStatusAsync_ExplainsAHoldFromItsReasonCode_NeverFromTheWorkersPendingSentence()
     {
         var fixture = ArrangeEligibleFunding();
         var (intent, settlement, _) = PendingSponsorship(fixture);
-        settlement.status = EconomicSettlementStatus.PENDING_DISPATCH;
-        settlement.failureCode = "AZOA_PROJECT_OWNER_NOT_READY";
-        settlement.failureDetail = "Funding settlement remains pending until the project owner completes account setup.";
+        ArrangeLapseSettledLongAgo(intent, settlement);
+        ArrangeReceipt(NodeHasNoOperation());
 
         var result = await _sut.GetStatusAsync(intent.id, ActorId);
 
         result.Value!.Status.Should().Be(nameof(FundingIntentStatus.HOLDING));
+        // From the readiness CODE: the worker's "remains pending" sentence is false once the hold CANCELLED it (L2).
         result.Value.HoldingReasonDetail.Should().Be(
-            "Funding settlement remains pending until the project owner completes account setup. "
-            + "Nothing was taken.");
+            "This sponsorship was not completed because the project owner has not finished account setup. Nothing was taken.");
     }
 
     // -- Fixtures -----------------------------------------------------------
@@ -752,6 +900,31 @@ public class FundingIntentServiceTests
             HoldReleasesAt: holdReleasesAt);
         ArrangeDispatch(captured, AzoaSettlementGatewayResult.Accepted("op-1", receipt.ToJson()));
     }
+
+    /// <summary>
+    /// A worker's readiness refusal left on a queued settlement whose last send, and last write to the
+    /// intent, are past the node-proof windows - so only the node's answer is left to decide it.
+    /// </summary>
+    private static void ArrangeLapseSettledLongAgo(FundingIntent intent, EconomicSettlement settlement)
+    {
+        var longAgo = DateTime.UtcNow.AddMinutes(-10);
+        settlement.status = EconomicSettlementStatus.PENDING_DISPATCH;
+        settlement.failureCode = "AZOA_PROJECT_OWNER_NOT_READY";
+        settlement.failureDetail = "Funding settlement remains pending until the project owner completes account setup.";
+        settlement.submittedAt = longAgo;
+        intent.updatedAt = longAgo;
+    }
+
+    private void ArrangeReceipt(AzoaSettlementGatewayResult receipt)
+        => _gateway
+            .Setup(gateway => gateway.ReconcileAsync(It.IsAny<AzoaSettlementRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(receipt);
+
+    /// <summary>What <c>AzoaSettlementGateway.ReconcileAsync</c> answers for the node's own NOT_FOUND envelope.</summary>
+    private static AzoaSettlementGatewayResult NodeHasNoOperation()
+        => AzoaSettlementGatewayResult.Retry(
+            EconomicSettlementFailureCodes.ExchangeNeverLanded,
+            "The node holds no operation for this settlement, so it may be dispatched again.");
 
     /// <summary>A sponsorship already committed and sent, waiting on the node.</summary>
     private (FundingIntent Intent, EconomicSettlement Settlement, EconomicOutbox Outbox) PendingSponsorship(

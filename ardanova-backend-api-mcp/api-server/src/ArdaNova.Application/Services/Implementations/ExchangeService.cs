@@ -39,7 +39,9 @@ namespace ArdaNova.Application.Services.Interfaces
     /// <summary>One exchange, with every amount already decided by ArdaNova.</summary>
     /// <remarks>
     /// Both amounts are BASE units as <see cref="long"/> - the fixed-scale rule. The person the
-    /// exchange is for is the route value on the node, never a field here.
+    /// exchange is for is the route value on the node, never a field here. <see cref="AdmitBefore"/>
+    /// travels as the <c>Admit-Before</c> HEADER, never in the body the node hashes for its key
+    /// (each attempt re-stamps it); see <c>Implementations/AGENTS.md</c> §Node proof.
     /// </remarks>
     public sealed record ArdaNovaExchangeCommand(
         string ChainType,
@@ -52,7 +54,8 @@ namespace ArdaNova.Application.Services.Interfaces
         DeclaredProjectUnitRate Rate,
         DateTimeOffset? ReleaseNotBefore = null,
         string? Purpose = null,
-        bool PreviewOnly = false);
+        bool PreviewOnly = false,
+        DateTimeOffset? AdmitBefore = null);
 
     /// <summary>Application-owned projection of the node's exchange receipt.</summary>
     public sealed record ArdaNovaExchangeReceipt(

@@ -52,6 +52,7 @@ public static class GeneratedModelConfigurations
         modelBuilder.Entity<FundingIntent>().HasIndex(e => new { e.funderUserId, e.status });
         modelBuilder.Entity<FundingIntent>().HasIndex(e => new { e.projectId, e.status });
         modelBuilder.Entity<FundingIntent>().HasIndex(e => new { e.projectTokenConfigId, e.status });
+        modelBuilder.Entity<FundingIntentVoid>().HasIndex(e => new { e.funderUserId, e.idempotencyKey }).IsUnique();
         modelBuilder.Entity<TaskCommerceAgreement>().HasIndex(e => new { e.contributorUserId, e.status });
         modelBuilder.Entity<TaskCommerceAgreement>().HasIndex(e => new { e.projectId, e.status });
         modelBuilder.Entity<AssetDefinition>().HasIndex(e => new { e.chainType, e.chainNetwork, e.canonicalAssetId }).IsUnique();

@@ -528,16 +528,40 @@ only side allowed to make that transition; the other side observes it and never 
    returns the typed NOT_FOUND when the CALLING key differs from the admitting one
    (AZOA `Managers/ReserveExchangeManager.cs:243-253`). ⚠ **OPEN (ledger P6-03).** After
    a value-key rotation a receipt read under the new key is a typed NOT_FOUND for a
-   source that exists, which §12.1's reopen rule would treat as proof of no effect and
-   redispatch — admitting a SECOND source under the new key. Nothing in either repo
-   guards this today. Recommended interim operator rule (not enforced): rotate the value
-   key only when no settlement is `AWAITING_RECONCILIATION`.
+   source that exists. ArdaNova now trusts that NOT_FOUND in several places — §12.1's
+   reopen (which would redispatch and admit a SECOND source under the new key), the
+   sponsorship hold/fail/void (ArdaNova `Services/Implementations/AGENTS.md` §Node proof)
+   and the outbox worker's terminal close (round 5 H1). **Interim rule: NEVER rotate the
+   value key while P6-03 is open and any settlement is open** (`PENDING_DISPATCH` or
+   `AWAITING_RECONCILIATION`). ArdaNova's boot logs the value key's fingerprint and the
+   open count, and logs Critical when the configured key no longer matches a pinned
+   `Azoa:ValueKeyFingerprint` while any is open (`Infrastructure/Azoa/AzoaExchangeProof.cs`);
+   it does not stop the rotation.
+5. **Admission deadline (`Admit-Before`).** Every exchange POST carries
+   `Admit-Before: <RFC 3339 UTC>` = the send's durable start stamp + W_admit (ArdaNova
+   default 4 min). The header is NOT part of the intent hash (each attempt re-stamps it). The
+   node refuses a NEW admission past it with HTTP 409 and
+   `{"isError":true,"code":"ADMISSION_DEADLINE_PASSED","result":null,...}` — nothing admitted
+   BY THIS ATTEMPT — deciding on its DATABASE clock inside the admitting transaction (oasis-sleek
+   `feat/exchange-admit-before` 06abcd6c, `SurrealHoldCommandStore.Exchange.cs`). It is a
+   per-attempt answer: the early refusal does not re-read a concurrent same-key admission that
+   has not committed, so it is never proof the key is unused. A replay of an already-admitted key
+   ignores the deadline and returns the original receipt. The header must be strict UTC (`Z` or
+   `+00:00`, ≤ 7 fraction digits) or the node answers 400 `INVALID_REQUEST` before any read.
+   Consumers branch on the CODE: the same 409 status otherwise means "may already have run".
+   With W ≥ W_admit + skew + 1 s — skew being the consumer's clock against the SurrealDB HOST
+   clock (`time::now()`), consumer replicas included — a NOT_FOUND from a read STARTED W after the
+   latest stamp is permanent proof. ArdaNova (`ExchangeAdmissionPolicy`) treats a NOT_FOUND after
+   an unanswered send as proof ONLY while `Azoa:Exchange:NodeEnforcesAdmitBefore=true`; with it
+   false nothing is closed, held or voided on a NOT_FOUND. **Rollback order:** before rolling
+   the node back past 06abcd6c, set that flag false and redeploy ArdaNova FIRST.
 
 ### 12.1 Exchange settlement (sponsorship)
 
 Two coupled machines: the node's exchange **source** (AZOA-owned) and the consumer's
 **settlement + outbox** (ArdaNova-owned). The only wire between them is one
-`POST /api/exchange/{userId}` carrying an `Idempotency-Key` and one
+`POST /api/exchange/{userId}` carrying an `Idempotency-Key` (and, per attempt, an
+`Admit-Before` — rule 5 above) and one
 `GET /api/exchange/receipt/{idempotencyKey}`. ArdaNova's key is
 `{avatarId}:funding-intent:{intentId}` (`Application/Services/Implementations/FundingIntentService.cs:501-502`).
 The consumer sends token base units only; a settlement whose asset code is a fiat

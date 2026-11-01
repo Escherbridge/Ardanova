@@ -299,7 +299,7 @@ public sealed class AzoaCustodialAccountService : IAzoaCustodialAccountService
     private static Result<TOut> MapFailure<TIn, TOut>(Result<TIn> source)
     {
         var error = source.Error ?? "AZOA custodial account operation failed.";
-        return source.Type switch
+        Result<TOut> mapped = source.Type switch
         {
             ResultType.NotFound => Result<TOut>.NotFound(error),
             ResultType.Forbidden => Result<TOut>.Forbidden(error),
@@ -309,6 +309,7 @@ public sealed class AzoaCustodialAccountService : IAzoaCustodialAccountService
             ResultType.BadRequest => Result<TOut>.BadRequest(error),
             _ => Result<TOut>.Failure(error),
         };
+        return mapped.WithCode(source.Code);
     }
 
     private sealed record UserBinding(User User, AzoaCustodialAccountBinding Binding);

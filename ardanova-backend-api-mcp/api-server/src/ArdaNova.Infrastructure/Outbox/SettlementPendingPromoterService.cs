@@ -67,8 +67,13 @@ public sealed class SettlementPendingPromoter
         var cutoff = now - FundingIntentService.OutboxHandoverDelay;
         var staleBefore = now - _options.StaleAfter;
 
+        // A DRAFT whose settlement was RELEASED lost its answer after the send (M3): the worker may settle it,
+        // and only a read records the stake. GetStatusAsync follows it read-only; it never releases or sends.
         var pending = await _intentRepository.FindAsync(
-            intent => intent.status == FundingIntentStatus.SETTLEMENT_PENDING
+            intent => (intent.status == FundingIntentStatus.SETTLEMENT_PENDING
+                    || (intent.status == FundingIntentStatus.DRAFT
+                        && intent.Settlement != null
+                        && intent.Settlement.status != EconomicSettlementStatus.AUTHORIZED))
                 && intent.updatedAt <= cutoff,
             ct);
 
@@ -120,13 +125,9 @@ public sealed class SettlementPendingPromoter
                     continue;
                 }
 
-                if (!string.Equals(
-                        status.Value?.Status,
-                        nameof(FundingIntentStatus.SETTLEMENT_PENDING),
-                        StringComparison.Ordinal))
-                {
+                // Finished means it left BOTH waiting states; a DRAFT that now follows the worker is still waiting.
+                if (status.Value?.Status is not (nameof(FundingIntentStatus.SETTLEMENT_PENDING) or nameof(FundingIntentStatus.DRAFT)))
                     promoted++;
-                }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {

@@ -47,4 +47,19 @@ export class FundingIntentsEndpoint {
       apiPath`/api/funding-intents/${intentId}`,
     );
   }
+
+  /** Voids the signed-in sponsor's own request key, or reveals the sponsorship under it. */
+  voidRequest(idempotencyKey: string): Promise<ApiResponse<FundingIntentVoid>> {
+    return this.client.post<FundingIntentVoid>(
+      apiPath`/api/funding-intents/requests/${idempotencyKey}/void`,
+    );
+  }
+}
+
+/** The BFF's answer to a sponsorship void: the key may go only on `voided`. */
+export interface FundingIntentVoid {
+  outcome: "voided" | "revealed";
+  intentId?: string | null;
+  /** On `revealed`: the sponsorship's durable state. */
+  intent?: FundingIntentStatus | null;
 }

@@ -43,11 +43,19 @@ counter ends in TWO OPPOSITE outcomes depending on which claim kind ran out, bec
 refusal and an unreadable result are not the same fact:
 
 - **`DispatchCeiling`** fires only after every DISPATCH attempt was refused in a way the
-  gateway itself called safely retryable — its own word that no value moved. It is
-  therefore the one refusal this seam may make TERMINAL:
-  `EconomicOutboxLeaseStore.FinalizeAsync`'s `isDispatchCeiling` check drives both the
-  outbox row and the settlement to `FAILED`, a Critical operator alert names the reserved
-  amount that must be returned by hand, and the row never retries again.
+  gateway itself called safely retryable — its own word that THOSE attempts moved nothing.
+  It is the one refusal this seam may make TERMINAL, but only once nothing else can have
+  landed: when the settlement carries an unanswered send (`EconomicOutboxLease.SubmittedAt`
+  — the request path's lost answer, or a dispatch lease that expired mid-attempt), the
+  worker first reads the receipt by key (`DecideClosingAsync`, round 5 H1; same for
+  `ReadinessRefundDue`). Accepted -> recorded SUBMITTED; on a node attested to enforce
+  `Admit-Before`, NOT_FOUND from a read started past the window -> `FinalizeAsync`'s
+  `isDispatchCeiling` drives outbox and settlement to `FAILED` and a Critical alert says what to
+  give back (for an EXCHANGE: nothing — it debited nobody), and inside the window -> stays
+  PENDING until it is proof; unreadable, or ANY NOT_FOUND while enforcement is not attested -> a
+  non-terminal reconciliation ceiling with a "value MAY have moved" alert. A dispatch that ends
+  `Unknown` stamps the settlement's `submittedAt` (round 5b MED-1). See
+  `Application/Services/Implementations/AGENTS.md` §Node proof.
 - **`ReconciliationCeiling`** fires when the node's OUTCOME is still unreadable after
   every RECONCILIATION attempt. It does the opposite on purpose: the settlement stays
   `AWAITING_RECONCILIATION` (an `Unknown` outcome, never `FAILED`), because value MAY
@@ -76,13 +84,18 @@ maps it to an ambiguous failure, which stays on the reconciliation path like any
 
 `EconomicOutboxDispatchService.NoEffectReceipt` decides, in order:
 
-1. **Quiet window.** A 404 is only believed once `reconciliationRequiredAt + NoEffectQuietWindow`
-   (= the 5-minute lease) has passed. Every dispatch call runs inside a lease renewed just before
-   it, so past that instant the dispatch that sent the request is dead and cannot still be
-   landing. Earlier, the row stays in reconciliation with `AZOA_EXCHANGE_ABSENCE_UNSETTLED` and
+1. **Quiet window.** A 404 is only acted on once `reconciliationRequiredAt` + the admission
+   policy's `ProofWindow` (default 5 minutes, never below the lease until the node enforces
+   `Admit-Before`) has passed at the reconcile CLAIM, before its read began. A reopen is a same-key
+   resend, never a "nothing was taken", so it needs no attested enforcement. Every dispatch call runs inside a lease renewed just before it and
+   carries `Admit-Before` = its claim stamp + W_admit, so past that instant the dispatch that sent
+   the request can no longer be admitted. Earlier, the row stays in reconciliation with `AZOA_EXCHANGE_ABSENCE_UNSETTLED` and
    is read again at the window's end. To make this measurable, `FinalizeAsync` now KEEPS the
    first `reconciliationRequiredAt` while a row stays in reconciliation instead of restamping it
-   on every poll, which would push the window out forever.
+   on every poll, which would push the window out forever. The sponsorship request path believes
+   a 404 by the SAME window, measured from the release's `submittedAt` and the last claim's
+   `lastAttemptAt` (`TryReleaseForDispatchAsync` now stamps the former before the unleased send);
+   see `Application/Services/Implementations/AGENTS.md` §Node proof.
 2. **Reopen ceiling.** After `MaximumNoEffectReopens` (5) reopens, a further 404 parks the row
    with `AZOA_SETTLEMENT_RECONCILIATION_ATTENTION` and a Critical alert, exactly like the
    reconciliation ceiling: never `FAILED`, re-read hourly, alerted every cycle.

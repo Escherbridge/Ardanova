@@ -127,11 +127,16 @@ const backend500 = {
   message: "An error occurred processing your request.",
   data: { code: "INTERNAL_SERVER_ERROR" },
 };
-/** `PayoutsController` 503 when this deployment has no bank off-ramp. */
+/** `PayoutsController` 503 when this deployment has no bank off-ramp: the money code says so. */
 const cashOutGate = {
   message:
     "Sending money to a bank account is not switched on for this deployment.",
-  data: { code: "SERVICE_UNAVAILABLE" },
+  data: { code: "SERVICE_UNAVAILABLE", moneyCode: "payments_not_configured" },
+};
+/** The same 503 status for a read nobody could confirm (a node timeout): not the gate. */
+const unconfirmed503 = {
+  message: "We could not check what you can send right now.",
+  data: { code: "SERVICE_UNAVAILABLE", moneyCode: "unconfirmed" },
 };
 const settled = { isLoading: false, error: null };
 
@@ -195,6 +200,12 @@ describe("readCashOutState", () => {
     [
       "availability fails for another reason",
       { ...settled, error: backend500, available: undefined },
+      undefined,
+      "unknown",
+    ],
+    [
+      "availability 503s with an unconfirmed money code",
+      { ...settled, error: unconfirmed503, available: undefined },
       undefined,
       "unknown",
     ],

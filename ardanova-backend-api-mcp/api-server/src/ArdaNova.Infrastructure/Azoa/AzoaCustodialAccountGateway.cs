@@ -125,8 +125,11 @@ public sealed class AzoaCustodialAccountGateway
         // '#', '&' or '/'. So the custody credential cannot be aimed anywhere but this route.
         if (!AzoaNodeRoutePolicy.IsProvisionedConsentPath(ProvisionedConsentPath))
         {
+            // A configuration fault, never the person's KYB: the code keeps MoneyRefusal from
+            // reading this Forbidden as the custodial route family's KYB gate.
             return Result<AzoaConsentRevocation>.Forbidden(
-                "The AZOA custody credential is restricted to tenant custody endpoints.");
+                "The AZOA custody credential is restricted to tenant custody endpoints.")
+                .WithCode(UpstreamFailureCodes.RouteNotAllowed);
         }
 
         var transport = ResolveCustodyTransport();
@@ -135,7 +138,8 @@ public sealed class AzoaCustodialAccountGateway
             _logger.LogError(
                 "AZOA custody transport is unconfigured; a permission withdrawal could not be sent.");
             return Result<AzoaConsentRevocation>.Failure(
-                "We could not reach the operator to hand your permission back. Nothing was changed.");
+                "We could not reach the operator to hand your permission back. Nothing was changed.")
+                .WithCode(UpstreamFailureCodes.TransportNotConfigured);
         }
 
         var request = new HttpRequestMessage(
@@ -214,7 +218,7 @@ public sealed class AzoaCustodialAccountGateway
     private static Result<TOut> MapFailure<TIn, TOut>(Result<TIn> source)
     {
         var error = source.Error ?? "AZOA custodial account operation failed.";
-        return source.Type switch
+        Result<TOut> mapped = source.Type switch
         {
             ResultType.NotFound => Result<TOut>.NotFound(error),
             ResultType.Forbidden => Result<TOut>.Forbidden(error),
@@ -224,6 +228,7 @@ public sealed class AzoaCustodialAccountGateway
             ResultType.BadRequest => Result<TOut>.BadRequest(error),
             _ => Result<TOut>.Failure(error),
         };
+        return mapped.WithCode(source.Code);
     }
 
     private sealed record CapabilitiesWire

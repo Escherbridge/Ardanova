@@ -27,6 +27,8 @@ public sealed class AzoaFiatRailGateway : IFiatRailGateway
     private const string FundsTopUpPurpose = "funds-top-up";
 
     private const string CheckoutPrefix = "/api/fiat/checkout/";
+    private const string RequestsSegment = "/requests/";
+    private const string VoidSuffix = "/void";
     private const string PriceSchedulePath = "/api/fiat/price-schedule";
     private const int MaxRequestKeyLength = 128;
 
@@ -103,6 +105,55 @@ public sealed class AzoaFiatRailGateway : IFiatRailGateway
         var message = new HttpRequestMessage(HttpMethod.Get, path);
 
         return SendIntentAsync(message, IsCheckoutReadPath(path), ct);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// <c>POST /api/fiat/checkout/{accountId}/requests/{requestKey}/void</c>, no body. The key is one
+    /// escaped path segment of the node's own alphabet (no '/'), so it names exactly the key Start
+    /// stored. See AGENTS.md §Request-key void.
+    /// </remarks>
+    public async Task<Result<FiatCheckoutVoid>> VoidRequestAsync(
+        Guid accountId, string requestKey, CancellationToken ct = default)
+    {
+        if (accountId == Guid.Empty)
+            return Result<FiatCheckoutVoid>.ValidationError("Voiding a payment request needs the account it belongs to.");
+
+        // A dot-only key is a relative path segment, never a key this site mints.
+        if (!IsAcceptableRequestKey(requestKey) || requestKey.Trim() is "." or "..")
+            return Result<FiatCheckoutVoid>.ValidationError("That payment request key is not one this site issues.");
+
+        var path = $"{CheckoutPrefix}{accountId:D}{RequestsSegment}{Uri.EscapeDataString(requestKey.Trim())}{VoidSuffix}";
+        if (!IsCheckoutVoidPath(path))
+        {
+            return Result<FiatCheckoutVoid>.Forbidden(
+                "The AZOA tenant credential is restricted to the fiat checkout endpoints.")
+                .WithCode(UpstreamFailureCodes.RouteNotAllowed);
+        }
+
+        var wire = await AzoaNodeClient.SendAsync<AzoaFiatCheckoutVoidWire>(
+            _http, _logger, new HttpRequestMessage(HttpMethod.Post, path), ct,
+            failureReference: answer => PaymentReference(answer.IntentId ?? answer.Intent?.IntentId));
+        if (wire.IsFailure)
+            return MapFailure<AzoaFiatCheckoutVoidWire, FiatCheckoutVoid>(wire);
+
+        var answer = wire.Value!;
+        if (string.Equals(answer.Outcome, FiatCheckoutVoidOutcomes.Voided, StringComparison.Ordinal))
+            return Result<FiatCheckoutVoid>.Success(new FiatCheckoutVoid(FiatCheckoutVoidOutcomes.Voided, answer.IntentId, null));
+
+        // A reveal names the payment to follow. One the node could not describe is refused rather
+        // than filled in, and an outcome word this adapter does not know is never read as "voided".
+        if (string.Equals(answer.Outcome, FiatCheckoutVoidOutcomes.Revealed, StringComparison.Ordinal)
+            && answer.Intent is { } intent
+            && intent.IntentId != Guid.Empty
+            && !string.IsNullOrWhiteSpace(intent.Status))
+        {
+            return Result<FiatCheckoutVoid>.Success(new FiatCheckoutVoid(
+                FiatCheckoutVoidOutcomes.Revealed, intent.IntentId, ToSession(intent)));
+        }
+
+        return Result<FiatCheckoutVoid>.Conflict(
+            "The node answered a void it could not describe, so the payment request stays saved.");
     }
 
     /// <summary>
@@ -201,10 +252,12 @@ public sealed class AzoaFiatRailGateway : IFiatRailGateway
         {
             message.Dispose();
             return Result<FiatCheckoutSession>.Forbidden(
-                "The AZOA tenant credential is restricted to the fiat checkout endpoints.");
+                "The AZOA tenant credential is restricted to the fiat checkout endpoints.")
+                .WithCode(UpstreamFailureCodes.RouteNotAllowed);
         }
 
-        var wire = await AzoaNodeClient.SendAsync<AzoaFiatCheckoutIntentWire>(_http, _logger, message, ct);
+        var wire = await AzoaNodeClient.SendAsync<AzoaFiatCheckoutIntentWire>(
+            _http, _logger, message, ct, failureReference: intent => PaymentReference(intent.IntentId));
         if (wire.IsFailure)
             return MapFailure<AzoaFiatCheckoutIntentWire, FiatCheckoutSession>(wire);
 
@@ -218,16 +271,19 @@ public sealed class AzoaFiatRailGateway : IFiatRailGateway
                 "The node returned a payment it could not describe, so it cannot be followed up.");
         }
 
-        return Result<FiatCheckoutSession>.Success(new FiatCheckoutSession(
+        return Result<FiatCheckoutSession>.Success(ToSession(intent));
+    }
+
+    private static FiatCheckoutSession ToSession(AzoaFiatCheckoutIntentWire intent)
+        => new(
             intent.IntentId,
-            intent.Status,
+            intent.Status!,
             intent.SettlementState ?? string.Empty,
             intent.PaymentUrl,
             intent.Resumed,
             intent.AmountPaidMinorUnits,
             intent.Currency,
-            intent.ExpiresAt));
-    }
+            intent.ExpiresAt);
 
     /// <summary>Sends a price-schedule call, refusing any path outside that route family.</summary>
     private async Task<Result<AzoaPriceScheduleWire>> SendScheduleAsync(
@@ -265,6 +321,23 @@ public sealed class AzoaFiatRailGateway : IFiatRailGateway
         return segments.Length == 2
             && Guid.TryParseExact(segments[0], "D", out _)
             && Guid.TryParseExact(segments[1], "D", out _);
+    }
+
+    /// <summary>POST target: <c>{account}/requests/{one escaped key segment}/void</c>, and nothing else.</summary>
+    private static bool IsCheckoutVoidPath(string? path)
+    {
+        if (!AzoaNodePathPolicy.IsSafeApiPath(path)
+            || !path!.StartsWith(CheckoutPrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var segments = path[CheckoutPrefix.Length..].Split('/');
+        return segments.Length == 4
+            && Guid.TryParseExact(segments[0], "D", out _)
+            && segments[1] == "requests"
+            && IsAcceptableRequestKey(Uri.UnescapeDataString(segments[2]))
+            && segments[3] == "void";
     }
 
     /// <summary>POST target: the caller's own price schedule, and nothing else.</summary>
@@ -342,7 +415,7 @@ public sealed class AzoaFiatRailGateway : IFiatRailGateway
     private static Result<TOut> MapFailure<TIn, TOut>(Result<TIn> source)
     {
         var error = source.Error ?? "The AZOA fiat rail refused the request.";
-        return source.Type switch
+        Result<TOut> mapped = source.Type switch
         {
             ResultType.NotFound => Result<TOut>.NotFound(error),
             ResultType.Forbidden => Result<TOut>.Forbidden(error),
@@ -352,7 +425,14 @@ public sealed class AzoaFiatRailGateway : IFiatRailGateway
             ResultType.BadRequest => Result<TOut>.BadRequest(error),
             _ => Result<TOut>.Failure(error),
         };
+        // The node's machine code (INTENT_FINISHED, KYB_REQUIRED, ...) is what MoneyRefusal reads first;
+        // the payment it named (INTENT_NEEDS_REVIEW's held intent) travels with it.
+        return mapped.WithCode(source.Code).WithReference(source.Reference);
     }
+
+    /// <summary>A payment id in the compact form the page already carries (<c>?intent=</c>); null for none.</summary>
+    private static string? PaymentReference(Guid? intentId)
+        => intentId is { } id && id != Guid.Empty ? id.ToString("N") : null;
 }
 
 /// <summary>Deployment settings for the ARDA on-ramp. Section <c>Azoa:OnRamp</c>.</summary>
@@ -513,6 +593,14 @@ internal sealed class AzoaFiatCheckoutIntentWire
     [JsonPropertyName("amountPaidMinorUnits")] public long? AmountPaidMinorUnits { get; set; }
     [JsonPropertyName("currency")] public string? Currency { get; set; }
     [JsonPropertyName("expiresAt")] public DateTimeOffset? ExpiresAt { get; set; }
+}
+
+/// <summary>Wire shape of a request-key void (oasis-sleek <c>FiatCheckoutVoidResult</c>).</summary>
+internal sealed class AzoaFiatCheckoutVoidWire
+{
+    [JsonPropertyName("outcome")] public string? Outcome { get; set; }
+    [JsonPropertyName("intentId")] public Guid? IntentId { get; set; }
+    [JsonPropertyName("intent")] public AzoaFiatCheckoutIntentWire? Intent { get; set; }
 }
 
 /// <summary>Wire shape of a price registration. Exact whole-number strings, never floats.</summary>

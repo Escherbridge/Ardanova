@@ -106,7 +106,24 @@ public sealed class FundingIntentService : IFundingIntentService
     private readonly IFundingSettlementReadiness _settlementReadiness;
     private readonly IAzoaValueEligibilityService _valueEligibility;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IRepository<FundingIntentVoid> _voidRepository;
+    private readonly IEconomicOutboxLeaseStore _outboxLeases;
+    private readonly ExchangeAdmissionPolicy _admission;
     private readonly ILogger<FundingIntentService> _logger;
+
+    /// <summary>The failure code a sponsor's own void stamps on the settlement and outbox it cancelled.</summary>
+    public const string VoidedBySponsorCode = "VOIDED_BY_SPONSOR";
+
+    private const string VoidedBeforeDispatchDetail =
+        "You cancelled this sponsorship before it was sent, so nothing was taken.";
+
+    private const string RequestVoidedMessage =
+        "This sponsorship request was cancelled, so nothing was taken and nothing will be. Start a new one.";
+
+    private const string StillChangingMessage = "This sponsorship is being completed; check back shortly.";
+
+    /// <summary>Decisions a void makes before it answers "check back" rather than race a moving row forever.</summary>
+    private const int VoidAttempts = 3;
 
     public FundingIntentService(
         IRepository<User> userRepository,
@@ -124,9 +141,15 @@ public sealed class FundingIntentService : IFundingIntentService
         IFundingSettlementReadiness settlementReadiness,
         IAzoaValueEligibilityService valueEligibility,
         IUnitOfWork unitOfWork,
-        ILogger<FundingIntentService>? logger = null)
+        IRepository<FundingIntentVoid> voidRepository,
+        IEconomicOutboxLeaseStore outboxLeases,
+        ILogger<FundingIntentService>? logger = null,
+        ExchangeAdmissionPolicy? admission = null)
     {
         _logger = logger ?? NullLogger<FundingIntentService>.Instance;
+        _admission = admission ?? ExchangeAdmissionPolicy.Default;
+        _voidRepository = voidRepository;
+        _outboxLeases = outboxLeases;
         _userRepository = userRepository;
         _projectRepository = projectRepository;
         _tokenConfigRepository = tokenConfigRepository;
@@ -170,6 +193,20 @@ public sealed class FundingIntentService : IFundingIntentService
         if (actor is null)
             return Result<FundingCheckoutDto>.NotFound("Sponsor not found");
 
+        // Replay is answered BEFORE the sponsor's readiness and the project's fundability are
+        // re-checked: an intent this key already admitted must replay even if either has moved on
+        // since. It also makes every refusal below a pre-admission one. See AGENTS.md §Sponsorship request keys.
+        var existing = await _intentRepository.FindOneAsync(
+            intent => intent.funderUserId == actorId && intent.idempotencyKey == idempotencyKey,
+            ct);
+        if (existing is not null)
+            return await ReplayAsync(existing, request, requestedBaseUnits, actorId, ct);
+
+        // A key its sponsor voided admits nothing, ever - checked before readiness for the same
+        // reason replay is: the answer for this key must not depend on what changed since.
+        if (await IsVoidedKeyAsync(actorId, idempotencyKey, ct))
+            return RequestVoided();
+
         var funderReadiness = await _valueEligibility.RequireReadyAsync(actorId, FundAction, ct);
         if (!funderReadiness.IsSuccess)
             return ValueEligibilityFailure.Propagate<AzoaCustodialAccountStatusDto, FundingCheckoutDto>(
@@ -179,14 +216,6 @@ public sealed class FundingIntentService : IFundingIntentService
         if (string.IsNullOrWhiteSpace(avatarId))
             return Result<FundingCheckoutDto>.Conflict(
                 "Your account has no node reference yet, so nothing was taken.");
-
-        // Replay is answered BEFORE fundability is re-checked. A project whose gate moved on since
-        // the first call must still be able to finish the sponsorship it already accepted.
-        var existing = await _intentRepository.FindOneAsync(
-            intent => intent.funderUserId == actorId && intent.idempotencyKey == idempotencyKey,
-            ct);
-        if (existing is not null)
-            return await ReplayAsync(existing, request, requestedBaseUnits, actorId, ct);
 
         var fundable = await LoadFundableAsync(request.ProjectTokenConfigId, ct);
         if (!fundable.IsSuccess)
@@ -263,7 +292,51 @@ public sealed class FundingIntentService : IFundingIntentService
             throw;
         }
 
-        return await DispatchAndApplyAsync(intent, settlement, outbox, config, project, ct);
+        return await ReleaseAndDispatchAsync(intent, settlement, outbox, config, project, ct);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Void-or-reveal by request key. Releases nothing it cannot prove is dead: a key with no
+    /// sponsorship gets a tombstone, an AUTHORIZED one is cancelled by compare-and-set, and anything
+    /// released for dispatch is revealed. Decision table: Implementations/AGENTS.md §Sponsorship void.
+    /// </remarks>
+    public async Task<Result<FundingIntentVoidDto>> VoidRequestAsync(
+        string actorId,
+        string idempotencyKey,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(actorId))
+            return Result<FundingIntentVoidDto>.Unauthorized("A sponsor is required");
+        if (!Guid.TryParse(idempotencyKey, out _))
+            return Result<FundingIntentVoidDto>.ValidationError("A canonical idempotency key is required");
+
+        var intent = await FindIntentAsync(actorId, idempotencyKey, ct);
+        if (intent is null)
+        {
+            // Dekker-style handshake with an in-flight create: the tombstone is written FIRST and
+            // the intent read AFTER it commits, while create commits its intent and only then reads
+            // the tombstone - so at least one of the two always sees the other.
+            await AddTombstoneAsync(actorId, idempotencyKey, ct);
+            intent = await FindIntentAsync(actorId, idempotencyKey, ct);
+            if (intent is null)
+                return VoidAnswer(FundingIntentVoidOutcomes.Voided, intentId: null);
+        }
+
+        for (var attempt = 0; attempt < VoidAttempts; attempt++)
+        {
+            var decided = await DecideVoidAsync(intent, ct);
+            if (decided is not null)
+                return decided;
+
+            // Lost a compare-and-set to a create, a replay or another void: decide on a fresh read.
+            _unitOfWork.ClearTrackedChanges();
+            intent = await FindIntentAsync(actorId, idempotencyKey, ct);
+            if (intent is null)
+                break;
+        }
+
+        return Result<FundingIntentVoidDto>.Conflict(StillChangingMessage);
     }
 
     /// <inheritdoc/>
@@ -285,6 +358,8 @@ public sealed class FundingIntentService : IFundingIntentService
 
         if (intent.status == FundingIntentStatus.SETTLEMENT_PENDING)
             await AdvancePendingAsync(intent, ct);
+        else if (intent.status == FundingIntentStatus.DRAFT)
+            await FollowDormantReleaseAsync(intent, ct);
 
         return Result<FundingIntentStatusDto>.Success(ToStatus(intent));
     }
@@ -504,7 +579,12 @@ public sealed class FundingIntentService : IFundingIntentService
 
     // -- The node call and its outcomes --------------------------------------
 
-    private async Task<Result<FundingCheckoutDto>> DispatchAndApplyAsync(
+    /// <summary>
+    /// The request-path dispatch of a still-AUTHORIZED settlement: re-reads the tombstone (a void
+    /// that saw no intent yet), then wins AUTHORIZED -> PENDING_DISPATCH (against a void that did),
+    /// and only then asks the node. Nothing else ever dispatches an AUTHORIZED settlement.
+    /// </summary>
+    private async Task<Result<FundingCheckoutDto>> ReleaseAndDispatchAsync(
         FundingIntent intent,
         EconomicSettlement settlement,
         EconomicOutbox outbox,
@@ -512,18 +592,135 @@ public sealed class FundingIntentService : IFundingIntentService
         Project project,
         CancellationToken ct)
     {
+        var now = DateTime.UtcNow;
+        if (await IsVoidedKeyAsync(intent.funderUserId, intent.idempotencyKey, ct))
+        {
+            return await TryCancelUndispatchedAsync(intent, settlement, outbox, now, ct)
+                ? RequestVoided()
+                : await AnswerUnreleasableAsync(settlement.id, ct);
+        }
+
+        if (!await _outboxLeases.TryReleaseForDispatchAsync(settlement.id, now, ct))
+            return await AnswerUnreleasableAsync(settlement.id, ct);
+
+        // Mirrors the compare-and-set onto the tracked row AS PERSISTED: a later save must neither write it
+        // back nor repeat it over a worker that moves the row from here on (M2).
+        settlement.status = EconomicSettlementStatus.PENDING_DISPATCH;
+        settlement.submittedAt = now;
+        settlement.updatedAt = now;
+        settlement.version += 1;
+        _unitOfWork.MarkPersisted(settlement, ReleasedSettlementColumns);
+
+        return await DispatchJustReleasedAsync(intent, settlement, outbox, config, project, releasedAt: now, ct);
+    }
+
+    /// <summary>
+    /// A settlement this request could neither release nor cancel: closed by a void (final), or
+    /// released by a concurrent replay of the same key that is dispatching it now (keep the key).
+    /// </summary>
+    private async Task<Result<FundingCheckoutDto>> AnswerUnreleasableAsync(string settlementId, CancellationToken ct)
+        => await _outboxLeases.ReadSettlementStatusAsync(settlementId, ct) == EconomicSettlementStatus.CANCELLED
+            ? RequestVoided()
+            : Result<FundingCheckoutDto>.Conflict(StillChangingMessage);
+
+    /// <summary>
+    /// The ONE unleased send there is: only ever right after THIS call's release. A readiness refusal
+    /// is raised by the gateway before it sends, so here - and only here - it proves nothing was
+    /// submitted and the hold needs no node read. See AGENTS.md §Node proof.
+    /// </summary>
+    private async Task<Result<FundingCheckoutDto>> DispatchJustReleasedAsync(
+        FundingIntent intent,
+        EconomicSettlement settlement,
+        EconomicOutbox outbox,
+        ProjectTokenConfig config,
+        Project project,
+        DateTime releasedAt,
+        CancellationToken ct)
+    {
         intent.settlementAttemptCount += 1;
-        var outcome = await _settlementGateway.DispatchAsync(BuildSettlementRequest(intent), ct);
+        // Admit-Before = the release CAS's durable submittedAt + W_admit (AGENTS.md §Node proof).
+        var request = BuildSettlementRequest(intent) with { AdmitBefore = _admission.AdmitBefore(releasedAt) };
+        var outcome = await _settlementGateway.DispatchAsync(request, ct);
         return outcome.Outcome switch
         {
             AzoaSettlementGatewayOutcome.Accepted => await CompleteAsync(
                 intent, settlement, outbox, config, project, outcome, ct),
             AzoaSettlementGatewayOutcome.Unknown => await ParkForReconciliationAsync(
                 intent, settlement, outbox, project, outcome, ct),
-            _ when IsReadinessLapse(outcome.Code) => await HoldAsync(
-                intent, settlement, outbox, outcome, ct),
+            _ when IsReadinessLapse(outcome.Code) => await TryHoldAsync(
+                    intent, settlement, outbox, outcome.Code, outcome.Detail, nothingWasSubmitted: true, ct)
+                ? Finished(intent.holdingReasonDetail!)
+                : await FollowPendingAsync(intent, project, outcome.Code, ct),
             _ => await LeaveToOutboxAsync(intent, settlement, outbox, project, outcome, ct),
         };
+    }
+
+    // The columns each store compare-and-set writes, named next to the mirrors that copy them onto tracked rows
+    // (IUnitOfWork.MarkPersisted accepts exactly these; any other pending change stays pending). Keep in step with
+    // EconomicOutboxLeaseStore's ExecuteUpdate setters.
+    private static readonly string[] ReleasedSettlementColumns =
+        [nameof(EconomicSettlement.status), nameof(EconomicSettlement.submittedAt), nameof(EconomicSettlement.updatedAt), nameof(EconomicSettlement.version)];
+
+    private static readonly string[] CancelledSettlementColumns =
+    [
+        nameof(EconomicSettlement.status), nameof(EconomicSettlement.failureCode), nameof(EconomicSettlement.failureDetail),
+        nameof(EconomicSettlement.submittedAt), nameof(EconomicSettlement.updatedAt), nameof(EconomicSettlement.version),
+    ];
+
+    private static readonly string[] CancelledOutboxColumns =
+        [nameof(EconomicOutbox.status), nameof(EconomicOutbox.failureCode), nameof(EconomicOutbox.failureDetail), nameof(EconomicOutbox.updatedAt)];
+
+    private static readonly string[] ParkedSettlementColumns =
+    [
+        nameof(EconomicSettlement.status), nameof(EconomicSettlement.failureCode), nameof(EconomicSettlement.failureDetail),
+        nameof(EconomicSettlement.submittedAt), nameof(EconomicSettlement.updatedAt), nameof(EconomicSettlement.version),
+    ];
+
+    private static readonly string[] ParkedOutboxColumns =
+    [
+        nameof(EconomicOutbox.status), nameof(EconomicOutbox.reconciliationRequiredAt), nameof(EconomicOutbox.availableAt),
+        nameof(EconomicOutbox.failureCode), nameof(EconomicOutbox.failureDetail), nameof(EconomicOutbox.updatedAt),
+    ];
+
+    private static readonly string[] LeftSettlementColumns =
+    [
+        nameof(EconomicSettlement.failureCode), nameof(EconomicSettlement.failureDetail),
+        nameof(EconomicSettlement.updatedAt), nameof(EconomicSettlement.version),
+    ];
+
+    private static readonly string[] LeftOutboxColumns =
+    [
+        nameof(EconomicOutbox.availableAt), nameof(EconomicOutbox.failureCode), nameof(EconomicOutbox.failureDetail),
+        nameof(EconomicOutbox.updatedAt),
+    ];
+
+    /// <summary>What a sponsor reads while their sponsorship follows the worker; never gateway or node wording.</summary>
+    private const string PendingMessage =
+        "This sponsorship is still being completed. Nothing more is needed from you, and nothing is taken twice.";
+
+    /// <summary>
+    /// The intent follows the outbox worker instead of claiming "nothing taken": a lapse whose hold lost
+    /// to a lease, or a released settlement the node could not (yet) account for. The code is kept for
+    /// operators; the sponsor reads <see cref="PendingMessage"/>.
+    /// </summary>
+    private async Task<Result<FundingCheckoutDto>> FollowPendingAsync(
+        FundingIntent intent,
+        Project project,
+        string? reasonCode,
+        CancellationToken ct)
+    {
+        MarkPending(intent, reasonCode, DateTime.UtcNow);
+        await _intentRepository.UpdateAsync(intent, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+        return Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project));
+    }
+
+    private static void MarkPending(FundingIntent intent, string? reasonCode, DateTime now)
+    {
+        intent.status = FundingIntentStatus.SETTLEMENT_PENDING;
+        intent.holdingReasonCode = reasonCode;
+        intent.holdingReasonDetail = PendingMessage;
+        intent.updatedAt = now;
     }
 
     /// <summary>
@@ -548,6 +745,19 @@ public sealed class FundingIntentService : IFundingIntentService
         try
         {
             await _unitOfWork.BeginTransactionAsync(ct);
+
+            // Compare-and-set, never a blind full-row write: a closed settlement (CANCELLED may already
+            // have been answered `voided`) is not rewritten as confirmed. The node holding an exchange
+            // for it is an operator incident, and the key stays held (uncoded 409).
+            if (!await _outboxLeases.TryConfirmOpenAsync(settlement.id, now, ct))
+            {
+                await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+                _logger.LogCritical(
+                    "Sponsorship {IntentId}: the node accepted exchange {OperationId} for settlement {SettlementId}, "
+                    + "which is recorded as closed. Nothing was overwritten; reconcile it by hand.",
+                    intent.id, operationId, settlement.id);
+                return Result<FundingCheckoutDto>.Conflict(StillChangingMessage);
+            }
 
             settlement.status = EconomicSettlementStatus.CONFIRMED;
             settlement.azoaOperationId = operationId;
@@ -637,7 +847,10 @@ public sealed class FundingIntentService : IFundingIntentService
         return Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project));
     }
 
-    /// <summary>The node did not finish: keep the row and hand the work to the reconciliation loop.</summary>
+    /// <summary>
+    /// The node did not finish: park the row for the reconciliation loop - by compare-and-set, never a
+    /// full-row write, so a worker that took the lease (or SUBMITTED it) meanwhile is never overwritten (M2).
+    /// </summary>
     private async Task<Result<FundingCheckoutDto>> ParkForReconciliationAsync(
         FundingIntent intent,
         EconomicSettlement settlement,
@@ -647,33 +860,43 @@ public sealed class FundingIntentService : IFundingIntentService
         CancellationToken ct)
     {
         var now = DateTime.UtcNow;
-        settlement.status = EconomicSettlementStatus.AWAITING_RECONCILIATION;
-        settlement.failureCode = outcome.Code;
-        settlement.failureDetail = outcome.Detail;
-        settlement.submittedAt ??= now;
-        settlement.updatedAt = now;
-        settlement.version += 1;
-        await _settlementRepository.UpdateAsync(settlement, ct);
+        var availableAt = now.Add(OutboxHandoverDelay);
+        var parked = await CompareAndSetInOneTransactionAsync(
+            () => _outboxLeases.TryParkUnleasedForReconciliationAsync(
+                settlement.id, settlement.version, outcome.Code, outcome.Detail, availableAt, now, ct),
+            (settlement, ParkedSettlementColumns),
+            (outbox, ParkedOutboxColumns),
+            () =>
+            {
+                settlement.status = EconomicSettlementStatus.AWAITING_RECONCILIATION;
+                settlement.failureCode = outcome.Code;
+                settlement.failureDetail = outcome.Detail;
+                settlement.submittedAt ??= now;
+                settlement.updatedAt = now;
+                settlement.version += 1;
 
-        outbox.status = EconomicOutboxStatus.AWAITING_RECONCILIATION;
-        outbox.reconciliationRequiredAt = now;
-        outbox.availableAt = now.Add(OutboxHandoverDelay);
-        outbox.failureCode = outcome.Code;
-        outbox.failureDetail = outcome.Detail;
-        outbox.updatedAt = now;
-        await _outboxRepository.UpdateAsync(outbox, ct);
+                outbox.status = EconomicOutboxStatus.AWAITING_RECONCILIATION;
+                outbox.reconciliationRequiredAt = now;
+                outbox.availableAt = availableAt;
+                outbox.failureCode = outcome.Code;
+                outbox.failureDetail = outcome.Detail;
+                outbox.updatedAt = now;
 
-        intent.status = FundingIntentStatus.SETTLEMENT_PENDING;
-        intent.holdingReasonCode = outcome.Code;
-        intent.holdingReasonDetail = outcome.Detail;
-        intent.updatedAt = now;
-        await _intentRepository.UpdateAsync(intent, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
+                MarkPending(intent, outcome.Code, now);
+            },
+            intent,
+            ct);
 
-        return Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project));
+        // Lost to a worker: it owns the row and its outcome; the sponsorship follows it.
+        return parked
+            ? Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project))
+            : await FollowPendingAsync(intent, project, outcome.Code, ct);
     }
 
-    /// <summary>A refusal the gateway calls safely retryable: leave it queued, bounded by the worker's ceiling.</summary>
+    /// <summary>
+    /// A refusal the gateway calls safely retryable: leave it queued, bounded by the worker's ceiling - by the
+    /// same compare-and-set as the park, so a worker's lease or SUBMITTED is never written over (M2).
+    /// </summary>
     private async Task<Result<FundingCheckoutDto>> LeaveToOutboxAsync(
         FundingIntent intent,
         EconomicSettlement settlement,
@@ -683,62 +906,184 @@ public sealed class FundingIntentService : IFundingIntentService
         CancellationToken ct)
     {
         var now = DateTime.UtcNow;
-        settlement.failureCode = outcome.Code;
-        settlement.failureDetail = outcome.Detail;
-        settlement.updatedAt = now;
-        await _settlementRepository.UpdateAsync(settlement, ct);
+        var availableAt = now.Add(OutboxHandoverDelay);
+        var left = await CompareAndSetInOneTransactionAsync(
+            () => _outboxLeases.TryLeaveUnleasedToWorkerAsync(
+                settlement.id, settlement.version, outcome.Code, outcome.Detail, availableAt, now, ct),
+            (settlement, LeftSettlementColumns),
+            (outbox, LeftOutboxColumns),
+            () =>
+            {
+                settlement.failureCode = outcome.Code;
+                settlement.failureDetail = outcome.Detail;
+                settlement.updatedAt = now;
+                settlement.version += 1;
 
-        outbox.availableAt = now.Add(OutboxHandoverDelay);
-        outbox.failureCode = outcome.Code;
-        outbox.failureDetail = outcome.Detail;
-        outbox.updatedAt = now;
-        await _outboxRepository.UpdateAsync(outbox, ct);
+                outbox.availableAt = availableAt;
+                outbox.failureCode = outcome.Code;
+                outbox.failureDetail = outcome.Detail;
+                outbox.updatedAt = now;
 
-        intent.status = FundingIntentStatus.SETTLEMENT_PENDING;
-        intent.holdingReasonCode = outcome.Code;
-        intent.holdingReasonDetail = outcome.Detail;
-        intent.updatedAt = now;
-        await _intentRepository.UpdateAsync(intent, ct);
-        await _unitOfWork.SaveChangesAsync(ct);
+                MarkPending(intent, outcome.Code, now);
+            },
+            intent,
+            ct);
 
-        return Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project));
+        return left
+            ? Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project))
+            : await FollowPendingAsync(intent, project, outcome.Code, ct);
     }
 
     /// <summary>
-    /// Readiness lapsed and no value moved: park the sponsorship and stop. The sponsor's balance was
-    /// never debited, which is what returning their units means when the exchange refuses before it
-    /// touches the node - and the settlement is cancelled here so nothing retries it forever.
+    /// Parks a lapsed sponsorship HOLDING and cancels its settlement and outbox, in ONE transaction.
+    /// The caller already holds the proof nothing was taken (AGENTS.md §Node proof). False - nothing
+    /// written - when a worker holds the lease or moved the row: it may be mid-dispatch (M-5).
     /// </summary>
-    private async Task<Result<FundingCheckoutDto>> HoldAsync(
+    private async Task<bool> TryHoldAsync(
         FundingIntent intent,
         EconomicSettlement settlement,
         EconomicOutbox outbox,
-        AzoaSettlementGatewayResult outcome,
+        string? reasonCode,
+        string? reasonDetail,
+        bool nothingWasSubmitted,
         CancellationToken ct)
     {
         var now = DateTime.UtcNow;
-        settlement.status = EconomicSettlementStatus.CANCELLED;
-        settlement.failureCode = outcome.Code;
-        settlement.failureDetail = outcome.Detail;
-        settlement.updatedAt = now;
-        settlement.version += 1;
-        await _settlementRepository.UpdateAsync(settlement, ct);
+        return await CompareAndSetInOneTransactionAsync(
+            () => _outboxLeases.TryCancelUnleasedAsync(
+                settlement.id, settlement.version, reasonCode, reasonDetail, nothingWasSubmitted, now, ct),
+            (settlement, CancelledSettlementColumns),
+            (outbox, CancelledOutboxColumns),
+            () =>
+            {
+                MirrorCancelled(settlement, outbox, reasonCode, reasonDetail, now);
+                if (nothingWasSubmitted)
+                    settlement.submittedAt = null;
 
-        outbox.status = EconomicOutboxStatus.CANCELLED;
-        outbox.failureCode = outcome.Code;
-        outbox.failureDetail = outcome.Detail;
-        outbox.updatedAt = now;
-        await _outboxRepository.UpdateAsync(outbox, ct);
+                intent.status = FundingIntentStatus.HOLDING;
+                intent.holdingReasonCode = reasonCode;
+                // From the CODE, never the worker's or gateway's sentence ("remains pending" is false once CANCELLED).
+                intent.holdingReasonDetail = HoldingMessage(reasonCode);
+                intent.heldAt = now;
+                intent.updatedAt = now;
+            },
+            intent,
+            ct);
+    }
 
-        intent.status = FundingIntentStatus.HOLDING;
-        intent.holdingReasonCode = outcome.Code;
-        intent.holdingReasonDetail = HoldingMessage(outcome.Detail);
-        intent.heldAt = now;
+    /// <summary>
+    /// The void's (and a voided create's) only cancel: AUTHORIZED -> CANCELLED by compare-and-set,
+    /// which no dispatcher can lose to, and the intent CANCELLED in the same transaction. False when
+    /// it was released first.
+    /// </summary>
+    private async Task<bool> TryCancelUndispatchedAsync(
+        FundingIntent intent,
+        EconomicSettlement settlement,
+        EconomicOutbox? outbox,
+        DateTime now,
+        CancellationToken ct)
+        => await CompareAndSetInOneTransactionAsync(
+            () => _outboxLeases.TryCancelUndispatchedAsync(
+                settlement.id, VoidedBySponsorCode, VoidedBeforeDispatchDetail, now, ct),
+            (settlement, CancelledSettlementColumns),
+            (outbox, CancelledOutboxColumns),
+            () =>
+            {
+                MirrorCancelled(settlement, outbox, VoidedBySponsorCode, VoidedBeforeDispatchDetail, now);
+                MarkVoided(intent, now, now);
+            },
+            intent,
+            ct);
+
+    /// <summary>
+    /// A store compare-and-set and the intent write that names it, committed together or not at all,
+    /// so an abort between them (<paramref name="ct"/> is the request's) cannot leave DRAFT + CANCELLED.
+    /// The CAS's values are mirrored onto the tracked rows AS PERSISTED, so no later save writes them again.
+    /// </summary>
+    private async Task<bool> CompareAndSetInOneTransactionAsync(
+        Func<Task<bool>> compareAndSet,
+        (EconomicSettlement Row, string[] Columns) settlement,
+        (EconomicOutbox? Row, string[] Columns) outbox,
+        Action mirrorOntoTrackedRows,
+        FundingIntent intent,
+        CancellationToken ct)
+    {
+        await _unitOfWork.BeginTransactionAsync(ct);
+        try
+        {
+            // The store sees the ambient transaction and writes inside a savepoint of it.
+            if (!await compareAndSet())
+            {
+                await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+                return false;
+            }
+
+            mirrorOntoTrackedRows();
+            _unitOfWork.MarkPersisted(settlement.Row, settlement.Columns);
+            if (outbox.Row is not null)
+                _unitOfWork.MarkPersisted(outbox.Row, outbox.Columns);
+            await _intentRepository.UpdateAsync(intent, ct);
+            await _unitOfWork.SaveChangesAsync(ct);
+            await _unitOfWork.CommitTransactionAsync(ct);
+            return true;
+        }
+        catch
+        {
+            await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
+    /// <summary>The intent side of a void's cancel: nothing was sent, so nothing was or will be taken.</summary>
+    private static void MarkVoided(FundingIntent intent, DateTime cancelledAt, DateTime now)
+    {
+        intent.status = FundingIntentStatus.CANCELLED;
+        intent.holdingReasonCode = VoidedBySponsorCode;
+        intent.holdingReasonDetail = VoidedBeforeDispatchDetail;
+        intent.cancelledAt = cancelledAt;
         intent.updatedAt = now;
+    }
+
+    /// <summary>
+    /// Finishes a void whose settlement cancel landed but whose intent write did not (a pre-fix
+    /// two-commit abort): the cancel was AUTHORIZED-only, so nothing was ever sent.
+    /// </summary>
+    private async Task RepairVoidedIntentAsync(FundingIntent intent, EconomicSettlement settlement, CancellationToken ct)
+    {
+        MarkVoided(intent, settlement.updatedAt, DateTime.UtcNow);
         await _intentRepository.UpdateAsync(intent, ct);
         await _unitOfWork.SaveChangesAsync(ct);
+    }
 
-        return Result<FundingCheckoutDto>.Conflict(intent.holdingReasonDetail!);
+    /// <summary>
+    /// Cancelled by the void's AUTHORIZED-only compare-and-set, which stamps this code in the same
+    /// statement: proof the settlement was never released, so no send ever existed.
+    /// </summary>
+    private static bool IsCancelledBeforeRelease(EconomicSettlement settlement)
+        => settlement.status == EconomicSettlementStatus.CANCELLED
+            && string.Equals(settlement.failureCode, VoidedBySponsorCode, StringComparison.Ordinal);
+
+    /// <summary>Copies a landed cancel onto tracked rows, so the next save repeats it rather than overwriting it.</summary>
+    private static void MirrorCancelled(
+        EconomicSettlement settlement,
+        EconomicOutbox? outbox,
+        string? failureCode,
+        string? failureDetail,
+        DateTime now)
+    {
+        settlement.status = EconomicSettlementStatus.CANCELLED;
+        settlement.failureCode = failureCode;
+        settlement.failureDetail = failureDetail;
+        settlement.updatedAt = now;
+        settlement.version += 1;
+
+        if (outbox is null)
+            return;
+
+        outbox.status = EconomicOutboxStatus.CANCELLED;
+        outbox.failureCode = failureCode;
+        outbox.failureDetail = failureDetail;
+        outbox.updatedAt = now;
     }
 
     // -- Finishing work a previous request started ---------------------------
@@ -748,7 +1093,8 @@ public sealed class FundingIntentService : IFundingIntentService
     /// The branches are the ways a node call ends. A settlement the outbox worker accepted is
     /// SUBMITTED, not CONFIRMED - the worker only knows the gateway said yes - so both count as
     /// confirmed here. A readiness code left on a still-queued settlement is the lapse gotcha 29
-    /// describes; it becomes HOLDING here instead of being retried until a ceiling.
+    /// describes; it becomes HOLDING here instead of being retried until a ceiling - but only on the
+    /// node's proof that nothing landed (AGENTS.md §Node proof), never on the lease state alone.
     /// </remarks>
     private async Task AdvancePendingAsync(FundingIntent intent, CancellationToken ct)
     {
@@ -769,22 +1115,17 @@ public sealed class FundingIntentService : IFundingIntentService
             return;
         }
 
-        if (IsReadinessLapse(settlement.failureCode))
-        {
-            await HoldAsync(
-                intent,
-                settlement,
-                outbox,
-                AzoaSettlementGatewayResult.Retry(settlement.failureCode!, settlement.failureDetail),
-                ct);
-            return;
-        }
-
-        if (settlement.status is EconomicSettlementStatus.FAILED
+        // A lapse to hold, or a settlement closed as taking nothing: both are "nothing was taken" on a
+        // RELEASED settlement, which an earlier request may have sent without a lease. Only the node's
+        // receipt decides them (AGENTS.md §Node proof).
+        var lapsed = IsReadinessLapse(settlement.failureCode)
+            && settlement.status == EconomicSettlementStatus.PENDING_DISPATCH;
+        var closed = settlement.status is EconomicSettlementStatus.FAILED
             or EconomicSettlementStatus.REJECTED
-            or EconomicSettlementStatus.CANCELLED)
+            or EconomicSettlementStatus.CANCELLED;
+        if (lapsed || closed)
         {
-            await FailAsync(intent, settlement, ct);
+            await SettleOnNodeProofAsync(intent, settlement, outbox, closed, ct);
             return;
         }
 
@@ -814,6 +1155,47 @@ public sealed class FundingIntentService : IFundingIntentService
         await CompleteAsync(intent, settlement, outbox, config, project, outcome, ct);
     }
 
+    /// <summary>
+    /// M3: a DRAFT whose request released its settlement and then lost the answer (the 30 s abort). The
+    /// worker may settle it, but nothing would record the stake until the sponsor resent - so the poll and
+    /// the promoter follow it here: read-only (never released, never sent), and only once the releasing
+    /// request has had the handover delay to finish.
+    /// </summary>
+    private async Task FollowDormantReleaseAsync(FundingIntent intent, CancellationToken ct)
+    {
+        var settlement = await LoadSettlementAsync(intent, ct);
+        if (settlement is null || settlement.status == EconomicSettlementStatus.AUTHORIZED)
+            return;
+        if (settlement.submittedAt is { } releasedAt && DateTime.UtcNow < releasedAt.Add(OutboxHandoverDelay))
+            return;
+
+        var outbox = await _outboxRepository.FindOneAsync(item => item.settlementId == settlement.id, ct);
+        var config = await _tokenConfigRepository.GetByIdAsync(intent.projectTokenConfigId, ct);
+        var project = await _projectRepository.GetByIdAsync(intent.projectId, ct);
+        if (outbox is null || config is null || project is null)
+            return;
+
+        if (IsCancelledBeforeRelease(settlement))
+        {
+            await RepairVoidedIntentAsync(intent, settlement, ct);
+            return;
+        }
+
+        if (IsNodeConfirmed(settlement))
+        {
+            await PromoteConfirmedAsync(intent, settlement, outbox, ct);
+            return;
+        }
+
+        if (intent.settlementAttemptCount >= MaximumIntentAttempts)
+        {
+            await FollowPendingAsync(intent, project, settlement.failureCode, ct);
+            return;
+        }
+
+        await FollowReleasedAsync(intent, settlement, outbox, config, project, ct);
+    }
+
     /// <summary>Completes an intent whose settlement someone else already confirmed at the node.</summary>
     private async Task PromoteConfirmedAsync(
         FundingIntent intent,
@@ -839,13 +1221,119 @@ public sealed class FundingIntentService : IFundingIntentService
             ct);
     }
 
+    // -- Node proof: "nothing was taken" only on the authority's word ------------------------
+
+    /// <summary>How long a poll waits before asking the node again about a sponsorship it could not prove.</summary>
+    private static readonly TimeSpan NodeProofReadInterval = TimeSpan.FromMinutes(1);
+
+    /// <summary>What the node's receipt, read by idempotency key, proves about a released settlement.</summary>
+    private enum NodeReceipt
+    {
+        /// <summary>The node holds an accepted exchange under the key: value moved.</summary>
+        Landed,
+
+        /// <summary>The node's own NOT_FOUND, read after every send had its quiet window: nothing was or can be taken.</summary>
+        Absent,
+
+        /// <summary>Anything else: a 5xx, a timeout, a non-terminal receipt, or a 404 read too early to mean anything.</summary>
+        Unproven,
+    }
+
+    /// <summary>
+    /// Asks THE AUTHORITY. A local label ("CANCELLED, no operation id") is not proof, because the
+    /// operation id is written only after the node answers. See AGENTS.md §Node proof.
+    /// </summary>
+    private async Task<(NodeReceipt Verdict, AzoaSettlementGatewayResult Receipt)> ReadNodeReceiptAsync(
+        FundingIntent intent,
+        EconomicSettlement settlement,
+        EconomicOutbox? outbox,
+        CancellationToken ct)
+    {
+        // Judged on the rows as read BEFORE the receipt, at the instant the read STARTS: a send that starts
+        // later must take a lease or move the row, which the caller's compare-and-set then loses to.
+        var absenceIsBelievable = _admission.AbsenceIsBelievable(LatestSendStamp(settlement, outbox), DateTime.UtcNow);
+        var receipt = await _settlementGateway.ReconcileAsync(BuildSettlementRequest(intent), ct);
+
+        if (receipt.Outcome == AzoaSettlementGatewayOutcome.Accepted && !string.IsNullOrWhiteSpace(receipt.OperationId))
+            return (NodeReceipt.Landed, receipt);
+
+        return absenceIsBelievable
+            && receipt is { Outcome: AzoaSettlementGatewayOutcome.Retry, Code: EconomicSettlementFailureCodes.ExchangeNeverLanded }
+            ? (NodeReceipt.Absent, receipt)
+            : (NodeReceipt.Unproven, receipt);
+    }
+
+    /// <summary>
+    /// The latest durable stamp a send to the node can have started after - the release's <c>submittedAt</c>
+    /// (request path) or the claim's <c>lastAttemptAt</c> (worker); each send's <c>Admit-Before</c> is that
+    /// stamp + W_admit, so the later of the two bounds every admission. Null when nothing was ever sent.
+    /// </summary>
+    private static DateTime? LatestSendStamp(EconomicSettlement settlement, EconomicOutbox? outbox)
+        => (settlement.submittedAt, outbox?.lastAttemptAt) switch
+        {
+            ({ } submitted, { } claimed) => submitted > claimed ? submitted : claimed,
+            ({ } submitted, null) => submitted,
+            (null, { } claimed) => claimed,
+            _ => null,
+        };
+
+    /// <summary>
+    /// Holds (a lapse) or fails (a closed settlement) a pending sponsorship only on the node's proof,
+    /// completes it when the node says the exchange landed, and otherwise leaves it following the worker.
+    /// </summary>
+    private async Task SettleOnNodeProofAsync(
+        FundingIntent intent,
+        EconomicSettlement settlement,
+        EconomicOutbox outbox,
+        bool closed,
+        CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        // Read scheduling only: inside the window a read is not worth making; past it the read can still find
+        // an exchange that LANDED, while its NOT_FOUND counts only under the strict rule in ReadNodeReceiptAsync.
+        if (!_admission.ProofWindowHasPassed(LatestSendStamp(settlement, outbox), now)
+            || now < intent.updatedAt.Add(NodeProofReadInterval))
+        {
+            return;
+        }
+
+        var (verdict, receipt) = await ReadNodeReceiptAsync(intent, settlement, outbox, ct);
+        if (verdict == NodeReceipt.Landed)
+        {
+            var config = await _tokenConfigRepository.GetByIdAsync(intent.projectTokenConfigId, ct);
+            var project = await _projectRepository.GetByIdAsync(intent.projectId, ct);
+            if (config is not null
+                && project is not null
+                && (await CompleteAsync(intent, settlement, outbox, config, project, receipt, ct)).IsSuccess)
+            {
+                return;
+            }
+        }
+        else if (verdict == NodeReceipt.Absent && closed)
+        {
+            await FailAsync(intent, settlement, ct);
+            return;
+        }
+        else if (verdict == NodeReceipt.Absent
+            && await TryHoldAsync(
+                intent, settlement, outbox, settlement.failureCode, settlement.failureDetail, nothingWasSubmitted: false, ct))
+        {
+            return;
+        }
+
+        // Unproven, or a hold that lost to a worker's lease: keep following it, and wait before asking again.
+        intent.updatedAt = now;
+        await _intentRepository.UpdateAsync(intent, ct);
+        await _unitOfWork.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Fails a sponsorship the node proved untaken; the sponsor reads consumer copy, never the worker's operator text.</summary>
     private async Task FailAsync(FundingIntent intent, EconomicSettlement settlement, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
         intent.status = FundingIntentStatus.FAILED;
         intent.holdingReasonCode = settlement.failureCode;
-        intent.holdingReasonDetail = settlement.failureDetail
-            ?? "This sponsorship could not be completed, and nothing was taken.";
+        intent.holdingReasonDetail = "This sponsorship could not be completed, and nothing was taken.";
         intent.updatedAt = now;
         await _intentRepository.UpdateAsync(intent, ct);
         await _unitOfWork.SaveChangesAsync(ct);
@@ -866,7 +1354,9 @@ public sealed class FundingIntentService : IFundingIntentService
             || intent.requestedPlatformBaseUnits != requestedBaseUnits
             || !string.Equals(intent.disclosureVersion, request.DisclosureVersion, StringComparison.Ordinal))
         {
-            return Result<FundingCheckoutDto>.Conflict("That key was already used for a different sponsorship");
+            // This request was never admitted under the key: a different sponsorship owns it.
+            return Result<FundingCheckoutDto>.Conflict("That key was already used for a different sponsorship")
+                .WithCode(UpstreamFailureCodes.RequestKeyInUse);
         }
 
         var project = await _projectRepository.GetByIdAsync(intent.projectId, ct);
@@ -881,21 +1371,35 @@ public sealed class FundingIntentService : IFundingIntentService
             case FundingIntentStatus.SETTLEMENT_PENDING:
                 await AdvancePendingAsync(intent, ct);
                 return intent.status == FundingIntentStatus.HOLDING
-                    ? Result<FundingCheckoutDto>.Conflict(intent.holdingReasonDetail!)
+                    ? Finished(intent.holdingReasonDetail!)
                     : Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project));
 
             case FundingIntentStatus.DRAFT:
                 return await ResumeDraftAsync(intent, project, ct);
 
             case FundingIntentStatus.HOLDING:
-                return Result<FundingCheckoutDto>.Conflict(
-                    intent.holdingReasonDetail ?? HoldingMessage(null));
+                return Finished(intent.holdingReasonDetail ?? HoldingMessage(null));
+
+            // Only a void writes CANCELLED, and it does so only on a settlement nothing dispatched.
+            case FundingIntentStatus.CANCELLED:
+                return RequestVoided();
 
             default:
-                return Result<FundingCheckoutDto>.Conflict(
-                    intent.holdingReasonDetail ?? "This sponsorship is closed and nothing was taken.");
+                return Finished(intent.holdingReasonDetail ?? "This sponsorship is closed and nothing was taken.");
         }
     }
+
+    /// <summary>
+    /// A 409 for an intent that reached a state nothing will move it out of, labelled with the node's
+    /// own <see cref="UpstreamFailureCodes.IntentFinished"/>. The caller does NOT release on it; it asks
+    /// the void route, which knows whether that final state took anything.
+    /// </summary>
+    private static Result<FundingCheckoutDto> Finished(string message)
+        => Result<FundingCheckoutDto>.Conflict(message).WithCode(UpstreamFailureCodes.IntentFinished);
+
+    /// <summary>The final 409 for a voided key: nothing was, or ever will be, taken under it.</summary>
+    private static Result<FundingCheckoutDto> RequestVoided()
+        => Result<FundingCheckoutDto>.Conflict(RequestVoidedMessage).WithCode(UpstreamFailureCodes.RequestVoided);
 
     /// <summary>Finishes an intent that was committed but never reached the node.</summary>
     private async Task<Result<FundingCheckoutDto>> ResumeDraftAsync(
@@ -913,10 +1417,187 @@ public sealed class FundingIntentService : IFundingIntentService
         if (settlement is null || outbox is null || config is null)
             return Result<FundingCheckoutDto>.Conflict("This sponsorship has no settlement to complete.");
         if (intent.settlementAttemptCount >= MaximumIntentAttempts)
-            return Result<FundingCheckoutDto>.Conflict("This sponsorship is being completed; check back shortly.");
+            return Result<FundingCheckoutDto>.Conflict(StillChangingMessage);
 
-        return await DispatchAndApplyAsync(intent, settlement, outbox, config, project, ct);
+        // Never released (the request that created it stopped before sending): it is released here,
+        // through the same tombstone check and compare-and-set a fresh create goes through. Nothing
+        // but an AUTHORIZED settlement is ever released or sent from this path.
+        if (settlement.status == EconomicSettlementStatus.AUTHORIZED)
+            return await ReleaseAndDispatchAsync(intent, settlement, outbox, config, project, ct);
+
+        // A void's cancel landed but its intent write did not: repair it, and the key stays dead.
+        if (IsCancelledBeforeRelease(settlement))
+        {
+            await RepairVoidedIntentAsync(intent, settlement, ct);
+            return RequestVoided();
+        }
+
+        if (IsNodeConfirmed(settlement))
+        {
+            await PromoteConfirmedAsync(intent, settlement, outbox, ct);
+            return intent.status == FundingIntentStatus.SETTLED
+                ? Result<FundingCheckoutDto>.Success(BuildCheckout(intent, project))
+                : Result<FundingCheckoutDto>.Conflict(StillChangingMessage);
+        }
+
+        return await FollowReleasedAsync(intent, settlement, outbox, config, project, ct);
     }
+
+    /// <summary>
+    /// A settlement an earlier request released and then lost the answer for: that send may have
+    /// landed, and it took no lease, so the node decides. Landed completes the sponsorship; anything
+    /// else is handed to the leased outbox worker (which re-sends under the same key), never re-sent here.
+    /// </summary>
+    private async Task<Result<FundingCheckoutDto>> FollowReleasedAsync(
+        FundingIntent intent,
+        EconomicSettlement settlement,
+        EconomicOutbox outbox,
+        ProjectTokenConfig config,
+        Project project,
+        CancellationToken ct)
+    {
+        intent.settlementAttemptCount += 1;
+        var (verdict, receipt) = await ReadNodeReceiptAsync(intent, settlement, outbox, ct);
+        return verdict == NodeReceipt.Landed
+            ? await CompleteAsync(intent, settlement, outbox, config, project, receipt, ct)
+            : await FollowPendingAsync(intent, project, receipt.Code, ct);
+    }
+
+    // -- Voiding a request key ------------------------------------------------
+
+    /// <summary>
+    /// Decides one admitted sponsorship for a void; null when a compare-and-set was lost and the row
+    /// must be re-read. Voided only where nothing was, or can be, taken.
+    /// </summary>
+    private async Task<Result<FundingIntentVoidDto>?> DecideVoidAsync(FundingIntent intent, CancellationToken ct)
+    {
+        // The same bounded, read-only advance a status poll makes, so the decision is on fresh state.
+        if (intent.status == FundingIntentStatus.SETTLEMENT_PENDING)
+            await AdvancePendingAsync(intent, ct);
+
+        switch (intent.status)
+        {
+            case FundingIntentStatus.CANCELLED:
+                return VoidAnswer(FundingIntentVoidOutcomes.Voided, intent.id);
+
+            case FundingIntentStatus.DRAFT:
+            {
+                var settlement = await LoadSettlementAsync(intent, ct);
+                if (settlement is { status: EconomicSettlementStatus.AUTHORIZED })
+                {
+                    return await TryCancelUndispatchedAsync(intent, settlement, outbox: null, DateTime.UtcNow, ct)
+                        ? VoidAnswer(FundingIntentVoidOutcomes.Voided, intent.id)
+                        : null;
+                }
+
+                // An earlier void's cancel whose intent write was lost: it never left AUTHORIZED, so it is dead.
+                if (settlement is not null && IsCancelledBeforeRelease(settlement))
+                {
+                    await RepairVoidedIntentAsync(intent, settlement, ct);
+                    return VoidAnswer(FundingIntentVoidOutcomes.Voided, intent.id);
+                }
+
+                // Released for dispatch: the request that released it may be asking the node right now.
+                return Revealed(intent);
+            }
+
+            case FundingIntentStatus.HOLDING:
+            case FundingIntentStatus.FAILED:
+            case FundingIntentStatus.REJECTED:
+                return await DecideRecordedAsNothingTakenAsync(intent, ct);
+
+            default:
+                // SETTLED, or still SETTLEMENT_PENDING after the advance: value moved or may yet.
+                return Revealed(intent);
+        }
+    }
+
+    /// <summary>
+    /// A terminal intent RECORDED as taking nothing. The record is a label, so it is voided only when
+    /// its settlement is closed with no node operation AND it either never left AUTHORIZED or the node
+    /// itself answers NOT_FOUND after every send's quiet window. Anything else is revealed.
+    /// </summary>
+    private async Task<Result<FundingIntentVoidDto>> DecideRecordedAsNothingTakenAsync(
+        FundingIntent intent,
+        CancellationToken ct)
+    {
+        var settlement = await LoadSettlementAsync(intent, ct);
+        if (settlement is not
+            {
+                azoaOperationId: null,
+                status: EconomicSettlementStatus.CANCELLED
+                    or EconomicSettlementStatus.FAILED
+                    or EconomicSettlementStatus.REJECTED,
+            })
+        {
+            return Revealed(intent);
+        }
+
+        if (IsCancelledBeforeRelease(settlement))
+            return VoidAnswer(FundingIntentVoidOutcomes.Voided, intent.id);
+
+        var outbox = await _outboxRepository.FindOneAsync(item => item.settlementId == settlement.id, ct);
+        var (verdict, receipt) = await ReadNodeReceiptAsync(intent, settlement, outbox, ct);
+        if (verdict == NodeReceipt.Landed)
+        {
+            _logger.LogCritical(
+                "Sponsorship {IntentId} is recorded as taking nothing, but the node holds accepted exchange "
+                + "{OperationId} under its key. It was revealed, not voided; reconcile it by hand.",
+                intent.id, receipt.OperationId);
+        }
+
+        return verdict == NodeReceipt.Absent
+            ? VoidAnswer(FundingIntentVoidOutcomes.Voided, intent.id)
+            : Revealed(intent);
+    }
+
+    private Task<FundingIntent?> FindIntentAsync(string actorId, string idempotencyKey, CancellationToken ct)
+        => _intentRepository.FindOneAsync(
+            intent => intent.funderUserId == actorId && intent.idempotencyKey == idempotencyKey,
+            ct);
+
+    private async Task<EconomicSettlement?> LoadSettlementAsync(FundingIntent intent, CancellationToken ct)
+        => string.IsNullOrWhiteSpace(intent.settlementId)
+            ? null
+            : await _settlementRepository.GetByIdAsync(intent.settlementId, ct);
+
+    private async Task<bool> IsVoidedKeyAsync(string actorId, string idempotencyKey, CancellationToken ct)
+        => await _voidRepository.FindOneAsync(
+            tombstone => tombstone.funderUserId == actorId && tombstone.idempotencyKey == idempotencyKey,
+            ct) is not null;
+
+    /// <summary>Writes the key's tombstone; a second void of the same key finds it already there.</summary>
+    private async Task AddTombstoneAsync(string actorId, string idempotencyKey, CancellationToken ct)
+    {
+        try
+        {
+            await _voidRepository.AddAsync(
+                new FundingIntentVoid
+                {
+                    id = Guid.NewGuid().ToString("D"),
+                    funderUserId = actorId,
+                    idempotencyKey = idempotencyKey,
+                    createdAt = DateTime.UtcNow,
+                },
+                ct);
+            await _unitOfWork.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException failure) when (IsUniquenessViolation(failure))
+        {
+            _unitOfWork.ClearTrackedChanges();
+        }
+    }
+
+    private static Result<FundingIntentVoidDto> VoidAnswer(string outcome, string? intentId)
+        => Result<FundingIntentVoidDto>.Success(new FundingIntentVoidDto { Outcome = outcome, IntentId = intentId });
+
+    private static Result<FundingIntentVoidDto> Revealed(FundingIntent intent)
+        => Result<FundingIntentVoidDto>.Success(new FundingIntentVoidDto
+        {
+            Outcome = FundingIntentVoidOutcomes.Revealed,
+            IntentId = intent.id,
+            Intent = ToStatus(intent),
+        });
 
     // -- Rows the confirmed exchange produces --------------------------------
 
@@ -925,7 +1606,9 @@ public sealed class FundingIntentService : IFundingIntentService
         {
             id = Guid.NewGuid().ToString("D"),
             kind = EconomicSettlementKind.EXCHANGE,
-            status = EconomicSettlementStatus.PENDING_DISPATCH,
+            // Authorized, NOT yet dispatchable: the outbox worker only takes PENDING_DISPATCH, so
+            // until the request releases it a void can still cancel it outright.
+            status = EconomicSettlementStatus.AUTHORIZED,
             idempotencyKey = intent.exchangeIdempotencyKey!,
             beneficiaryUserId = intent.funderUserId,
             authorizedByUserId = intent.funderUserId,
@@ -1166,14 +1849,27 @@ public sealed class FundingIntentService : IFundingIntentService
     private static bool IsReadinessLapse(string? code)
         => EconomicSettlementReadinessCodes.IsReadinessLapse(code);
 
-    private static string HoldingMessage(string? detail)
-        => string.IsNullOrWhiteSpace(detail)
-            ? "This sponsorship is on hold until account setup is complete. Nothing was taken."
-            : $"{detail} Nothing was taken.";
+    /// <summary>
+    /// What a sponsor reads once a hold CANCELLED the settlement: keyed on the readiness CODE, never built from
+    /// the worker's or gateway's sentence, which may say "remains pending" or "stays reserved" (L2).
+    /// </summary>
+    private static string HoldingMessage(string? reasonCode)
+        => reasonCode switch
+        {
+            EconomicSettlementReadinessCodes.BeneficiaryNotReady
+                => "This sponsorship was not completed because your account setup is unfinished. Nothing was taken.",
+            EconomicSettlementReadinessCodes.BeneficiaryUnconfirmed
+                => "This sponsorship was not completed because we could not confirm your account setup. Nothing was taken.",
+            EconomicSettlementReadinessCodes.ProjectOwnerNotReady
+                => "This sponsorship was not completed because the project owner has not finished account setup. Nothing was taken.",
+            EconomicSettlementReadinessCodes.ProjectOwnerUnavailable
+                => "This sponsorship was not completed because we could not verify the project owner. Nothing was taken.",
+            _ => "This sponsorship is on hold until account setup is complete. Nothing was taken.",
+        };
 
     /// <summary>Propagates a typed failure across result payload types without inventing a status.</summary>
     private static Result<TOut> Propagate<TIn, TOut>(Result<TIn> source)
-        => source.Type switch
+        => (source.Type switch
         {
             ResultType.NotFound => Result<TOut>.NotFound(source.Error!),
             ResultType.ValidationError => Result<TOut>.ValidationError(source.Error!),
@@ -1182,7 +1878,7 @@ public sealed class FundingIntentService : IFundingIntentService
             ResultType.Unauthorized => Result<TOut>.Unauthorized(source.Error!),
             ResultType.BadRequest => Result<TOut>.BadRequest(source.Error!),
             _ => Result<TOut>.Failure(source.Error ?? "The request could not be completed"),
-        };
+        }).WithCode(source.Code);
 
     /// <summary>Parses a person-facing amount of the platform unit into exact base units.</summary>
     private static bool TryParsePlatformAmount(string? value, out long baseUnits)

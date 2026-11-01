@@ -1,6 +1,7 @@
 namespace ArdaNova.API.Controllers;
 
 using System.Security.Claims;
+using System.Text.Json.Serialization;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.Services.Interfaces;
@@ -35,6 +36,11 @@ public sealed record AddFundsPaymentDto(
     long? AmountPaidMinorUnits,
     string? CurrencyCode,
     DateTimeOffset? ExpiresAt);
+
+/// <summary>What a void of one saved request key decided: <c>voided</c> (drop the key) or <c>revealed</c> (keep it, follow <see cref="Payment"/>).</summary>
+public sealed record AddFundsVoidDto(
+    string Outcome,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] AddFundsPaymentDto? Payment);
 
 /// <summary>
 /// The only route by which a person can add funds, and the only route that says what happened to
@@ -90,7 +96,7 @@ public sealed class AddFundsController : ControllerBase
         "Adding funds isn't switched on for this site yet. Nothing was charged.";
 
     private const string CouldNotConfirmMessage =
-        "We couldn't confirm this payment just now, so we won't say either way. Nothing has changed.";
+        "We couldn't confirm this payment just now, so we won't say either way. It stays saved; try again in a moment.";
 
     private const string AmountRequiredMessage = "Choose an amount to add.";
 
@@ -122,14 +128,20 @@ public sealed class AddFundsController : ControllerBase
     public async Task<IActionResult> Begin([FromBody] AddFundsRequestDto request, CancellationToken ct)
     {
         if (request is null || request.AmountMinorUnits <= 0)
-            return BadRequest(new { error = AmountRequiredMessage });
+            return BadRequest(MoneyRefusal.ToErrorBody(MoneyRefusal.For(MoneyRefusalCodes.Definite, AmountRequiredMessage)));
 
         if (!Request.Headers.TryGetValue(IdempotencyHeader, out var suppliedKey) || suppliedKey.Count != 1)
-            return BadRequest(new { error = IdempotencyHeader + " is required" });
+        {
+            return BadRequest(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.Definite, IdempotencyHeader + " is required")));
+        }
 
         var requestKey = suppliedKey[0]?.Trim();
         if (string.IsNullOrEmpty(requestKey))
-            return BadRequest(new { error = IdempotencyHeader + " is required" });
+        {
+            return BadRequest(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.Definite, IdempotencyHeader + " is required")));
+        }
 
         // The gate has four outcomes, not two, and each one owns different words: ready, setup
         // genuinely unfinished, held for a human decision, and could-not-confirm. Propagating the
@@ -140,11 +152,14 @@ public sealed class AddFundsController : ControllerBase
         {
             return StatusCode(
                 ValueEligibilityFailure.StatusCode(readiness),
-                new { error = readiness.Error ?? SetUpFirstMessage });
+                MoneyRefusal.ToErrorBody(MoneyRefusal.From(readiness, fallbackMessage: SetUpFirstMessage)));
         }
 
         if (!Guid.TryParse(readiness.Value?.AvatarId, out var accountId) || accountId == Guid.Empty)
-            return Conflict(new { error = SetUpFirstMessage });
+        {
+            return Conflict(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.SetupRequired, SetUpFirstMessage)));
+        }
 
         if (!TryResolveReturnAddress(out var returnAddress))
         {
@@ -153,7 +168,9 @@ public sealed class AddFundsController : ControllerBase
                 + "or the {EnvironmentKey} environment variable to this site's absolute address.",
                 ClientBaseUrlConfigurationKey,
                 ClientBaseUrlEnvironmentKey);
-            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = NotSwitchedOnMessage });
+            return StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                MoneyRefusal.ToErrorBody(MoneyRefusal.For(MoneyRefusalCodes.PaymentsNotConfigured, NotSwitchedOnMessage)));
         }
 
         var started = await _fiatRail.BeginAddFundsAsync(
@@ -173,22 +190,75 @@ public sealed class AddFundsController : ControllerBase
     public async Task<IActionResult> GetPayment(Guid paymentId, CancellationToken ct)
     {
         if (paymentId == Guid.Empty)
-            return BadRequest(new { error = CouldNotConfirmMessage });
+        {
+            return BadRequest(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.Definite, CouldNotConfirmMessage)));
+        }
 
         // Deliberately NOT the full readiness gate. Somebody whose account went under review after
         // they paid still owns that payment and is still entitled to be told what happened to it;
         // refusing the read would leave them staring at money they cannot account for.
         var account = await _accounts.GetStatusAsync(ActorId, ct);
         if (!account.IsSuccess)
-            return Conflict(new { error = CouldNotConfirmMessage });
+        {
+            return Conflict(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.Unconfirmed, CouldNotConfirmMessage)));
+        }
 
         if (!Guid.TryParse(account.Value?.AvatarId, out var accountId) || accountId == Guid.Empty)
-            return Conflict(new { error = SetUpFirstMessage });
+        {
+            return Conflict(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.SetupRequired, SetUpFirstMessage)));
+        }
 
         // The account is the caller's own, so a guessed payment id reads nothing rather than
         // somebody else's payment.
         var payment = await _fiatRail.GetSessionAsync(accountId, paymentId, ct);
         return ToActionResult(payment);
+    }
+
+    /// <summary>
+    /// Voids the caller's saved request key so nothing can be paid under it, or reveals the payment
+    /// that already was. Only a 200 <c>voided</c> lets the caller drop its key; see AGENTS.md §Request-key void.
+    /// </summary>
+    [HttpPost("requests/{requestKey}/void")]
+    public async Task<IActionResult> VoidRequest(string requestKey, CancellationToken ct)
+    {
+        // Like GetPayment, not the readiness gate: a person who went under review still owns the
+        // key they hold and must be able to learn, or close, what it covers.
+        var account = await _accounts.GetStatusAsync(ActorId, ct);
+        if (!account.IsSuccess)
+        {
+            return Conflict(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.Unconfirmed, CouldNotConfirmMessage)));
+        }
+
+        if (!Guid.TryParse(account.Value?.AvatarId, out var accountId) || accountId == Guid.Empty)
+        {
+            return Conflict(MoneyRefusal.ToErrorBody(
+                MoneyRefusal.For(MoneyRefusalCodes.Unconfirmed, CouldNotConfirmMessage)));
+        }
+
+        // The account comes from the signed actor, and the node namespaces the key by that account,
+        // so a void can only ever reach this person's own keys.
+        var voided = await _fiatRail.VoidRequestAsync(accountId, requestKey, ct);
+        if (voided.IsSuccess && voided.Value is { } answer)
+        {
+            return answer.Payment is { } payment
+                ? Ok(new AddFundsVoidDto(FiatCheckoutVoidOutcomes.Revealed, ToPaymentDto(payment)))
+                : Ok(new AddFundsVoidDto(FiatCheckoutVoidOutcomes.Voided, null));
+        }
+
+        var body = MoneyRefusal.ToErrorBody(
+            MoneyRefusal.ForFailedVoid(voided, MoneyRefusalContext.TenantConsentProbe, CouldNotConfirmMessage));
+        return voided.Type switch
+        {
+            ResultType.Unauthorized => Unauthorized(body),
+            ResultType.Forbidden => StatusCode(StatusCodes.Status403Forbidden, body),
+            ResultType.Conflict => Conflict(body),
+            ResultType.ValidationError or ResultType.BadRequest => BadRequest(body),
+            _ => StatusCode(StatusCodes.Status503ServiceUnavailable, body),
+        };
     }
 
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -227,28 +297,34 @@ public sealed class AddFundsController : ControllerBase
     private IActionResult ToActionResult(Result<FiatCheckoutSession> result)
     {
         if (result.IsSuccess && result.Value is { } session)
-        {
-            return Ok(new AddFundsPaymentDto(
-                session.IntentId.ToString("N"),
-                session.Status,
-                session.SettlementState,
-                session.PaymentUrl,
-                session.Resumed,
-                session.AmountPaidMinorUnits,
-                session.CurrencyCode,
-                session.ExpiresAt));
-        }
+            return Ok(ToPaymentDto(session));
 
-        var error = result.Error ?? CouldNotConfirmMessage;
+        // TenantConsentProbe: every call here hits the checkout route family, which the node gates
+        // behind the units:issue consent probe (consent grant + KYB), so a bare Forbidden defaults
+        // to consent_revoked - see MoneyRefusal's remarks for why that is a call-site default
+        // rather than a literal re-read of the node's own code.
+        var body = MoneyRefusal.ToErrorBody(
+            MoneyRefusal.From(result, MoneyRefusalContext.TenantConsentProbe, CouldNotConfirmMessage));
         return result.Type switch
         {
-            ResultType.NotFound => NotFound(new { error }),
-            ResultType.Unauthorized => Unauthorized(new { error }),
-            ResultType.Forbidden => StatusCode(StatusCodes.Status403Forbidden, new { error }),
-            ResultType.Conflict => Conflict(new { error }),
-            ResultType.ValidationError => BadRequest(new { error }),
-            ResultType.BadRequest => BadRequest(new { error }),
-            _ => StatusCode(StatusCodes.Status503ServiceUnavailable, new { error }),
+            ResultType.NotFound => NotFound(body),
+            ResultType.Unauthorized => Unauthorized(body),
+            ResultType.Forbidden => StatusCode(StatusCodes.Status403Forbidden, body),
+            ResultType.Conflict => Conflict(body),
+            ResultType.ValidationError => BadRequest(body),
+            ResultType.BadRequest => BadRequest(body),
+            _ => StatusCode(StatusCodes.Status503ServiceUnavailable, body),
         };
     }
+
+    private static AddFundsPaymentDto ToPaymentDto(FiatCheckoutSession session)
+        => new(
+            session.IntentId.ToString("N"),
+            session.Status,
+            session.SettlementState,
+            session.PaymentUrl,
+            session.Resumed,
+            session.AmountPaidMinorUnits,
+            session.CurrencyCode,
+            session.ExpiresAt);
 }

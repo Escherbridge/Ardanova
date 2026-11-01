@@ -45,3 +45,25 @@ public sealed record FundingIntentStatusDto
     /// </summary>
     public string? HoldingReasonDetail { get; init; }
 }
+
+/// <summary>The two answers a sponsorship request-key void gives. Wire values; never rename.</summary>
+public static class FundingIntentVoidOutcomes
+{
+    /// <summary>Nothing was, or ever can be, taken under the key; the caller may discard it.</summary>
+    public const string Voided = "voided";
+
+    /// <summary>A sponsorship under the key may move value; the caller keeps the key and follows <see cref="FundingIntentVoidDto.Intent"/>.</summary>
+    public const string Revealed = "revealed";
+}
+
+/// <summary>What a void of one sponsorship request key decided. <see cref="Intent"/> is set exactly when revealed.</summary>
+public sealed record FundingIntentVoidDto
+{
+    public required string Outcome { get; init; }
+
+    /// <summary>The sponsorship admitted under the key; null when none ever was.</summary>
+    public string? IntentId { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public FundingIntentStatusDto? Intent { get; init; }
+}

@@ -21,9 +21,12 @@ import { signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
 
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
+import { clearResolvedRequestsForSubject } from "~/lib/commerce/persisted-request-key";
 import { cn } from "~/lib/utils";
 
 export interface WorkspaceUser {
+  /** The signed-in subject; sign-out erases this subject's saved money request keys. */
+  id?: string | null;
   name?: string | null;
   email?: string | null;
   image?: string | null;
@@ -300,6 +303,9 @@ export function WorkspaceNavigation({
               type="button"
               onClick={() => {
                 onNavigate?.();
+                // Unresolved keys stay: they are this person's, server-bound, and may still cover a
+                // payment in flight (M-6). Only resolved, unreadable leftovers are dropped.
+                if (user.id) clearResolvedRequestsForSubject(window.localStorage, user.id);
                 void signOut({ callbackUrl: "/" });
               }}
               className="hover:bg-sidebar-accent inline-flex size-11 items-center justify-center border-2 border-transparent transition-colors"

@@ -1,5 +1,35 @@
 # Application common
 
+## Failure codes
+
+`Result<T>.Code` is an optional machine discriminator on a FAILURE, added so a node's own code
+survives the layers between the transport and a controller (P3-17). Before it,
+`AzoaNodeClient.MapError` collapsed every 403 to "AZOA node denied the request." and the money
+controllers had to guess the cause from which call site they were in.
+
+- **Who sets it.** `AzoaNodeClient.SendAsync` copies the node envelope's `code` onto every error
+  result; a 429 is labelled `UpstreamFailureCodes.UpstreamRateLimited` by status instead. The
+  typed clients' route guards set `RouteNotAllowed`, an unconfigured transport sets
+  `TransportNotConfigured`, and `DisabledFiatRailGateway` sets `PaymentsNotConfigured`.
+  `FundingIntentService` sets `IntentFinished` / `RequestKeyInUse` on its own final-state 409s,
+  and `RequestVoided` on a voided key. `IntentFinished` never means "nothing was paid" - the node
+  sends it for paid intents too; only `RequestVoided` / `IntentExpired` carry that proof.
+- **Who must carry it.** Every helper that re-types a failure (`MapFailure`, `Propagate`,
+  `ValueEligibilityFailure.Propagate`, `AzoaCashOutClient.Refused`) ends with
+  `.WithCode(source.Code)`. Dropping it silently turns a real `KYB_REQUIRED` back into a guess.
+  `AzoaExchangeClient.MapFailure` did not, and round 5 found it: the exchange route's 409
+  `ADMISSION_DEADLINE_PASSED` reached the settlement gateway as a bare (ambiguous) Conflict.
+- **Who reads it.** `ArdaNova.API/Controllers/MoneyRefusal.cs` (see that directory's AGENTS.md
+  §Money refusal codes), and `AzoaSettlementGateway`, which maps `AdmissionDeadlinePassed` to "this
+  attempt admitted nothing" (`Services/Implementations/AGENTS.md` §Node proof). The prose in `Error`
+  is still collapsed as before; the code is additive and never shown to a person.
+- **`Reference`** (round 4 #3) is the code's companion: the upstream's own id for the record a
+  failure is about, when its error envelope's `result` named one. Today only the fiat rail sets it
+  (`AzoaNodeClient.SendAsync(failureReference:)`, the intent a 409 INTENT_NEEDS_REVIEW holds), and
+  only `MoneyRefusal` reads it, for `needs_review`. `WithCode` keeps it, `WithReference` keeps the
+  code, and a re-typing helper that must carry it ends with `.WithReference(source.Reference)`. It is
+  never a success value - a failure still has no `Value`.
+
 ## Resource authority
 
 `Security/ResourceAuthority.cs` answers record-level questions for the API

@@ -18,6 +18,9 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
     private const string KycForbiddenPrefix = "KYC_FORBIDDEN:";
     private const string KycForbiddenMessage = "KYC_FORBIDDEN: AZOA approval is required.";
 
+    /// <summary>The node checkout's own unfinished-KYC sentence (oasis-sleek <c>FiatRailProvider.BeginCheckoutAsync</c>), coded only FORBIDDEN.</summary>
+    private const string CheckoutKycMarker = "has to finish identity verification";
+
     /// <summary>The node's own not-found discriminator (<c>AzoaErrorCodes.NotFound</c>).</summary>
     internal const string NodeNotFoundCode = "NOT_FOUND";
 
@@ -109,18 +112,24 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
             msg.Dispose();
             return Task.FromResult(Result<T>.Forbidden(
                 "The AZOA value credential is restricted to allocation, fungible-mint, "
-                + "fungible-creation and reserve-partition endpoints."));
+                + "fungible-creation and reserve-partition endpoints.")
+                .WithCode(UpstreamFailureCodes.RouteNotAllowed));
         }
 
         return SendAsync<T>(_http, _logger, msg, ct);
     }
 
+    /// <param name="failureReference">
+    /// Reads the id an error envelope's <c>result</c> names (e.g. the intent a 409 INTENT_NEEDS_REVIEW
+    /// holds) onto <see cref="Result{T}.Reference"/>; null leaves failures unreferenced.
+    /// </param>
     internal static async Task<Result<T>> SendAsync<T>(
         HttpClient http,
         ILogger logger,
         HttpRequestMessage msg,
         CancellationToken ct,
-        bool notFoundNeedsNodeCode = false)
+        bool notFoundNeedsNodeCode = false,
+        Func<T, string?>? failureReference = null)
     {
         try
         {
@@ -152,7 +161,10 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
                     return Result<T>.Failure("AZOA answered 404 without its not-found envelope; the outcome is unknown.");
                 }
 
-                return MapError<T>(response.StatusCode, envelope?.Message);
+                var failure = MapError<T>(response.StatusCode, envelope?.Message, envelope?.Code);
+                return envelope is { Result: { } named } && failureReference is not null
+                    ? failure.WithReference(failureReference(named))
+                    : failure;
             }
 
             if (envelope is null)
@@ -182,7 +194,8 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
         catch (InvalidOperationException ex)
         {
             logger.LogError(ex, "AZOA node transport is not configured: {Method} {Path}", msg.Method, msg.RequestUri);
-            return Result<T>.Failure("AZOA node transport is not configured.");
+            return Result<T>.Failure("AZOA node transport is not configured.")
+                .WithCode(UpstreamFailureCodes.TransportNotConfigured);
         }
         finally
         {
@@ -190,11 +203,26 @@ public sealed class AzoaNodeClient : IAzoaNodeClient
         }
     }
 
-    private static Result<T> MapError<T>(HttpStatusCode status, string? providerMessage)
+    /// <summary>
+    /// Collapses the node's prose (provider detail stays behind this boundary) but keeps its machine
+    /// <paramref name="nodeCode"/>, which is what MoneyRefusal reads first. A 429 is labelled by its
+    /// status, because only a real rate limit may be called busy. See Azoa/AGENTS.md §Failure codes.
+    /// </summary>
+    private static Result<T> MapError<T>(HttpStatusCode status, string? providerMessage, string? nodeCode)
     {
-        // Preserve only the public KYC signal, never the provider detail.
+        var code = status == (HttpStatusCode)429
+            ? UpstreamFailureCodes.UpstreamRateLimited
+            : string.IsNullOrWhiteSpace(nodeCode) ? null : nodeCode.Trim();
+        return CollapseError<T>(status, providerMessage).WithCode(code);
+    }
+
+    private static Result<T> CollapseError<T>(HttpStatusCode status, string? providerMessage)
+    {
+        // Preserve only the public KYC signal, never the provider detail. The checkout's KYC refusal
+        // shares the consent refusal's FORBIDDEN code, so its sentence is the only thing telling them apart.
         if (status == HttpStatusCode.Forbidden
-            && providerMessage?.StartsWith(KycForbiddenPrefix, StringComparison.Ordinal) == true)
+            && (providerMessage?.StartsWith(KycForbiddenPrefix, StringComparison.Ordinal) == true
+                || providerMessage?.Contains(CheckoutKycMarker, StringComparison.Ordinal) == true))
         {
             return Result<T>.Forbidden(KycForbiddenMessage);
         }

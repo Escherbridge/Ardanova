@@ -52,7 +52,7 @@ public sealed class AzoaCashOutClient : IAzoaCashOutNode
             new HttpRequestMessage(HttpMethod.Get, path), IsAvailabilityPath(path), ct);
 
         if (wire.IsFailure)
-            return Refused<CashOutAvailability>(wire.Type);
+            return Refused<CashOutAvailability, CashOutQuoteWire>(wire);
 
         var quote = wire.Value!;
         return Result<CashOutAvailability>.Success(new CashOutAvailability(
@@ -107,7 +107,7 @@ public sealed class AzoaCashOutClient : IAzoaCashOutNode
 
         var wire = await SendAsync<CashOutViewWire>(message, IsSubjectPath(path), ct);
         return wire.IsFailure
-            ? Refused<CashOutRecord>(wire.Type)
+            ? Refused<CashOutRecord, CashOutViewWire>(wire)
             : ToRecord(wire.Value!);
     }
 
@@ -128,7 +128,7 @@ public sealed class AzoaCashOutClient : IAzoaCashOutNode
 
         var wire = await SendAsync<List<CashOutViewWire>>(request, IsSubjectPath(path), ct);
         if (wire.IsFailure)
-            return Refused<IReadOnlyList<CashOutRecord>>(wire.Type);
+            return Refused<IReadOnlyList<CashOutRecord>, List<CashOutViewWire>>(wire);
 
         var records = new List<CashOutRecord>();
         foreach (var row in wire.Value!)
@@ -152,7 +152,7 @@ public sealed class AzoaCashOutClient : IAzoaCashOutNode
             new HttpRequestMessage(method, path), IsAccountPath(path), ct);
 
         if (wire.IsFailure)
-            return Refused<CashOutDestination>(wire.Type);
+            return Refused<CashOutDestination, PayoutAccountStatusWire>(wire);
 
         var status = wire.Value!;
         return Result<CashOutDestination>.Success(new CashOutDestination(
@@ -173,7 +173,8 @@ public sealed class AzoaCashOutClient : IAzoaCashOutNode
         {
             message.Dispose();
             return Task.FromResult(Result<T>.Forbidden(
-                "The AZOA tenant credential is restricted to the cash-out endpoints."));
+                "The AZOA tenant credential is restricted to the cash-out endpoints.")
+                .WithCode(UpstreamFailureCodes.RouteNotAllowed));
         }
 
         return AzoaNodeClient.SendAsync<T>(_http, _logger, message, ct);
@@ -200,8 +201,10 @@ public sealed class AzoaCashOutClient : IAzoaCashOutNode
             row.ReversedAt));
     }
 
-    /// <summary>ArdaNova's own words for a refusal, chosen by KIND. See the class remarks.</summary>
-    private static Result<T> Refused<T>(ResultType type) => type switch
+    /// <summary>ArdaNova's own words for a refusal, chosen by KIND; the node's machine code survives. See the class remarks.</summary>
+    private static Result<T> Refused<T, TWire>(Result<TWire> wire) => Reworded<T>(wire.Type).WithCode(wire.Code);
+
+    private static Result<T> Reworded<T>(ResultType type) => type switch
     {
         ResultType.NotFound => Result<T>.NotFound(
             "We could not find this withdrawal, so nothing was sent."),

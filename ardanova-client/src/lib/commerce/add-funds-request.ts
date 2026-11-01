@@ -1,0 +1,217 @@
+import { z } from "zod";
+
+import {
+  looksFinal,
+  moneyCodeOf,
+  moneyIntentIdOf,
+  type MoneyRefusalCode,
+} from "~/lib/commerce/money-refusal";
+import {
+  getOnRampPresentation,
+  type OnRampReport,
+} from "~/lib/commerce/on-ramp-status";
+import {
+  readSavedRequest,
+  recordAdmittedId,
+  recordHeldForReview,
+  voidSavedRequest,
+  type RequestFlow,
+  type SavedRequest,
+  type VoidAnswer,
+} from "~/lib/commerce/persisted-request-key";
+
+/** `addFunds.begin`'s body minus the key. */
+export const addFundsWireSchema = z.object({
+  amountMinorUnits: z.number().int().positive(),
+});
+
+export type AddFundsWire = z.infer<typeof addFundsWireSchema>;
+
+/** One add-funds attempt at a time per person; the same amount is the same request. */
+export const ADD_FUNDS_REQUEST_FLOW: RequestFlow<AddFundsWire> = {
+  scope: "add-funds",
+  wire: addFundsWireSchema,
+  isSameRequest: (saved, draft) =>
+    saved.amountMinorUnits === draft.amountMinorUnits,
+};
+
+/** A payment as the server reports it, id included. */
+export type AddFundsPaymentReport = OnRampReport & { paymentId?: string | null };
+
+/** Payment ids arrive compact (`?intent=`, 32 hex) or dashed; both name the same payment. */
+export function isSamePaymentId(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean {
+  const normalize = (value: string | null | undefined) =>
+    (value ?? "").trim().toLowerCase().replace(/-/gu, "");
+  const normalizedLeft = normalize(left);
+  return normalizedLeft.length > 0 && normalizedLeft === normalize(right);
+}
+
+/**
+ * Whether a read of a payment ends the saved key: ONLY when it is that key's own payment and the
+ * node says it is finished either way (`added` / `went-wrong`). "Unfinished" can still be resumed;
+ * "unconfirmed" is not an answer. A return for some other payment never touches the key.
+ */
+export function endsSavedPayment(
+  saved: SavedRequest<AddFundsWire>,
+  payment: AddFundsPaymentReport,
+): boolean {
+  if (!isSamePaymentId(saved.admittedId, payment.paymentId)) return false;
+  const outcome = getOnRampPresentation(payment).outcome;
+  return outcome === "added" || outcome === "went-wrong";
+}
+
+/** A payment as the server returns it: the id is always present. */
+export type AddFundsPaymentRead = OnRampReport & { paymentId: string };
+
+/** `addFunds.voidRequest`'s answer, as the router validated it. */
+export type AddFundsVoidAnswer =
+  | { outcome: "voided" }
+  | { outcome: "revealed"; payment: AddFundsPaymentRead };
+
+/** The two server calls the add-funds key lifecycle needs; the page passes its tRPC calls. */
+export interface AddFundsServer {
+  readPayment: (paymentId: string) => Promise<AddFundsPaymentRead>;
+  voidRequest: (requestKey: string) => Promise<AddFundsVoidAnswer>;
+}
+
+/** What the page shows after a key was settled. */
+export type AddFundsKeySettlement =
+  /** The server voided the key: nothing was or can be paid under it. */
+  | { kind: "released" }
+  /** The key stays, following this payment (or one not read yet). */
+  | {
+      kind: "tracking";
+      saved: SavedRequest<AddFundsWire> | null;
+      payment: AddFundsPaymentRead | null;
+    }
+  /** The key stays and nothing more is known; `error` is the failed server call, if any. */
+  | { kind: "kept"; saved: SavedRequest<AddFundsWire> | null; error: unknown };
+
+function asVoidAnswer(answer: AddFundsVoidAnswer): VoidAnswer<AddFundsPaymentRead> {
+  return answer.outcome === "voided"
+    ? { outcome: "voided" }
+    : { outcome: "revealed", revealed: answer.payment };
+}
+
+/**
+ * Records a `needs_review` hold on the saved key and locks Continue on it (round-4 #3) - even when the
+ * answer named no payment (round 5 L2): resending would only meet the same hold. The held payment, when
+ * named, becomes the key's own. Null when the answer was not a hold.
+ */
+function holdForReview(
+  storage: Storage,
+  subjectId: string,
+  requestKey: string,
+  moneyCode: MoneyRefusalCode | null,
+  heldId: string | null,
+): SavedRequest<AddFundsWire> | null {
+  if (moneyCode !== "needs_review") return null;
+  return recordHeldForReview(storage, ADD_FUNDS_REQUEST_FLOW, subjectId, requestKey, heldId);
+}
+
+/** Asks the server to void the saved key; on a reveal, the payment it names becomes the tracked one. */
+async function voidOrReveal(
+  storage: Storage,
+  subjectId: string,
+  requestKey: string,
+  server: AddFundsServer,
+): Promise<AddFundsKeySettlement> {
+  const settled = await voidSavedRequest(
+    storage,
+    ADD_FUNDS_REQUEST_FLOW,
+    subjectId,
+    requestKey,
+    async (key) => asVoidAnswer(await server.voidRequest(key)),
+  );
+  // A void the node answered "held for a manual check" keeps the key AND names the held payment.
+  if (settled.kind === "kept") {
+    const held = holdForReview(
+      storage,
+      subjectId,
+      requestKey,
+      moneyCodeOf(settled.error),
+      moneyIntentIdOf(settled.error),
+    );
+    if (!held) return settled;
+    // Nothing to track without an id: still held, still locked, nothing read.
+    return held.admittedId
+      ? { kind: "tracking", saved: held, payment: null }
+      : { kind: "kept", saved: held, error: settled.error };
+  }
+  if (settled.kind !== "revealed") return settled;
+
+  const payment = settled.revealed;
+  const saved =
+    recordAdmittedId(storage, ADD_FUNDS_REQUEST_FLOW, subjectId, requestKey, payment.paymentId) ??
+    settled.saved;
+  return { kind: "tracking", saved, payment };
+}
+
+/**
+ * After Continue (or any resend) failed. Once the key names a payment, a code never decides it:
+ * that payment is READ and the page follows its state (C-1). Without one, a final-looking code is
+ * settled by void-or-reveal; anything else keeps the key. See `./AGENTS.md` §Persisted request keys.
+ */
+export async function settleAddFundsFailure(input: {
+  storage: Storage;
+  subjectId: string;
+  requestKey: string;
+  moneyCode: MoneyRefusalCode | null;
+  /** The held payment a `needs_review` refusal named (`moneyIntentIdOf`); ignored for every other code. */
+  heldPaymentId?: string | null;
+  server: AddFundsServer;
+}): Promise<AddFundsKeySettlement> {
+  const { storage, subjectId, requestKey, moneyCode, server } = input;
+  const read = readSavedRequest(storage, ADD_FUNDS_REQUEST_FLOW, subjectId);
+  if (read && read.requestKey !== requestKey)
+    return { kind: "kept", saved: read, error: null };
+
+  // Held for a manual check: resending would only meet the same hold, so the key now names that
+  // payment and Continue stays locked on it until its own read (or a void) settles it.
+  const saved =
+    holdForReview(storage, subjectId, requestKey, moneyCode, input.heldPaymentId ?? null) ?? read;
+
+  if (saved?.admittedId) {
+    try {
+      return { kind: "tracking", saved, payment: await server.readPayment(saved.admittedId) };
+    } catch {
+      return { kind: "tracking", saved, payment: null };
+    }
+  }
+
+  if (!looksFinal(moneyCode)) return { kind: "kept", saved, error: null };
+  return voidOrReveal(storage, subjectId, requestKey, server);
+}
+
+/**
+ * "Start a new payment instead" (M-1). Re-reads storage, then lets the server decide: `voided`
+ * (an open page is expired first) releases the key; `revealed` keeps it and shows that payment.
+ */
+export async function setAsideSavedPayment(input: {
+  storage: Storage;
+  subjectId: string;
+  server: AddFundsServer;
+}): Promise<AddFundsKeySettlement | { kind: "none" }> {
+  const saved = readSavedRequest(input.storage, ADD_FUNDS_REQUEST_FLOW, input.subjectId);
+  if (!saved) return { kind: "none" };
+  return voidOrReveal(input.storage, input.subjectId, saved.requestKey, input.server);
+}
+
+/**
+ * Continue stays LOCKED while the saved key names a payment this page has no settled view of: not
+ * read yet, unreadable, unconfirmed, or paid and still landing. An unfinished page is the one
+ * exception - Continue resumes that same page under the same key.
+ */
+export function savedPaymentLocksContinue(
+  saved: SavedRequest<AddFundsWire> | null,
+  tracked: AddFundsPaymentReport | null | undefined,
+): boolean {
+  // A held payment is never resumable from here, whatever its page last said.
+  if (saved?.heldForReview) return true;
+  if (!saved?.admittedId) return false;
+  if (!tracked || !isSamePaymentId(saved.admittedId, tracked.paymentId)) return true;
+  return getOnRampPresentation(tracked).outcome !== "unfinished";
+}

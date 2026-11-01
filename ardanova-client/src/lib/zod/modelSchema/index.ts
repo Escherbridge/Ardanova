@@ -95,6 +95,7 @@ export * from './ProjectInvestmentSchema';
 export * from './EconomicSettlementSchema';
 export * from './EconomicOutboxSchema';
 export * from './FundingIntentSchema';
+export * from './FundingIntentVoidSchema';
 export * from './TaskCommerceAgreementSchema';
 export * from './AssetDefinitionSchema';
 export * from './ProjectTokenPolicySchema';
