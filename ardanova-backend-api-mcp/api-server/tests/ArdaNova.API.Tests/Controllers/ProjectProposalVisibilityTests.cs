@@ -107,7 +107,8 @@ public class ProjectProposalVisibilityTests
             Mock.Of<IProposalVoteClosing>(),
             Mock.Of<IProjectInvitationService>(),
             Mock.Of<IHierarchyAuthorizationService>(),
-            Mock.Of<IMembershipCredentialService>());
+            Mock.Of<IMembershipCredentialService>(),
+            Mock.Of<IProjectFollowService>());
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
         return controller;
     }
