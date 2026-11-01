@@ -9,6 +9,7 @@ public sealed record FeedPageDto(IReadOnlyList<FeedCardDto> Items, string? NextC
 /// </summary>
 /// <param name="SourceType">The table an envelope was projected from; null for a post a person wrote.</param>
 /// <param name="Body">The card's main copy: the person's own words when <paramref name="BodyIsUserWritten"/>, else a system line.</param>
+/// <param name="Task">A HELP_WANTED card's task facts; null on every other card.</param>
 public sealed record FeedCardDto(
     string Id,
     string PostType,
@@ -28,7 +29,8 @@ public sealed record FeedCardDto(
     FeedCountersDto Counters,
     FeedViewerRelationDto Viewer,
     bool IsDiscovery,
-    IReadOnlyList<FeedReasonDto> Reasons);
+    IReadOnlyList<FeedReasonDto> Reasons,
+    FeedTaskDto? Task);
 
 /// <summary>
 /// The reader's standing toward the card's subject, computed server-side; clients pick the primary action from
@@ -36,8 +38,16 @@ public sealed record FeedCardDto(
 /// </summary>
 /// <param name="IsMember">On the card's project team (creator or member) or in its guild (owner or member).</param>
 /// <param name="IsFollowing">Follows the card's project or guild.</param>
-/// <param name="CanClaim">Always false until claimable (help-wanted / task-linked) cards exist.</param>
+/// <param name="CanClaim">A HELP_WANTED card whose task this viewer may pick up in one tap (TaskClaimRule.CanClaimInPlace); false otherwise.</param>
 public sealed record FeedViewerRelationDto(bool IsMember, bool IsFollowing, bool CanClaim);
+
+/// <summary>
+/// The task a HELP_WANTED card asks for, shown only to a viewer who can see its project (Feed/AGENTS.md §Help wanted).
+/// </summary>
+/// <param name="State">OPEN (unassigned, not completed), PICKED_UP (assigned, not completed) or DONE (COMPLETED).</param>
+/// <param name="AssigneeName">The assignee's display name once the task is picked up; null while OPEN.</param>
+/// <param name="Paid">equityReward &gt; 0: the task page runs the payout readiness check, so the card never claims in place.</param>
+public sealed record FeedTaskDto(string Id, string State, string? AssigneeName, bool Paid);
 
 public sealed record FeedPersonDto(string Id, string? Name, string? Image);
 
@@ -46,7 +56,8 @@ public sealed record FeedProjectSummaryDto(string Id, string Title, string Slug,
 
 public sealed record FeedGuildSummaryDto(string Id, string Name, string Slug);
 
-public sealed record FeedLinkDto(string Id, string Title);
+/// <summary>The card's opportunity; the opportunity page resolves by <paramref name="Slug"/>.</summary>
+public sealed record FeedLinkDto(string Id, string Title, string Slug);
 
 public sealed record FeedEventSummaryDto(string Id, string Title, DateTime StartsAt);
 

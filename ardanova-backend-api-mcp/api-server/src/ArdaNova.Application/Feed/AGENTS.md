@@ -288,6 +288,13 @@ Per scope (owner addenda 2-3):
 | `tag:{tag}` | ranked windows | 3/author only | none |
 | `project:{id}`, `guild:{id}` | newest first, keyset `(createdAt, id)` | none | none |
 
+**One `PolicyFor` arm per row (Phase 3, Q1).** Phase 2 shipped two arms (home / everything else), so project and
+guild shared the tag's author cap; it never bit only because the recency path did not read the policy. Now both
+paging modes read it: `RecencyPageAsync` places each batch through `FeedRanking.SelectPage` with its scope's arm. With
+no caps that keeps every row in order; a cap added to the project/guild arm would thin a one-writer project AND skip the
+thinned rows (the keyset moves past the whole batch) - `AProjectsOwnFeed_ServesAllSixOfOneWritersPosts_...` fails
+first.
+
 A tag naming a SECTOR term also matches cards whose project carries that sector (untagged updates on a
 CONSTRUCTION project are `#construction`); visibility is re-applied identically in every mode.
 
@@ -336,12 +343,53 @@ and the page refilled; the scroll does not end. A source kind whose read throws 
   person wrote it, else the envelope's system sentence (`BodyIsUserWritten` says which).
 - **Funding**: `Funding.Percent` from the envelope's `{"percent":N}` - never an amount, never a backer; the project
   summary on a card carries no funding fields.
+- **Opportunity** (`FeedLinkDto`): `id`, `title` and `slug` - the opportunity page resolves by slug, so an id-only
+  Apply link 404s (Phase 3). Every card with an opportunity carries it (OPPORTUNITY_* and an opportunity's DISCUSSION).
 - **Viewer** (`isMember`, `isFollowing`, `canClaim`): computed server-side; Phase 3 picks the primary action from
-  it, never from reason text. `canClaim` is false until claimable (help-wanted / task-linked) cards exist.
+  it, never from reason text. `canClaim` is true only on a HELP_WANTED card the viewer may pick up in one tap
+  (§Help wanted).
 - **Counters** (`Counters.Likes/Replies/Shares`) are the RAW post counters, for display only. Ranking ignores them
   (distinct non-author people, §Quality score), but a card its author shared 50 times DISPLAYS 50 shares. Phase 3
   must not present them as a quality signal; see §Deferred for the fix trigger.
 - **Reasons**: stable `kind` + rendered `text` with live names (`FeedReasonText`).
+
+## Help wanted (Phase 3, lane K2)
+
+A HELP_WANTED card is a **person's post**, not an envelope: `sourceType` NULL, `taskId` set (unique, CHECK HELP_WANTED
+only; written by `PostService`, lane K1). Every read path takes it exactly like a POST - candidates, ranking, caps,
+scopes, the tag and sector match, the quality signals (type-agnostic) and the body (the asker's own words). Hydration
+adds one batched read, `IFeedReadStore.ReadHelpTasksAsync` (task row + assignee name + `EXISTS TaskCommerceAgreement`),
+and the card's `task` and `viewer.canClaim` come from it.
+
+**Dropped at hydration, page refilled** (the same path as a vanished envelope; the scroll goes on):
+
+- `taskId` is NULL - the task was deleted (`Post_taskId_fkey` is ON DELETE SET NULL, so the asker's words survive);
+- the task row is missing, or its read threw (fail closed, this page only);
+- the task is not on the card's own project. The read gate has already checked the post's audience and THAT project's
+  visibility, so requiring the task there is what keeps a task's assignee from reaching anyone who may not see its
+  project: the card is never more visible than its source.
+
+The whole rule lives in one place, `FeedService.HelpTaskOf`, at hydration. Hydration must check anyway (a task can be
+deleted between the window read and the hydrate), so a second, SQL copy of the orphan filter in the candidate query
+would be a second statement of the rule to drift. Cost: an orphaned ask is ranked and dropped once per scroll (it is
+fingerprinted as served, so never twice in one). Trigger to revisit: orphaned asks in the hundreds - then add
+`type <> HELP_WANTED OR taskId IS NOT NULL` to `Visible`, or have the task delete path remove its ask.
+
+| task facts | `task.state` | `assigneeName` |
+|---|---|---|
+| `status = COMPLETED` | `DONE` | assignee's name, if any |
+| assigned, not COMPLETED | `PICKED_UP` | assignee's name |
+| unassigned, not COMPLETED | `OPEN` | null |
+
+`task.paid` = `equityReward > 0`.
+
+**`canClaim` = `TaskClaimRule.CanClaimInPlace(facts, viewer ∈ MemberProjects(task.projectId))`** - the one rule the
+claim write (K1's conditional UPDATE) also enforces, so a card never offers "Pick up task" on a task the claim then
+refuses (see `Application/Tasks/AGENTS.md`). Membership is the TASK's project (creator or ProjectMember, as
+`TasksController.Assign` checks it), never a guild. A paid task is never claimable in place: the card routes to the
+task page, whose readiness check runs before the claim. Reasons still tell a teammate (`ProjectTeam`, "Because you're
+on the P team") from a follower (`FollowedProject`, "Because you follow P"); the client renders its own fragment
+from the kind.
 
 ## Deferred (with the trigger to revisit)
 
