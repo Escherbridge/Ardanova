@@ -15,9 +15,6 @@ import type { FeedKitCard } from "~/lib/feed/types";
 import { FeedStream } from "./feed-stream";
 import { renderWithTrpcEdge, type EdgeCall } from "./trpc-test-edge";
 
-// See feed-card.test.tsx: the client needs only AppRouter's type, not the server router module.
-vi.mock("~/server/api/root", () => ({}));
-
 /** The sentinel's observer; `reveal()` scrolls it into view, where it stays (as it does above a short page). */
 class FakeIntersectionObserver {
   static latest: FakeIntersectionObserver | null = null;

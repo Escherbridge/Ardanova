@@ -9,10 +9,6 @@ import type { FeedKitCard } from "~/lib/feed/types";
 import { FeedCard } from "./feed-card";
 import { renderWithTrpcEdge } from "./trpc-test-edge";
 
-// trpc/react's inline `import { type AppRouter }` survives verbatimModuleSyntax as a side-effect import of the
-// whole server router (next-auth included). The client needs only the type, so the module is empty here.
-vi.mock("~/server/api/root", () => ({}));
-
 /** Every fact any card kind can carry, so each type renders its full anatomy. */
 const fullFacts: Partial<FeedKitCard> = {
   opportunity: { id: "opp-1", title: "Lead carpenter", slug: "lead-carpenter" },
