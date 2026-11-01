@@ -41,23 +41,25 @@ Do not use fabricated counters, dead calls to action, or claims that every contr
 
 ### Working application
 
-The authenticated interface is a calm project desk. Navigation is grouped by intent:
+Home is the ranked feed: a composer above a merged stream of posts, project activity, help requests, and other work. The person's words and hashtags lead; metadata stays light. The composer is the main authoring surface. Task management and chats support participation in that work.
 
-- **Home** — current work and decisions
-- **Projects** — projects a person follows or stewards
-- **Work** — tasks and opportunities
-- **Community** — people, guilds, and governance
-- **Value** — portfolio and supported commerce surfaces
-- **Chats** — human coordination
-- **Nova Studio** — optional drafting, presentation, and rehearsal workspace
+Navigation is grouped by intent:
+
+- **Home**: the ranked feed
+- **Work**: Tasks and Chats
+- **Explore**: Projects, Opportunities, Guilds, People, and Events
+- **Records**: Governance and Portfolio
+- **Utilities**: Studio and Settings
+
+Studio remains an optional drafting, presentation, and rehearsal utility at the bottom of navigation. Public landing pages and Home do not promote Nova or agent tooling.
 
 Mobile navigation must preserve these destinations without relying on a permanently visible sidebar.
 
-ArdaNova is **social media for doing, not doom-scrolling**. Social surfaces should be organized around field notes, open questions, proposals, contributions, decisions, invitations, and bounded work updates. Prefer a project workstream with a clear stopping point or next action over an endless generic feed. Recommendations should explain their relevance instead of implying opaque behavioral profiling.
+The feed loads more ranked cards as a person scrolls and shows a cold-start row when no visible cards remain. Recommendations explain their relevance. Prioritize substantive replies, useful help, and continued project participation; preserve visibility gates and avoid treating scrolling time or opaque behavioral profiling as product success.
 
 ### Project workspace
 
-Project views should keep the artifact central and move secondary controls into clear regions. Avoid multiplying tabs without hierarchy. A project may contain planning, work, community, governance, funding, and evidence, but the interface should surface the next relevant decision rather than expose every subsystem at once.
+Project views open on Feed, with a light header and supporting controls in clear regions. Avoid multiplying tabs without hierarchy. A project may contain planning, work, community, governance, funding, and evidence, but the interface should surface the next relevant decision rather than expose every subsystem at once.
 
 ---
 

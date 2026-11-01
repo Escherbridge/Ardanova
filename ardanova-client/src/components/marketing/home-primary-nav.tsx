@@ -9,7 +9,6 @@ function homePrimaryLinks(projectsHref: string) {
   return [
     { label: "Method", href: "#method" },
     { label: "Rights", href: "#rights" },
-    { label: "Nova", href: "#nova" },
     { label: "Projects", href: projectsHref },
   ];
 }

@@ -1,13 +1,4 @@
-import {
-  ArrowRight,
-  Bot,
-  Check,
-  FileCheck2,
-  FileText,
-  Handshake,
-  Presentation,
-  Scale,
-} from "lucide-react";
+import { ArrowRight, Check, FileText, Handshake, Scale } from "lucide-react";
 import Link from "next/link";
 
 import { ArdaNovaWordmark } from "~/components/brand/wordmark";
@@ -56,24 +47,6 @@ const trustCues = [
   },
 ];
 
-const novaArtifacts = [
-  {
-    icon: <FileCheck2 aria-hidden="true" className="size-4" />,
-    title: "Project brief",
-    note: "2 questions flagged",
-  },
-  {
-    icon: <Scale aria-hidden="true" className="size-4" />,
-    title: "Rights comparison",
-    note: "1 conflict to reconcile",
-  },
-  {
-    icon: <Presentation aria-hidden="true" className="size-4" />,
-    title: "Presentation outline",
-    note: "8 proposed frames",
-  },
-];
-
 export default async function Home() {
   const session = await authForPage();
   const workspaceHref = session ? "/dashboard" : "/auth/signin";
@@ -116,12 +89,6 @@ export default async function Home() {
                 href="#rights"
               >
                 Rights
-              </Link>
-              <Link
-                className="hover:text-primary inline-flex min-h-11 min-w-11 items-center justify-center"
-                href="#nova"
-              >
-                Nova
               </Link>
               <Link
                 className="hover:text-primary inline-flex min-h-11 min-w-11 items-center justify-center"
@@ -307,99 +274,6 @@ export default async function Home() {
             </div>
           </section>
 
-          <section
-            className="bg-brand-ink text-brand-paper border-b border-black/70"
-            id="nova"
-          >
-            <div className="mx-auto grid max-w-[1440px] lg:grid-cols-2">
-              <div className="border-brand-paper/35 flex flex-col justify-between gap-14 p-6 md:p-12 lg:min-h-[760px] lg:border-r">
-                <div>
-                  <div className="text-brand-cyan mb-8 flex items-center gap-3 font-mono text-xs font-semibold tracking-[0.16em] uppercase">
-                    <Bot aria-hidden="true" className="size-5" />
-                    Nova
-                  </div>
-                  <h2 className="max-w-3xl text-4xl leading-[0.9] font-black tracking-[-0.06em] break-words uppercase sm:text-5xl md:text-7xl">
-                    From notes to a brief.
-                  </h2>
-                </div>
-
-                <div className="max-w-xl">
-                  <p className="text-brand-stone-light mb-8 text-lg leading-relaxed">
-                    Nova asks the hard questions and drafts the brief. You
-                    decide what stays.
-                  </p>
-                  <div className="border-brand-signal border-l-4 pl-5 text-xl leading-snug font-bold">
-                    A draft stays private until you publish it. Nova cannot
-                    fund, pay, or vote.
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-brand-ink-raised p-4 md:p-8 lg:flex lg:items-center">
-                <div className="border-brand-paper/45 bg-brand-ink w-full border">
-                  <div className="border-brand-paper/45 flex items-center justify-between border-b px-4 py-3 font-mono text-[10px] font-semibold tracking-[0.16em] uppercase">
-                    <span>Illustrative Nova workflow</span>
-                    <span className="text-brand-cyan">Draft state</span>
-                  </div>
-
-                  <div className="space-y-4 p-4 md:p-6">
-                    <div className="border-brand-paper/35 bg-brand-ink-raised border p-4">
-                      <p className="text-brand-stone mb-2 font-mono text-[10px] tracking-[0.14em] uppercase">
-                        Your request
-                      </p>
-                      <p className="leading-relaxed">
-                        Turn our working notes into a project brief and a
-                        presentation outline. Flag unresolved rights and payment
-                        questions.
-                      </p>
-                    </div>
-
-                    <div className="border-brand-cyan bg-brand-cyan-deep border p-4 md:p-5">
-                      <div className="mb-5 flex items-center justify-between gap-4">
-                        <p className="text-brand-cyan font-mono text-[10px] tracking-[0.14em] uppercase">
-                          3 drafts ready for you
-                        </p>
-                        <Badge
-                          className="border-brand-signal text-brand-signal-soft"
-                          variant="outline"
-                        >
-                          Review required
-                        </Badge>
-                      </div>
-                      <ul className="space-y-3" role="list">
-                        {novaArtifacts.map((artifact) => {
-                          return (
-                            <li
-                              className="border-brand-paper/20 grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t pt-3"
-                              key={artifact.title}
-                            >
-                              {artifact.icon}
-                              <span className="text-sm font-semibold">
-                                {artifact.title}
-                              </span>
-                              <span className="text-brand-stone text-right font-mono text-[9px] tracking-[0.08em] uppercase">
-                                {artifact.note}
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-
-                    <div className="border-brand-paper/35 grid grid-cols-2 border text-center text-xs font-bold uppercase">
-                      <span className="border-brand-paper/35 border-r p-3">
-                        Compare changes
-                      </span>
-                      <span className="bg-brand-paper text-brand-ink p-3">
-                        Approve or revise
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
           <section className="border-b border-black/70">
             <div className="mx-auto max-w-[1440px] px-4 py-20 md:px-8 md:py-28">
               <div className="mb-12">
@@ -489,12 +363,6 @@ export default async function Home() {
                 href="#method"
               >
                 Method
-              </Link>
-              <Link
-                className="hover:text-brand-cyan inline-flex min-h-11 items-center"
-                href="#nova"
-              >
-                Nova
               </Link>
               <Link
                 className="hover:text-brand-cyan inline-flex min-h-11 items-center"

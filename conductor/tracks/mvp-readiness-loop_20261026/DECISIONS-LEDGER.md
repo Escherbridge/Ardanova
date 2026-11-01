@@ -6,6 +6,9 @@ repos: [ardanova, oasis-sleek]
 status: draft-for-owner
 ---
 
+Latest feed-milestone takeover, verification, and carry-over:
+[session closeout, November 1, 2026](SESSION-CLOSEOUT-2026-11-01.md).
+
 # MVP Decisions Ledger — ArdaNova + AZOA
 
 1. **What this is:** every remaining item across both repos, grouped by the serving plane a user touches, each with one decision.

@@ -1,3 +1,7 @@
+---
+type: workflow
+---
+
 # ArdaNova Development Workflow
 
 ## Architecture: Separation of Concerns
@@ -53,10 +57,14 @@
 
 **Source of truth:** `ardanova-client/prisma/database-architecture.dbml`
 
-1. Edit the DBML file
-2. Run `npm run generate:prisma` from `ardanova-client/` (DBML → Prisma schema → generate client → db push)
-3. Run `npm run generate:csharp` from `ardanova-client/` (DBML → C# EF Core entities)
-4. NEVER edit `schema.prisma` directly
+1. Edit the DBML file.
+2. Run `npm run generate:dbml` from `ardanova-client/` to generate the Prisma schema and client from DBML. This does not apply database changes.
+3. Run `npm run generate:csharp` from `ardanova-client/` to generate C# EF Core entities from DBML, then review the generated diff.
+4. Add and review a versioned, additive SQL migration under `prisma/migrations/`. Back up shared data with `pg_dump` before applying it.
+5. Apply reviewed migrations with `npm run db:migrate` (`prisma migrate deploy`), before deploying code that depends on them.
+6. NEVER edit `schema.prisma` directly. `npm run generate:prisma` only regenerates the Prisma client from the existing schema; it does not read DBML or migrate a database.
+
+Never run `prisma db push`, `prisma migrate dev`, `generate:prisma:push`, `db:push`, or `db:generate` against shared data. Use the migration runbook for the affected feature.
 
 ## Fullstack Implementation Pattern
 
@@ -66,7 +74,7 @@ Features are built **fullstack** so they can be tested end-to-end as they're imp
 
 #### 1. Schema (if needed)
 - Add/verify tables and enums in DBML
-- Run `npm run generate:prisma` + `npm run generate:csharp`
+- Run `npm run generate:dbml` + `npm run generate:csharp`, then add and apply a reviewed migration using the database workflow above
 
 #### 2. Backend (.NET)
 - Define service interface in `ArdaNova.Application/Services/Interfaces/`
