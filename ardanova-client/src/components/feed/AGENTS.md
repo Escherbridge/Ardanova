@@ -16,6 +16,7 @@ feed and are unchanged.
 | `FeedCard` | `feed-card.tsx` | One card: author/time/subject chip, body, attachment, tag chips, reason, counters, one action |
 | `CardAttachment` | `card-attachment.tsx` | Renderer half of `lib/feed/registry.ts`: help state chip, funding mark, event time, launch summary |
 | `InlineReply` | `inline-reply.tsx` | Mounted only while open: newest reply (at most one) + composer. Closed cards make no reply reads |
+| `LikeToggle`, `LikeCount` | `like-toggle.tsx` | The quiet approval toggle beside the counters (§Like toggle); the bare count where there is no toggle |
 | `SubjectChip` | `subject-chip.tsx` | Project/guild link + Follow toggle (handler supplied by the mounting lane) |
 | `ColdStartRow` | `cold-start-row.tsx` | Where `nextCursor` is null: sector chips passed in + "Start a project"; empty platform = one line + same action |
 | `HashtagText`, `HashtagChip`, `HashtagList` | `../hashtags/` | `#tag` → `/tag/[tag]` links; see §Hashtags |
@@ -82,9 +83,25 @@ does not already link inline.
 
 ## Counters
 
-Raw likes and replies, small, mono, only when non-zero. Ranking ignores them (distinct people only), so they are
-never styled or ordered as a quality signal. Share counts are not shown: they are inflatable by one account
+Raw likes and replies, small, mono, only when non-zero. Ranking ignores the raw numbers (distinct people only), so
+they are never styled or ordered as a quality signal. Share counts are not shown: they are inflatable by one account
 (Feed/AGENTS.md §Deferred) and showing them is that note's trigger.
+
+## Like toggle
+
+Owner default SR-03-D3 (DECISIONS-LEDGER): distinct non-author likes are the ranker's main quality signal, so
+removing likes from the main surface would starve ranking. The one-action rule governs the primary CTA, not a passive
+approval, so a card carries a quiet "Like" toggle beside its counters and never a `data-primary-action`.
+
+- **Who sees it:** a signed-in reader on someone else's card. The author (whose like the ranker ignores) and a
+  signed-out reader (the procedure is protected) see only the count.
+- **State:** `aria-pressed`; the label stays "Like" so the accessible name keeps its visible label (WCAG 2.5.3).
+- **Optimistic, then the server wins:** the tap flips state and count at once; success replaces the count with the
+  API's `likesCount` (others' likes included); failure restores both and toasts `describeMutationError`. One request
+  at a time, because a like and an unlike in flight together could land in either order. The API's like/unlike are
+  idempotent, so a replayed tap never double-counts.
+- **Proof:** `like-toggle.test.tsx` drives a real tRPC client through the real `postRouter` and API client in-process;
+  only the .NET HTTP edge is faked.
 
 ## Inputs (what mounting lanes pass) and asks
 
@@ -100,8 +117,9 @@ never styled or ordered as a quality signal. Share counts are not shown: they ar
 
 ## Deferred
 
-- No like toggle on cards (one action rule); likes now come only from other surfaces. Revisit if the quality score
-  flattens once Home is the feed.
+- The card has no "you liked this" fact (`FeedViewerRelationDto` carries none), so the like toggle starts unpressed;
+  a reader who liked earlier sees it unpressed until a tap reconciles (the API's like is idempotent, so no double
+  count). Revisit by adding `viewer.liked` to the feed read (one `PostLike` lookup per page) when readers report it.
 - Reply authors other than you and the asker show no name: `PostComment` carries only `authorId`. Revisit when the
   comment DTO carries a display name.
 - No virtualisation; plan §10 trigger: sessions past ~200 cards.

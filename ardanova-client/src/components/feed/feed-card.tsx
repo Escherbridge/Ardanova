@@ -2,7 +2,7 @@
 
 import { useId, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { CornerDownRight, Heart, MessageSquare } from "lucide-react";
+import { CornerDownRight, MessageSquare } from "lucide-react";
 
 import { formatNoteAge } from "~/components/feed/field-note-audience";
 import { HashtagList, HashtagText, hashtagsIn } from "~/components/hashtags";
@@ -23,6 +23,7 @@ import { cn } from "~/lib/utils";
 
 import { CardAttachment } from "./card-attachment";
 import { InlineReply } from "./inline-reply";
+import { LikeCount, LikeToggle } from "./like-toggle";
 import { SubjectChip, type FollowToggleHandler } from "./subject-chip";
 
 export interface FeedCardProps {
@@ -176,7 +177,19 @@ export function FeedCard({
       ) : null}
 
       <footer className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <Counters likes={card.counters.likes} replies={replies} />
+        <div className="text-muted-foreground flex items-center gap-3 font-mono text-[11px]">
+          {/* Signed-in readers approve others' cards; the author and a signed-out reader see the count only. */}
+          {viewerId && viewerId !== card.author.id ? (
+            <LikeToggle
+              postId={card.id}
+              likes={card.counters.likes}
+              subjectName={`${authorName}'s post`}
+            />
+          ) : (
+            <LikeCount likes={card.counters.likes} />
+          )}
+          <ReplyCount replies={replies} />
+        </div>
         <div className="flex items-center gap-2">
           {message ? (
             <Button asChild variant="ghost" size="sm">
@@ -255,25 +268,15 @@ function PrimaryAction({
   );
 }
 
-/** Raw counters, shown small and only when non-zero; never ranked on or styled as a quality signal. */
-function Counters({ likes, replies }: { likes: number; replies: number }) {
+/** The raw reply count, shown small and only when non-zero; never ranked on or styled as a quality signal. */
+function ReplyCount({ replies }: { replies: number }) {
+  if (replies <= 0) return null;
   return (
-    <p className="text-muted-foreground flex items-center gap-3 font-mono text-[11px]">
-      {likes > 0 ? (
-        <span className="inline-flex items-center gap-1">
-          <Heart aria-hidden className="size-3" />
-          {likes}{" "}
-          <span className="sr-only">{likes === 1 ? "like" : "likes"}</span>
-        </span>
-      ) : null}
-      {replies > 0 ? (
-        <span className="inline-flex items-center gap-1">
-          <MessageSquare aria-hidden className="size-3" />
-          {replies}{" "}
-          <span className="sr-only">{replies === 1 ? "reply" : "replies"}</span>
-        </span>
-      ) : null}
-    </p>
+    <span className="inline-flex items-center gap-1">
+      <MessageSquare aria-hidden className="size-3" />
+      {replies}{" "}
+      <span className="sr-only">{replies === 1 ? "reply" : "replies"}</span>
+    </span>
   );
 }
 

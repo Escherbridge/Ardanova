@@ -59,11 +59,13 @@ describe("FeedCard", () => {
   it.each([...KNOWN_FEED_POST_TYPES, "BARN_DANCE_ANNOUNCED"])(
     "%s renders exactly one primary action, named by its visible label",
     (postType) => {
-      const { container, unmount } = render(
+      // Signed in, so the quiet like toggle renders too: it must not count as a second primary action.
+      const { container, unmount } = renderWithTrpcEdge(
         <FeedCard
           card={feedCardFixture({ postType, ...fullFacts })}
           viewerId="user-a"
         />,
+        {},
       );
       onlyPrimaryAction(container);
       unmount();
@@ -90,7 +92,7 @@ describe("FeedCard", () => {
   });
 
   it("B's help ask: A, on the team, can pick it up; C, a follower, replies or messages", () => {
-    const asMember = render(
+    const asMember = renderWithTrpcEdge(
       <FeedCard
         viewerId="user-a"
         card={ask({
@@ -105,6 +107,7 @@ describe("FeedCard", () => {
           ],
         })}
       />,
+      {},
     );
     const pickUp = screen.getByRole("link", { name: "Pick up task" });
     expect(pickUp.getAttribute("href")).toBe("/tasks/task-t");
@@ -124,7 +127,7 @@ describe("FeedCard", () => {
     ).toEqual(["/tag/carpentry", "/tag/framing"]);
     asMember.unmount();
 
-    render(
+    renderWithTrpcEdge(
       <FeedCard
         viewerId="user-c"
         card={ask({
@@ -139,6 +142,7 @@ describe("FeedCard", () => {
           ],
         })}
       />,
+      {},
     );
     expect(screen.queryByRole("link", { name: "Pick up task" })).toBeNull();
     expect(
