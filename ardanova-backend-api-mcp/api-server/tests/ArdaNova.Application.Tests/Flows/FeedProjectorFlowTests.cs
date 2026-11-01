@@ -161,16 +161,22 @@ public sealed class FeedProjectorFlowTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task DeletingAnUpdate_LeavesItsCardUntilTheSweep_WhichTakesTheCardAndItsLikes_AndNothingAPersonWrote()
+    public async Task DeletingAnUpdate_LeavesItsCardUntilTheSweep_WhichTakesTheCardItsLikesAndItsReplyNotifications_AndNothingAPersonWrote()
     {
         var updateId = await PostProjectUpdateAsync("Kiln delivered");
         var noteId = await WriteFieldNoteAsync("A note the founder wrote herself.");
         await RunCycleAsync();
         var envelope = (await EnvelopesAsync()).Single(row => row.sourceId == updateId);
+        foreach (var postId in new[] { envelope.id, noteId })
+        {
+            await using (var context = NewContext())
+                Succeeded(await Posts(context).LikeAsync(postId, Stranger));
+            await using (var context = NewContext())
+                Succeeded(await Posts(context).AddCommentAsync(postId, new CreatePostCommentDto { AuthorId = Stranger, Content = "Where is it from?" }));
+        }
         await using (var context = NewContext())
-            Succeeded(await Posts(context).LikeAsync(envelope.id, Stranger));
-        await using (var context = NewContext())
-            Succeeded(await Posts(context).LikeAsync(noteId, Stranger));
+            (await context.Notifications.CountAsync(row => row.postId == envelope.id))
+                .Should().Be(1, "the reply on the card came back to its author as a notification");
 
         await using (var context = NewContext())
             Succeeded(await Updates(context).DeleteAsync(updateId));
@@ -181,8 +187,11 @@ public sealed class FeedProjectorFlowTests : IAsyncLifetime
         await using var check = NewContext();
         (await check.Posts.AnyAsync(post => post.id == envelope.id)).Should().BeFalse();
         (await check.PostLikes.AnyAsync(like => like.postId == envelope.id)).Should().BeFalse();
+        (await check.Notifications.AnyAsync(row => row.postId == envelope.id))
+            .Should().BeFalse("the swept card's reply notification goes with it; this database has no cascade to do it");
         (await check.Posts.SingleAsync(post => post.id == noteId)).likesCount.Should().Be(1);
         (await check.PostLikes.CountAsync(like => like.postId == noteId)).Should().Be(1);
+        (await check.Notifications.CountAsync(row => row.postId == noteId)).Should().Be(1);
     }
 
     [PostgresFact]

@@ -32,7 +32,9 @@ The rules and the cycle live in `Application/Feed` (see its AGENTS.md). This dir
     (pinned by `FeedProjectorFlowTests.TheEnvelopeStore_StaysUsable_AfterAnInsertThatCollidesOnTheUniqueIndex`).
     Any other failure propagates to the cycle, which counts it as one failed card and carries on.
   - `RemoveAsync`: one transaction - null out reply parents, then delete the envelope's comments, likes,
-    bookmarks, shares and media (all RESTRICT FKs to Post), then the envelope. Every statement is scoped
+    bookmarks, shares and media (all RESTRICT FKs to Post) and its notifications (the migration cascades
+    `Notification.postId`, but EF models it client-set-null, so an EF-built database would refuse the delete), then
+    the envelope. Every statement is scoped
     by `sourceType IS NOT NULL`, so no id can make it delete a person's post. Since Phase 2 it runs only for an
     envelope whose source row is gone.
   - `RetractAsync` / `RestoreAsync` / `SetHashtagsAsync`: single `ExecuteUpdate` statements, each scoped by
