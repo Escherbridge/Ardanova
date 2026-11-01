@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   ArrowLeft,
@@ -32,7 +33,12 @@ import {
   intersectsVertically,
   isChatViewportNearBottom,
 } from "~/lib/chat/read-receipt";
+import { feedRoutes } from "~/lib/feed/routes";
 import { cn } from "~/lib/utils";
+import { api } from "~/trpc/react";
+
+const MESSAGE_NOT_SENT =
+  "Your message was not sent. Check your connection and try again.";
 
 const conversationFilters = [
   { id: "all", label: "All" },
@@ -102,6 +108,100 @@ function getConversationName(
   return isConversationWithSelf ? `${member.userName} (you)` : member.userName;
 }
 
+/** The viewer's DIRECT conversation with `userId`, among those loaded; a self-conversation has only the viewer. */
+function findDirectConversationWith(
+  conversations: readonly ChatConversation[],
+  userId: string,
+  currentUserId: string,
+): ChatConversation | undefined {
+  return conversations.find(
+    (conversation) =>
+      conversation.type === "DIRECT" &&
+      (userId === currentUserId
+        ? conversation.members.every(
+            (member) => member.userId === currentUserId,
+          )
+        : conversation.members.some((member) => member.userId === userId)),
+  );
+}
+
+/** The write box under a conversation or a draft: Enter sends, Shift + Enter breaks the line. */
+function MessageForm({
+  value,
+  onChange,
+  onSend,
+  sending,
+  disabled,
+  error,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSend: () => void;
+  sending: boolean;
+  disabled: boolean;
+  error: string | null;
+}) {
+  return (
+    <footer className="border-border bg-card shrink-0 border-t-2 p-3 sm:p-4">
+      <form
+        className="mx-auto flex max-w-4xl items-end gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSend();
+        }}
+      >
+        <label className="min-w-0 flex-1">
+          <span className="sr-only">Message</span>
+          <textarea
+            value={value}
+            rows={1}
+            maxLength={10_000}
+            disabled={disabled}
+            aria-describedby={error ? "chat-send-error" : undefined}
+            onChange={(event) => onChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing
+              ) {
+                event.preventDefault();
+                onSend();
+              }
+            }}
+            placeholder="Write a useful message…"
+            className="border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary block max-h-32 min-h-11 w-full resize-y border-2 px-3 py-2.5 text-sm outline-none"
+          />
+        </label>
+        <Button
+          type="submit"
+          size="icon"
+          aria-label="Send message"
+          disabled={!value.trim() || sending || disabled}
+        >
+          {sending ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Send className="size-4" aria-hidden="true" />
+          )}
+        </Button>
+      </form>
+      {error && (
+        <p
+          id="chat-send-error"
+          className="text-destructive mx-auto mt-2 max-w-4xl text-sm"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
+      <p className="text-muted-foreground mx-auto mt-2 max-w-4xl text-xs">
+        Enter to send · Shift + Enter for a new line
+      </p>
+    </footer>
+  );
+}
+
 function ConversationAvatar({
   conversation,
   currentUserId,
@@ -133,7 +233,12 @@ function ConversationAvatar({
 export default function ChatsPage() {
   const { data: session } = useSession();
   const currentUserId = session?.user?.id;
+  const searchParams = useSearchParams();
+  const withUserId = searchParams.get("with")?.trim() || null;
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  // `?with=` addresses a draft: created by the first send, never on load. See ./AGENTS.md.
+  const [draftWith, setDraftWith] = useState<string | null>(null);
+  const consumedWithRef = useRef<string | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<ConversationFilter>("all");
@@ -181,6 +286,35 @@ export default function ChatsPage() {
     conversationId: selectedChatId ?? "",
     enabled: selectedChatId !== null,
   });
+
+  const utils = api.useUtils();
+  const draftRecipient = api.user.getById.useQuery(
+    { id: draftWith ?? "" },
+    { enabled: draftWith !== null, retry: false },
+  );
+  const startDirect = api.chat.getOrCreateDirect.useMutation();
+  const sendFirstMessage = api.chat.sendMessage.useMutation();
+  const isStartingDraft = startDirect.isPending || sendFirstMessage.isPending;
+
+  // `?with=` opens the existing direct conversation when the loaded list has one, else a draft. Reads only.
+  useEffect(() => {
+    if (!withUserId || !currentUserId || isLoadingConversations) return;
+    if (consumedWithRef.current === withUserId) return;
+    consumedWithRef.current = withUserId;
+
+    const existing = findDirectConversationWith(
+      conversations,
+      withUserId,
+      currentUserId,
+    );
+    shouldStickToBottomRef.current = true;
+    pendingScrollRestoreRef.current = null;
+    setMessageInput("");
+    setSendError(null);
+    setMessagePageError(null);
+    setDraftWith(existing ? null : withUserId);
+    setSelectedChatId(existing?.id ?? null);
+  }, [conversations, currentUserId, isLoadingConversations, withUserId]);
 
   const latestMessage = messages.at(-1);
 
@@ -299,15 +433,48 @@ export default function ChatsPage() {
           ? content
           : `${content}\n${currentDraft}`,
       );
-      setSendError(
-        "Your message was not sent. Check your connection and try again.",
-      );
+      setSendError(MESSAGE_NOT_SENT);
     }
+  }
+
+  /** The draft's first send: get-or-create the DIRECT conversation, then send into it, then open it. */
+  async function handleSendDraft() {
+    const content = messageInput.trim();
+    if (!content || !draftWith || isStartingDraft) return;
+    setSendError(null);
+
+    let conversationId: string;
+    try {
+      // Get-or-create: a conversation the loaded list page missed is reused server-side, not duplicated.
+      conversationId = (
+        await startDirect.mutateAsync({ otherUserId: draftWith })
+      ).id;
+    } catch {
+      setSendError(MESSAGE_NOT_SENT);
+      return;
+    }
+
+    let sent = false;
+    try {
+      await sendFirstMessage.mutateAsync({ conversationId, content });
+      sent = true;
+    } catch {
+      setSendError(MESSAGE_NOT_SENT);
+    }
+    // The conversation exists now either way; open it, keeping unsent words in the box.
+    void utils.chat.getConversations.invalidate();
+    shouldStickToBottomRef.current = true;
+    pendingScrollRestoreRef.current = null;
+    setDraftWith(null);
+    setSelectedChatId(conversationId);
+    if (sent) setMessageInput("");
   }
 
   function handleInputChange(value: string) {
     setMessageInput(value);
     setSendError(null);
+    // A draft has no conversation to be typing in.
+    if (!selectedChatId) return;
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -373,11 +540,15 @@ export default function ChatsPage() {
   function selectConversation(conversationId: string) {
     shouldStickToBottomRef.current = true;
     pendingScrollRestoreRef.current = null;
+    setDraftWith(null);
     setSelectedChatId(conversationId);
     setMessageInput("");
     setSendError(null);
     setMessagePageError(null);
   }
+
+  const isConversationOpen = selectedChatId !== null || draftWith !== null;
+  const draftName = draftRecipient.data?.name?.trim() || "Unnamed member";
 
   return (
     <div className="bg-background h-[calc(100dvh-4rem)] min-h-0 overflow-hidden">
@@ -386,7 +557,7 @@ export default function ChatsPage() {
           aria-label="Conversations"
           className={cn(
             "border-border bg-card min-h-0 flex-col border-r-2 md:flex md:w-[22rem] md:shrink-0",
-            selectedChatId ? "hidden" : "flex w-full",
+            isConversationOpen ? "hidden" : "flex w-full",
           )}
         >
           <header className="border-border shrink-0 border-b-2 p-4">
@@ -617,10 +788,98 @@ export default function ChatsPage() {
           aria-label="Conversation"
           className={cn(
             "bg-background min-h-0 min-w-0 flex-1 flex-col md:flex",
-            selectedChatId ? "flex" : "hidden",
+            isConversationOpen ? "flex" : "hidden",
           )}
         >
-          {!selectedChatId ? (
+          {draftWith ? (
+            draftRecipient.isLoading ? (
+              <div
+                className="flex h-full items-center justify-center"
+                role="status"
+              >
+                <Loader2
+                  className="text-primary size-7 animate-spin"
+                  aria-hidden="true"
+                />
+                <span className="sr-only">Loading</span>
+              </div>
+            ) : !draftRecipient.data ? (
+              <div className="flex h-full items-center justify-center p-6">
+                <div
+                  className="border-destructive bg-card max-w-sm border-2 p-6"
+                  role="alert"
+                >
+                  <h2 className="text-foreground font-black">
+                    Person didn&apos;t load.
+                  </h2>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => void draftRecipient.refetch()}
+                    >
+                      Try again
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setDraftWith(null)}
+                    >
+                      <ArrowLeft className="size-4" aria-hidden="true" />
+                      Back to chats
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <header className="border-border bg-card flex shrink-0 items-center gap-3 border-b-2 p-3 sm:p-4">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="md:hidden"
+                    aria-label="Back to conversations"
+                    onClick={() => setDraftWith(null)}
+                  >
+                    <ArrowLeft className="size-5" aria-hidden="true" />
+                  </Button>
+                  <Link
+                    href={feedRoutes.person(draftWith)}
+                    className="focus-visible:ring-primary flex min-w-0 items-center gap-3 outline-none focus-visible:ring-2"
+                  >
+                    <Avatar className="size-9">
+                      <AvatarImage
+                        src={draftRecipient.data.image ?? undefined}
+                        alt=""
+                      />
+                      <AvatarFallback className="border-border bg-secondary text-foreground border">
+                        {draftName.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <h2 className="text-foreground hover:text-primary truncate font-black">
+                        {draftWith === currentUserId
+                          ? `${draftName} (you)`
+                          : draftName}
+                      </h2>
+                      <p className="text-muted-foreground text-xs">
+                        Starts when you send
+                      </p>
+                    </div>
+                  </Link>
+                </header>
+                <div className="min-h-0 flex-1" />
+                <MessageForm
+                  value={messageInput}
+                  onChange={handleInputChange}
+                  onSend={() => void handleSendDraft()}
+                  sending={isStartingDraft}
+                  disabled={false}
+                  error={sendError}
+                />
+              </>
+            )
+          ) : !selectedChatId ? (
             <div className="flex h-full items-center justify-center p-8">
               <div className="border-border bg-card max-w-md border-2 p-8">
                 <h2 className="text-foreground text-2xl font-black">
@@ -956,74 +1215,14 @@ export default function ChatsPage() {
                 )}
               </div>
 
-              <footer className="border-border bg-card shrink-0 border-t-2 p-3 sm:p-4">
-                <form
-                  className="mx-auto flex max-w-4xl items-end gap-2"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void handleSendMessage();
-                  }}
-                >
-                  <label className="min-w-0 flex-1">
-                    <span className="sr-only">Message</span>
-                    <textarea
-                      value={messageInput}
-                      rows={1}
-                      maxLength={10_000}
-                      disabled={Boolean(messagesError || conversationError)}
-                      aria-describedby={
-                        sendError ? "chat-send-error" : undefined
-                      }
-                      onChange={(event) =>
-                        handleInputChange(event.target.value)
-                      }
-                      onKeyDown={(event) => {
-                        if (
-                          event.key === "Enter" &&
-                          !event.shiftKey &&
-                          !event.nativeEvent.isComposing
-                        ) {
-                          event.preventDefault();
-                          void handleSendMessage();
-                        }
-                      }}
-                      placeholder="Write a useful message…"
-                      className="border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary block max-h-32 min-h-11 w-full resize-y border-2 px-3 py-2.5 text-sm outline-none"
-                    />
-                  </label>
-                  <Button
-                    type="submit"
-                    size="icon"
-                    aria-label="Send message"
-                    disabled={
-                      !messageInput.trim() ||
-                      isSending ||
-                      Boolean(messagesError || conversationError)
-                    }
-                  >
-                    {isSending ? (
-                      <Loader2
-                        className="size-4 animate-spin"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <Send className="size-4" aria-hidden="true" />
-                    )}
-                  </Button>
-                </form>
-                {sendError && (
-                  <p
-                    id="chat-send-error"
-                    className="text-destructive mx-auto mt-2 max-w-4xl text-sm"
-                    role="alert"
-                  >
-                    {sendError}
-                  </p>
-                )}
-                <p className="text-muted-foreground mx-auto mt-2 max-w-4xl text-xs">
-                  Enter to send · Shift + Enter for a new line
-                </p>
-              </footer>
+              <MessageForm
+                value={messageInput}
+                onChange={handleInputChange}
+                onSend={() => void handleSendMessage()}
+                sending={isSending}
+                disabled={Boolean(messagesError || conversationError)}
+                error={sendError}
+              />
             </>
           )}
         </section>

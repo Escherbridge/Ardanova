@@ -2,10 +2,13 @@
 
 import { describeMutationError } from "~/components/ui/query-error-copy";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { api, type RouterInputs, type RouterOutputs } from "~/trpc/react";
 import { toast } from "sonner";
+import { FieldNoteComposer } from "~/components/feed/field-note-composer";
+import { feedRoutes } from "~/lib/feed/routes";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +31,7 @@ import {
   MessageSquare,
   Clock,
   Coins,
+  HandHelping,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -355,9 +359,7 @@ function CommentSection({
           className="border-destructive/40 bg-destructive/5 space-y-2 border p-3"
           role="alert"
         >
-          <p className="text-destructive text-xs">
-            Comments didn&apos;t load.
-          </p>
+          <p className="text-destructive text-xs">Comments didn&apos;t load.</p>
           <Button
             type="button"
             size="sm"
@@ -442,6 +444,112 @@ function CommentSection({
 }
 
 // ---------------------------------------------------------------------------
+// Ask for help (HELP_WANTED via the composer; see src/app/tasks/AGENTS.md §Ask for help)
+// ---------------------------------------------------------------------------
+
+type SessionViewer = {
+  id: string;
+  name?: string | null;
+  image?: string | null;
+};
+
+/** Escape belongs to an open suggestion list (a field driving it through aria-activedescendant), not the dialog. */
+function escapeBelongsToSuggestionList(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    target.getAttribute("aria-autocomplete") === "list" &&
+    Boolean(target.getAttribute("aria-activedescendant"))
+  );
+}
+
+/** The composer's own askable rule: nobody holds the task and it is not done. */
+function isAskable(task: ProjectTask): boolean {
+  return !task.assignedToId && task.status !== "COMPLETED";
+}
+
+function AskForHelp({
+  task,
+  projectId,
+  viewer,
+}: {
+  task: ProjectTask;
+  projectId: string;
+  viewer: SessionViewer | null;
+}) {
+  const [stage, setStage] = useState<"idle" | "composing" | "asked">("idle");
+  const composerRef = useRef<HTMLDivElement>(null);
+  const viewerId = viewer?.id;
+  const askedBySomeoneElse =
+    task.helpWanted != null && task.helpWanted.askerId !== viewerId;
+  // Only the API's members may ask; the project page reads the same two queries, so this is usually cached.
+  const needsMembership =
+    Boolean(viewerId) && isAskable(task) && !askedBySomeoneElse;
+  const project = api.project.getById.useQuery(
+    { id: projectId },
+    { enabled: needsMembership },
+  );
+  const members = api.project.getMembers.useQuery(
+    { projectId },
+    { enabled: needsMembership },
+  );
+  const isMember =
+    Boolean(viewerId) &&
+    (project.data?.createdById === viewerId ||
+      Boolean(members.data?.some((member) => member.userId === viewerId)));
+
+  useEffect(() => {
+    if (stage === "composing") {
+      composerRef.current?.querySelector("textarea")?.focus();
+    }
+  }, [stage]);
+
+  if (!isAskable(task)) return null;
+  if (askedBySomeoneElse) {
+    return (
+      <p className="text-muted-foreground font-mono text-[11px] font-semibold tracking-[0.08em] uppercase">
+        Asked by {task.helpWanted?.askerName?.trim() || "someone"}
+      </p>
+    );
+  }
+  if (!viewer || !isMember) return null;
+
+  return (
+    <div aria-live="polite">
+      {stage === "idle" ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11"
+          onClick={() => setStage("composing")}
+        >
+          <HandHelping className="h-4 w-4" aria-hidden="true" />
+          Ask for help
+        </Button>
+      ) : stage === "composing" ? (
+        <div ref={composerRef}>
+          <FieldNoteComposer
+            projectId={projectId}
+            taskId={task.id}
+            author={viewer}
+            onPosted={() => setStage("asked")}
+          />
+        </div>
+      ) : (
+        <p className="flex flex-wrap items-center gap-3 text-sm">
+          Asked.
+          <Link
+            href={feedRoutes.task(task.id)}
+            className="text-foreground font-medium underline underline-offset-4"
+          >
+            Open task
+          </Link>
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Detail Modal
 // ---------------------------------------------------------------------------
 
@@ -474,10 +582,26 @@ export default function WorkItemDetailModal({
 
   const colorClass = LEVEL_COLORS[level];
   const label = LEVEL_LABELS[level];
+  const { data: session } = useSession();
+  const viewer = session?.user?.id
+    ? {
+        id: session.user.id,
+        name: session.user.name ?? null,
+        image: session.user.image ?? null,
+      }
+    : null;
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-lg overflow-y-auto">
+      <DialogContent
+        className="max-h-[calc(100dvh-2rem)] max-w-lg overflow-y-auto"
+        // Radix hears Escape on document (capture) before the composer's field; an open # list keeps it.
+        onEscapeKeyDown={(event) => {
+          if (escapeBelongsToSuggestionList(event.target)) {
+            event.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <div className="flex items-center gap-2">
             <WorkItemLevelIcon
@@ -621,6 +745,16 @@ export default function WorkItemDetailModal({
             <p className="text-muted-foreground mt-1 text-xs whitespace-pre-wrap">
               {acceptanceCriteria}
             </p>
+          </div>
+        )}
+
+        {selection.level === "task" && (
+          <div className="border-border border-t pt-3 empty:hidden">
+            <AskForHelp
+              task={selection.item}
+              projectId={projectId}
+              viewer={viewer}
+            />
           </div>
         )}
 
