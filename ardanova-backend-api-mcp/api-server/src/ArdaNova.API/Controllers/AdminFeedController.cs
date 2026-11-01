@@ -18,43 +18,60 @@ public sealed class AdminFeedController : ControllerBase
     public const int PreviewLimit = 100;
 
     private readonly FeedProjectorCycle _projector;
+    private readonly FeedQualityPass _quality;
     private readonly ILogger<AdminFeedController> _logger;
 
-    public AdminFeedController(FeedProjectorCycle projector, ILogger<AdminFeedController> logger)
+    public AdminFeedController(FeedProjectorCycle projector, FeedQualityPass quality, ILogger<AdminFeedController> logger)
     {
         _projector = projector;
+        _quality = quality;
         _logger = logger;
     }
 
     /// <summary>Projects every feedable row ever written. A dry run is the default; only dryRun=false writes.</summary>
+    /// <remarks>Idempotent: an envelope already projected is counted as such (the unique index), never doubled.
+    /// An executed backfill then re-scores every post, so freshly projected cards rank on real signals.</remarks>
     [HttpPost("backfill")]
     public async Task<IActionResult> Backfill([FromQuery] bool dryRun = true, CancellationToken ct = default)
     {
+        // The signed operator is recorded before anything runs, so even a refused or failing run has an author.
+        _logger.LogWarning(
+            "Feed backfill ({Mode}) requested by operator {OperatorActorId}.",
+            dryRun ? "dry run" : "execute",
+            ActorId);
+
         var run = await _projector.BackfillAsync(dryRun, ct);
         if (run.Outcome == FeedProjectorOutcome.RunnerBusy)
             return Conflict(new { error = "The feed projector is in the middle of a cycle; try again in a few seconds." });
 
+        FeedQualityRun? scored = null;
         if (!run.DryRun)
         {
+            scored = await _quality.RunAsync(ct);
             _logger.LogWarning(
-                "Feed backfill run by operator {OperatorActorId}: {Projected} projected, {Removed} removed, {Resynced} re-audienced from {Examined} source rows; {SourceReadsFailed} source reads and {CardsFailed} cards failed.",
+                "Feed backfill run by operator {OperatorActorId}: {Projected} projected, {Removed} removed, {Retracted} retracted, {Restored} restored, {Resynced} re-audienced, {Retagged} re-tagged from {Examined} source rows; {SourceReadsFailed} source reads and {CardsFailed} cards failed; {Rescored} posts re-scored.",
                 ActorId,
                 run.Projected,
                 run.Removed,
+                run.Retracted,
+                run.Restored,
                 run.Resynced,
+                run.Retagged,
                 run.SourcesExamined,
                 run.SourceReadsFailed,
-                run.CardsFailed);
+                run.CardsFailed,
+                scored.Updated);
         }
 
-        return Ok(FeedBackfillResponse.From(run, PreviewLimit));
+        return Ok(FeedBackfillResponse.From(run, PreviewLimit, scored));
     }
 
     private string? ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 }
 
 /// <summary>A backfill result. For a dry run the counts say what WOULD change and Preview lists the first envelopes.</summary>
-/// <remarks>Non-zero SourceReadsFailed / CardsFailed means the pass skipped part of the work; the logs name what.</remarks>
+/// <remarks>Non-zero SourceReadsFailed / CardsFailed means the pass skipped part of the work; the logs name what.
+/// ProjectedBySourceType is per source table (PROJECT_MEMBER and GUILD_MEMBER both make MEMBER_JOINED cards).</remarks>
 public sealed record FeedBackfillResponse(
     bool DryRun,
     int SourcesExamined,
@@ -62,24 +79,36 @@ public sealed record FeedBackfillResponse(
     int AlreadyProjected,
     int TargetsGone,
     int Removed,
+    int Retracted,
+    int Restored,
     int Resynced,
+    int Retagged,
     int SourceReadsFailed,
     int CardsFailed,
+    int? Rescored,
     IReadOnlyDictionary<string, int> ProjectedByType,
+    IReadOnlyDictionary<string, int> ProjectedBySourceType,
     IReadOnlyList<FeedEnvelopePreview> Preview)
 {
-    public static FeedBackfillResponse From(FeedProjectorRun run, int previewLimit) => new(
+    public static FeedBackfillResponse From(FeedProjectorRun run, int previewLimit, FeedQualityRun? scored = null) => new(
         run.DryRun,
         run.SourcesExamined,
         run.Projected,
         run.AlreadyProjected,
         run.TargetsGone,
         run.Removed,
+        run.Retracted,
+        run.Restored,
         run.Resynced,
+        run.Retagged,
         run.SourceReadsFailed,
         run.CardsFailed,
+        scored?.Outcome == FeedProjectorOutcome.Completed ? scored.Updated : null,
         run.PendingEnvelopes
             .GroupBy(envelope => envelope.Type.ToString())
+            .ToDictionary(group => group.Key, group => group.Count()),
+        run.PendingEnvelopes
+            .GroupBy(envelope => envelope.Key.SourceType.ToString())
             .ToDictionary(group => group.Key, group => group.Count()),
         run.PendingEnvelopes
             .Take(previewLimit)

@@ -239,7 +239,7 @@ public sealed class FeedProjectorFlowTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task AnOpportunityMovedBackToDraftDaysAfterItsCardWasProjected_IsRemovedByTheFullSweep()
+    public async Task AnOpportunityMovedBackToDraftDaysAfterItsCardWasProjected_IsRetractedByTheFullSweep_NotDeleted()
     {
         string opportunityId;
         await using (var context = NewContext())
@@ -266,15 +266,20 @@ public sealed class FeedProjectorFlowTests : IAsyncLifetime
             Succeeded(await Opportunities(context).UpdateAsync(
                 opportunityId, new UpdateOpportunityDto { Status = OpportunityStatus.DRAFT }));
 
-        (await RunCycleAsync()).Removed.Should().Be(
+        (await RunCycleAsync()).Retracted.Should().Be(
             0, "the status flip is outside both the look-back and the old time-filtered sweep");
 
-        (await RunCycleAsync(sweep: true)).Removed.Should().Be(1);
-        (await EnvelopesAsync()).Should().NotContain(row => row.sourceId == opportunityId);
+        var swept = await RunCycleAsync(sweep: true);
+        swept.Retracted.Should().Be(1);
+        swept.Removed.Should().Be(0, "the opportunity still exists: its card is withdrawn, not deleted");
+        var card = (await EnvelopesAsync()).Single(row => row.sourceId == opportunityId);
+        card.retractedAt.Should().NotBeNull();
+        (await ReadAsAsync(card.id, Founder)).Type.Should().Be(
+            ResultType.NotFound, "a retracted card is readable by nobody, its author included");
     }
 
     [PostgresFact]
-    public async Task AnEventMadeInviteOnlyDaysAfterItsCardWasProjected_IsRemovedByTheFullSweep()
+    public async Task AnEventMadeInviteOnlyDaysAfterItsCardWasProjected_IsRetractedByTheFullSweep_NotDeleted()
     {
         var eventId = await ScheduleEventAsync("Open day", EventVisibility.PUBLIC);
         await RunCycleAsync();
@@ -284,11 +289,15 @@ public sealed class FeedProjectorFlowTests : IAsyncLifetime
         await using (var context = NewContext())
             Succeeded(await Events(context).UpdateAsync(eventId, new UpdateEventDto { Visibility = EventVisibility.INVITE_ONLY }));
 
-        (await RunCycleAsync()).Removed.Should().Be(
+        (await RunCycleAsync()).Retracted.Should().Be(
             0, "the visibility flip is outside both the look-back and the old time-filtered sweep");
 
-        (await RunCycleAsync(sweep: true)).Removed.Should().Be(1);
-        (await EnvelopesAsync()).Should().NotContain(row => row.sourceId == eventId);
+        var swept = await RunCycleAsync(sweep: true);
+        swept.Retracted.Should().Be(1);
+        swept.Removed.Should().Be(0);
+        var card = (await EnvelopesAsync()).Single(row => row.sourceId == eventId);
+        card.retractedAt.Should().NotBeNull();
+        (await ReadAsAsync(card.id, Stranger)).Type.Should().Be(ResultType.NotFound);
     }
 
     [PostgresFact]
@@ -459,8 +468,9 @@ public sealed class FeedProjectorFlowTests : IAsyncLifetime
         await using (var context = NewContext())
             Succeeded(await Events(context).UpdateAsync(openDayId, new UpdateEventDto { Visibility = EventVisibility.INVITE_ONLY }));
 
-        (await RunCycleAsync()).Removed.Should().Be(1, "the change bumped the event inside the window; no sweep needed");
-        (await EnvelopesAsync()).Should().NotContain(row => row.sourceType == FeedSourceType.EVENT);
+        (await RunCycleAsync()).Retracted.Should().Be(1, "the change bumped the event inside the window; no sweep needed");
+        (await EnvelopesAsync()).Single(row => row.sourceType == FeedSourceType.EVENT).retractedAt.Should().NotBeNull();
+        (await ReadAsAsync(card.id, Stranger)).Type.Should().Be(ResultType.NotFound);
     }
 
     [PostgresTheory]

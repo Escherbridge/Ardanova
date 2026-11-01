@@ -34,28 +34,63 @@ public sealed class FeedProjectorHostedService : BackgroundService
         using var timer = new PeriodicTimer(_options.Interval);
         // Null so the first cycle after a start sweeps: deletions made while the API was down are caught at once.
         DateTimeOffset? lastSweptAt = null;
+        DateTimeOffset? lastScoredAt = null;
         do
         {
             try
             {
                 var sweepDue = lastSweptAt is not { } swept || _clock.GetUtcNow() - swept >= _options.SweepInterval;
-                await using var scope = _scopeFactory.CreateAsyncScope();
-                var cycle = scope.ServiceProvider.GetRequiredService<FeedProjectorCycle>();
-                var run = await cycle.RunAsync(sweepDue, _watermark, stoppingToken);
-                if (run.Swept)
-                    lastSweptAt = _clock.GetUtcNow();
-                if (run.ChangedAnything || run.TargetsGone > 0 || run.HadFailures)
+                await using (var scope = _scopeFactory.CreateAsyncScope())
                 {
-                    _logger.Log(
-                        run.HadFailures ? LogLevel.Warning : LogLevel.Information,
-                        "Feed projector: {Projected} projected, {Removed} removed, {Resynced} re-audienced, {TargetsGone} skipped (target gone), {SourceReadsFailed} source reads and {CardsFailed} cards failed, from {Examined} source rows.",
-                        run.Projected,
-                        run.Removed,
-                        run.Resynced,
-                        run.TargetsGone,
-                        run.SourceReadsFailed,
-                        run.CardsFailed,
-                        run.SourcesExamined);
+                    var cycle = scope.ServiceProvider.GetRequiredService<FeedProjectorCycle>();
+                    var run = await cycle.RunAsync(sweepDue, _watermark, stoppingToken);
+                    if (run.Swept)
+                        lastSweptAt = _clock.GetUtcNow();
+                    if (run.ChangedAnything || run.TargetsGone > 0 || run.HadFailures)
+                    {
+                        _logger.Log(
+                            run.HadFailures ? LogLevel.Warning : LogLevel.Information,
+                            "Feed projector: {Projected} projected, {Removed} removed, {Retracted} retracted, {Restored} restored, {Resynced} re-audienced, {Retagged} re-tagged, {TargetsGone} skipped (target gone), {SourceReadsFailed} source reads and {CardsFailed} cards failed, from {Examined} source rows.",
+                            run.Projected,
+                            run.Removed,
+                            run.Retracted,
+                            run.Restored,
+                            run.Resynced,
+                            run.Retagged,
+                            run.TargetsGone,
+                            run.SourceReadsFailed,
+                            run.CardsFailed,
+                            run.SourcesExamined);
+                    }
+                }
+
+                if (lastScoredAt is not { } scored || _clock.GetUtcNow() - scored >= _options.ScoreInterval)
+                {
+                    try
+                    {
+                        // Its own scope (and connection): the quality pass takes the runner lock the cycle just released.
+                        await using var scoring = _scopeFactory.CreateAsyncScope();
+                        var quality = await scoring.ServiceProvider.GetRequiredService<FeedQualityPass>().RunAsync(stoppingToken);
+                        if (quality.Outcome == FeedProjectorOutcome.Completed)
+                        {
+                            lastScoredAt = _clock.GetUtcNow();
+                            if (quality.Updated > 0 || quality.Failed > 0)
+                            {
+                                _logger.Log(
+                                    quality.Failed > 0 ? LogLevel.Warning : LogLevel.Information,
+                                    "Feed quality: {Updated} of {Examined} posts re-scored, {Failed} failed.",
+                                    quality.Updated,
+                                    quality.Examined,
+                                    quality.Failed);
+                            }
+                        }
+                    }
+                    catch (Exception failure) when (!stoppingToken.IsCancellationRequested)
+                    {
+                        // A failing pass waits for its next interval rather than re-reading every post every tick.
+                        lastScoredAt = _clock.GetUtcNow();
+                        _logger.LogError(failure, "The feed quality pass failed; it will retry after {Interval}.", _options.ScoreInterval);
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -114,7 +149,9 @@ public static class FeedProjectorRegistration
         services.AddSingleton(options);
         services.AddScoped<IFeedSourceReader, FeedSourceReader>();
         services.AddScoped<IFeedEnvelopeStore, FeedEnvelopeStore>();
+        services.AddScoped<IFeedReadStore, FeedReadStore>();
         services.AddScoped<FeedProjectorCycle>();
+        services.AddScoped<FeedQualityPass>();
         if (options.Enabled)
             services.AddHostedService<FeedProjectorHostedService>();
 

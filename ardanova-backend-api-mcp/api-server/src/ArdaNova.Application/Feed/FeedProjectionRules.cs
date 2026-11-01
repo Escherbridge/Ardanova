@@ -17,6 +17,7 @@ public sealed record FeedEnvelopeTargets(
     string? EventId = null);
 
 /// <summary>An envelope the rules want to exist, before it is a Post row.</summary>
+/// <param name="Hashtags">Extracted from the source's copy (<see cref="FeedSource.Copy"/>); see Feed/AGENTS.md §Hashtags.</param>
 public sealed record FeedEnvelope(
     PostType Type,
     FeedSourceKey Key,
@@ -26,19 +27,29 @@ public sealed record FeedEnvelope(
     string? Title,
     string Content,
     string? Metadata,
-    FeedEnvelopeTargets Targets);
+    FeedEnvelopeTargets Targets,
+    IReadOnlyList<string>? Hashtags = null);
 
 /// <summary>An envelope already stored, as far as the projector needs to judge it.</summary>
+/// <param name="RetractedAt">Set while the source exists but no longer earns a card; see Feed/AGENTS.md §Retraction.</param>
 public sealed record StoredFeedEnvelope(
     string Id,
     FeedSourceKey Key,
     PostVisibility Visibility,
-    FeedEnvelopeTargets Targets);
+    FeedEnvelopeTargets Targets,
+    DateTime? RetractedAt = null,
+    IReadOnlyList<string>? Hashtags = null);
 
 /// <summary>A feedable source row, as the facts the rules read; one sealed record per FeedSourceType.</summary>
 public abstract record FeedSource(string Id)
 {
     public abstract FeedSourceType Kind { get; }
+
+    /// <summary>All the source's own words (title, description, body) that hashtags are read from.</summary>
+    public string? Copy { get; init; }
+
+    /// <summary>The words a person wrote that the card shows as its main copy (updates, comments); null otherwise.</summary>
+    public string? Body { get; init; }
 }
 
 public sealed record ProjectLaunchSource(string Id, string Title, string OwnerId, DateTime? PublishedAt)
@@ -235,7 +246,8 @@ public static class FeedProjectionRules
                 funding.ProjectTitle,
                 FeedEnvelopeCopy.FundingProgress(percent),
                 JsonSerializer.Serialize(new { percent }),
-                TargetsOf(funding))
+                TargetsOf(funding),
+                HashtagsOf(funding))
             : null,
 
         ProjectMemberSource member => member.UserId == member.ProjectOwnerId
@@ -326,6 +338,9 @@ public static class FeedProjectionRules
         EventSource evt => new(evt.ProjectId, evt.GuildId, EventId: evt.Id),
         _ => throw new ArgumentOutOfRangeException(nameof(source), source.Kind, "No feed targets for this source."),
     };
+
+    /// <summary>The tags a source's card carries: read from its own copy, so an edit re-tags the card.</summary>
+    public static string[] HashtagsOf(FeedSource source) => Hashtags.Extract(source.Copy);
 
     /// <summary>
     /// The stored envelopes of one kind among <paramref name="sourceIds"/>. An equality on sourceType (never
@@ -419,6 +434,7 @@ public static class FeedProjectionRules
         metadata = envelope.Metadata,
         sourceType = envelope.Key.SourceType,
         sourceId = envelope.Key.SourceId,
+        hashtags = envelope.Hashtags?.ToArray() ?? [],
         likesCount = 0,
         commentsCount = 0,
         sharesCount = 0,
@@ -459,5 +475,5 @@ public static class FeedProjectionRules
         string content,
         string? metadata)
         => new(type, new FeedSourceKey(source.Kind, source.Id), visibility, authorId, occurredAt, title, content,
-            metadata, TargetsOf(source));
+            metadata, TargetsOf(source), HashtagsOf(source));
 }

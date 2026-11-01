@@ -40,23 +40,36 @@ public sealed class FeedSourceReader : IFeedSourceReader
             FeedSourceType.PROJECT => Read(
                 Within(_context.Projects, scope, p => ids.Contains(p.id),
                     p => p.publishedAt >= since || p.updatedAt >= since),
-                p => new ProjectLaunchSource(p.id, p.title, p.createdById, p.publishedAt), ct),
+                p => new ProjectLaunchSource(p.id, p.title, p.createdById, p.publishedAt)
+                {
+                    Copy = p.title + "\n" + (p.summary ?? "") + "\n" + p.description,
+                }, ct),
 
             FeedSourceType.PROJECT_UPDATE => Read(
                 Within(_context.ProjectUpdates, scope, u => ids.Contains(u.id), u => u.createdAt >= since),
-                u => new ProjectUpdateSource(u.id, u.projectId, u.userId, u.title, u.createdAt), ct),
+                u => new ProjectUpdateSource(u.id, u.projectId, u.userId, u.title, u.createdAt)
+                {
+                    Copy = u.title + "\n" + u.content,
+                    Body = u.content,
+                }, ct),
 
             FeedSourceType.PROJECT_MILESTONE => Read(
                 Within(_context.ProjectMilestones, scope, m => ids.Contains(m.id),
                     m => m.completedAt >= since || m.updatedAt >= since),
                 m => new ProjectMilestoneSource(m.id, m.projectId, m.Project!.createdById, m.title, m.completedAt,
-                    m.assigneeId), ct),
+                    m.assigneeId)
+                {
+                    Copy = m.title + "\n" + (m.description ?? ""),
+                }, ct),
 
             FeedSourceType.PROJECT_TASK => Read(
                 Within(_context.ProjectTasks, scope, t => ids.Contains(t.id),
                     t => t.completedAt >= since || t.updatedAt >= since),
                 t => new ProjectTaskSource(t.id, t.projectId, t.Project!.createdById, t.title, t.completedAt,
-                    t.assignedToId), ct),
+                    t.assignedToId)
+                {
+                    Copy = t.title + "\n" + (t.description ?? ""),
+                }, ct),
 
             FeedSourceType.PROJECT_TOKEN_CONFIG => Read(
                 Within(_context.ProjectTokenConfigs, scope, c => ids.Contains(c.id), c => c.updatedAt >= since),
@@ -71,15 +84,26 @@ public sealed class FeedSourceReader : IFeedSourceReader
             FeedSourceType.PROJECT_COMMENT => Read(
                 Within(_context.ProjectComments, scope, c => ids.Contains(c.id), c => c.createdAt >= since),
                 c => new ProjectCommentSource(c.id, c.projectId, c.userId, c.parentId, c.targetType, c.targetId,
-                    c.createdAt), ct),
+                    c.createdAt)
+                {
+                    Copy = c.content,
+                    Body = c.content,
+                }, ct),
 
             FeedSourceType.GUILD => Read(
                 Within(_context.Guilds, scope, g => ids.Contains(g.id), g => g.createdAt >= since),
-                g => new GuildFoundedSource(g.id, g.name, g.ownerId, g.createdAt), ct),
+                g => new GuildFoundedSource(g.id, g.name, g.ownerId, g.createdAt)
+                {
+                    Copy = g.name + "\n" + g.description,
+                }, ct),
 
             FeedSourceType.GUILD_UPDATE => Read(
                 Within(_context.GuildUpdates, scope, u => ids.Contains(u.id), u => u.createdAt >= since),
-                u => new GuildUpdateSource(u.id, u.guildId, u.createdById, u.title, u.createdAt), ct),
+                u => new GuildUpdateSource(u.id, u.guildId, u.createdById, u.title, u.createdAt)
+                {
+                    Copy = u.title + "\n" + u.content,
+                    Body = u.content,
+                }, ct),
 
             FeedSourceType.GUILD_MEMBER => Read(
                 Within(_context.GuildMembers, scope, m => ids.Contains(m.id), m => m.joinedAt >= since),
@@ -87,7 +111,10 @@ public sealed class FeedSourceReader : IFeedSourceReader
 
             FeedSourceType.OPPORTUNITY => Read(
                 Within(_context.Opportunities, scope, o => ids.Contains(o.id), o => o.updatedAt >= since),
-                o => new OpportunitySource(o.id, o.title, o.posterId, o.status, o.projectId, o.guildId, o.updatedAt), ct),
+                o => new OpportunitySource(o.id, o.title, o.posterId, o.status, o.projectId, o.guildId, o.updatedAt)
+                {
+                    Copy = o.title + "\n" + o.description,
+                }, ct),
 
             // The parent's timestamp is read too: opening (or re-drafting) an opportunity changes whether
             // its existing updates and comments may be in the feed.
@@ -95,18 +122,29 @@ public sealed class FeedSourceReader : IFeedSourceReader
                 Within(_context.OpportunityUpdates, scope, u => ids.Contains(u.id),
                     u => u.createdAt >= since || u.Opportunity!.updatedAt >= since),
                 u => new OpportunityUpdateSource(u.id, u.opportunityId, u.userId, u.title, u.createdAt,
-                    u.Opportunity!.status, u.Opportunity.projectId, u.Opportunity.guildId), ct),
+                    u.Opportunity!.status, u.Opportunity.projectId, u.Opportunity.guildId)
+                {
+                    Copy = u.title + "\n" + u.content,
+                    Body = u.content,
+                }, ct),
 
             FeedSourceType.OPPORTUNITY_COMMENT => Read(
                 Within(_context.OpportunityComments, scope, c => ids.Contains(c.id),
                     c => c.createdAt >= since || c.Opportunity!.updatedAt >= since),
                 c => new OpportunityCommentSource(c.id, c.opportunityId, c.userId, c.parentId, c.createdAt,
-                    c.Opportunity!.status, c.Opportunity.projectId, c.Opportunity.guildId), ct),
+                    c.Opportunity!.status, c.Opportunity.projectId, c.Opportunity.guildId)
+                {
+                    Copy = c.content,
+                    Body = c.content,
+                }, ct),
 
             FeedSourceType.EVENT => Read(
                 Within(_context.Events, scope, e => ids.Contains(e.id), e => e.updatedAt >= since),
                 e => new EventSource(e.id, e.title, e.organizerId, e.status, e.visibility, e.projectId, e.guildId,
-                    e.startDate, e.updatedAt), ct),
+                    e.startDate, e.updatedAt)
+                {
+                    Copy = e.title + "\n" + (e.description ?? ""),
+                }, ct),
 
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "No feed source reader for this kind."),
         };

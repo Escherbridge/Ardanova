@@ -55,7 +55,8 @@ public sealed class FeedProjectorCycle
             return new FeedProjectorRun(
                 FeedProjectorOutcome.Completed, true, pass.Sweep, preview.SourcesExamined, preview.Inserts.Count,
                 preview.AlreadyProjected, 0, preview.Removals.Count, preview.Resyncs.Count, preview.Inserts,
-                preview.SourceReadsFailed, preview.CardsFailed);
+                preview.SourceReadsFailed, preview.CardsFailed, preview.Retractions.Count, preview.Restores.Count,
+                preview.Retags.Count);
         }
 
         await using var runnerLock = await _envelopes.TryAcquireRunnerLockAsync(ct);
@@ -261,6 +262,43 @@ public sealed class FeedProjectorCycle
             }
         }
 
+        var retracted = 0;
+        foreach (var batch in plan.Retractions.Chunk(Math.Max(1, _options.SweepBatchSize)))
+        {
+            try
+            {
+                retracted += await _envelopes.RetractAsync(batch, now, ct);
+            }
+            catch (Exception failure) when (!ct.IsCancellationRequested)
+            {
+                _logger.LogWarning(failure, "Feed projector: retracting a batch of {Count} cards failed; retrying one by one.", batch.Length);
+                foreach (var envelopeId in batch)
+                {
+                    try
+                    {
+                        retracted += await _envelopes.RetractAsync([envelopeId], now, ct);
+                    }
+                    catch (Exception single) when (!ct.IsCancellationRequested)
+                    {
+                        CardFailed(plan, single, "retracting", null, envelopeId);
+                    }
+                }
+            }
+        }
+
+        var restored = 0;
+        foreach (var (envelopeId, visibility) in plan.Restores)
+        {
+            try
+            {
+                restored += await _envelopes.RestoreAsync(envelopeId, visibility, now, ct);
+            }
+            catch (Exception failure) when (!ct.IsCancellationRequested)
+            {
+                CardFailed(plan, failure, "restoring", null, envelopeId);
+            }
+        }
+
         var resynced = 0;
         foreach (var (envelopeId, visibility) in plan.Resyncs)
         {
@@ -271,6 +309,19 @@ public sealed class FeedProjectorCycle
             catch (Exception failure) when (!ct.IsCancellationRequested)
             {
                 CardFailed(plan, failure, "re-audiencing", null, envelopeId);
+            }
+        }
+
+        var retagged = 0;
+        foreach (var (envelopeId, hashtags) in plan.Retags)
+        {
+            try
+            {
+                retagged += await _envelopes.SetHashtagsAsync(envelopeId, hashtags, ct);
+            }
+            catch (Exception failure) when (!ct.IsCancellationRequested)
+            {
+                CardFailed(plan, failure, "re-tagging", null, envelopeId);
             }
         }
 
@@ -302,7 +353,7 @@ public sealed class FeedProjectorCycle
 
         return new FeedProjectorRun(
             FeedProjectorOutcome.Completed, false, pass.Sweep, plan.SourcesExamined, projected, alreadyProjected,
-            targetsGone, removed, resynced, [], plan.SourceReadsFailed, plan.CardsFailed);
+            targetsGone, removed, resynced, [], plan.SourceReadsFailed, plan.CardsFailed, retracted, restored, retagged);
     }
 
     /// <summary>The stored envelopes for these keys, one query per kind so each is a seek on (sourceType, sourceId).</summary>
@@ -335,13 +386,17 @@ public sealed class FeedProjectorCycle
                     post.guildId,
                     post.opportunityId,
                     post.eventId,
+                    post.retractedAt,
+                    post.hashtags,
                 })
                 .ToListAsync(ct))
             .Select(row => new StoredFeedEnvelope(
                 row.id,
                 new FeedSourceKey(row.sourceType!.Value, row.sourceId!),
                 row.visibility,
-                new FeedEnvelopeTargets(row.projectId, row.guildId, row.opportunityId, row.eventId)))
+                new FeedEnvelopeTargets(row.projectId, row.guildId, row.opportunityId, row.eventId),
+                row.retractedAt,
+                row.hashtags))
             .ToList();
 
     private void CardFailed(Plan plan, Exception failure, string step, FeedSourceType? kind, string id)
@@ -371,7 +426,10 @@ public sealed class FeedProjectorCycle
         public HashSet<FeedSourceType> KindsRead { get; } = new();
         public List<FeedEnvelope> Inserts { get; } = [];
         public HashSet<string> Removals { get; } = new(StringComparer.Ordinal);
+        public HashSet<string> Retractions { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, PostVisibility> Restores { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, PostVisibility> Resyncs { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, string[]> Retags { get; } = new(StringComparer.Ordinal);
 
         public void Insert(FeedEnvelope envelope)
         {
@@ -379,27 +437,27 @@ public sealed class FeedProjectorCycle
                 Inserts.Add(envelope);
         }
 
+        /// <summary>A removal outranks every other plan for the same card: its source is gone.</summary>
         public void Remove(string envelopeId)
         {
             Removals.Add(envelopeId);
+            Retractions.Remove(envelopeId);
+            Restores.Remove(envelopeId);
             Resyncs.Remove(envelopeId);
+            Retags.Remove(envelopeId);
         }
 
         /// <summary>
-        /// Re-judges a stored card against its source as it is now. True when the card stays (possibly moved to a
-        /// new audience); false when it goes, or is replaced because the rows it points at have changed.
+        /// Re-judges a stored card against its source as it is now. True when the card stays or comes back (possibly
+        /// to a new audience); false when it is withdrawn, or replaced because the rows it points at have changed.
         /// </summary>
+        /// <remarks>See Feed/AGENTS.md §Retraction: a source that still exists never costs its card's engagement.</remarks>
         public bool Judge(StoredFeedEnvelope stored, FeedSource source)
         {
-            var retained = FeedProjectionRules.Retain(source);
-            var targets = FeedProjectionRules.TargetsOf(source);
-            if (retained is not { } visibility)
-            {
-                Remove(stored.Id);
+            if (Removals.Contains(stored.Id))
                 return false;
-            }
 
-            if (stored.Targets != targets)
+            if (stored.Targets != FeedProjectionRules.TargetsOf(source))
             {
                 // The targets gate who may see the card (a draft project hides its cards), so a card pointing at
                 // the old rows is wrong about its audience: replace it, unless the source no longer earns entry.
@@ -410,7 +468,30 @@ public sealed class FeedProjectorCycle
                 return false;
             }
 
-            if (visibility != stored.Visibility && !Removals.Contains(stored.Id))
+            // The card keeps its row whatever happens next, so its tags follow the source's copy.
+            var hashtags = FeedProjectionRules.HashtagsOf(source);
+            if (!(stored.Hashtags ?? []).SequenceEqual(hashtags, StringComparer.Ordinal))
+                Retags[stored.Id] = hashtags;
+
+            if (FeedProjectionRules.Retain(source) is not { } visibility)
+            {
+                // Withdrawn, not gone: keep the row (and everyone's replies and likes) out of every read.
+                Restores.Remove(stored.Id);
+                Resyncs.Remove(stored.Id);
+                if (stored.RetractedAt is null)
+                    Retractions.Add(stored.Id);
+                return false;
+            }
+
+            Retractions.Remove(stored.Id);
+            if (stored.RetractedAt is not null)
+            {
+                // Re-entry restores the SAME row: same id, same createdAt, engagement intact - never a fresh card.
+                Restores[stored.Id] = visibility;
+                return true;
+            }
+
+            if (visibility != stored.Visibility)
                 Resyncs[stored.Id] = visibility;
             return true;
         }

@@ -48,6 +48,7 @@ interface Index {
   unique?: boolean | string;
   pk?: boolean | string;
   name?: string;
+  note?: string;
 }
 
 interface Table {
@@ -81,11 +82,19 @@ interface Schema {
   refs: Ref[];
 }
 
+/** A Postgres array column, written `"text[]"` in DBML; Prisma calls it a scalar list (`String[]`). */
+const isArrayType = (dbmlType: string): boolean => dbmlType.endsWith("[]");
+
 const mapType = (dbmlType: string): string => {
+  if (isArrayType(dbmlType)) return `${mapType(dbmlType.slice(0, -2))}[]`;
   // Strip precision/args from type name: "decimal(18,8)" -> "decimal"
   const baseType = dbmlType.toLowerCase().split("(")[0];
   return TYPE_MAP[baseType] || dbmlType; // Fallback to original (for enums)
 };
+
+/** DBML only knows btree/hash index types, so a GIN index is declared with an index note starting "gin". */
+const isGinIndex = (idx: Index): boolean =>
+  typeof idx.note === "string" && idx.note.trim().toLowerCase().startsWith("gin");
 
 // Default precision for decimal fields when not specified in DBML
 const DEFAULT_DECIMAL_PRECISION: [number, number] = [18, 8];
@@ -213,8 +222,8 @@ datasource db {
       const mappedType = mapType(field.type.type_name);
       let line = `  ${field.name} ${mappedType}`;
 
-      // Nullability
-      if (!field.not_null && !field.pk) {
+      // Nullability (a Prisma scalar list cannot be optional; declare arrays not null with a '{}' default)
+      if (!field.not_null && !field.pk && !isArrayType(field.type.type_name)) {
         line += "?";
       }
 
@@ -223,7 +232,10 @@ datasource db {
       if (field.unique) line += " @unique";
 
       // Default values
-      if (field.dbdefault) {
+      if (field.dbdefault && isArrayType(field.type.type_name)) {
+        // Only the empty-array default is expressible portably; '{}' is Postgres for it.
+        if (field.dbdefault.value.trim() === "{}") line += " @default([])";
+      } else if (field.dbdefault) {
         let def = field.dbdefault.value;
         const defType = field.dbdefault.type;
 
@@ -367,6 +379,8 @@ datasource db {
           output += `  @@unique([${columns}])\n`;
         } else if (idx.pk) {
           output += `  @@id([${columns}])\n`;
+        } else if (isGinIndex(idx)) {
+          output += `  @@index([${columns}], type: Gin)\n`;
         } else {
           output += `  @@index([${columns}])\n`;
         }

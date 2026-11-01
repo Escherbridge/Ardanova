@@ -33,9 +33,34 @@ The rules and the cycle live in `Application/Feed` (see its AGENTS.md). This dir
     Any other failure propagates to the cycle, which counts it as one failed card and carries on.
   - `RemoveAsync`: one transaction - null out reply parents, then delete the envelope's comments, likes,
     bookmarks, shares and media (all RESTRICT FKs to Post), then the envelope. Every statement is scoped
-    by `sourceType IS NOT NULL`, so no id can make it delete a person's post.
+    by `sourceType IS NOT NULL`, so no id can make it delete a person's post. Since Phase 2 it runs only for an
+    envelope whose source row is gone.
+  - `RetractAsync` / `RestoreAsync` / `SetHashtagsAsync`: single `ExecuteUpdate` statements, each scoped by
+    `sourceType IS NOT NULL` like `RemoveAsync`; retract/restore also guard on the current `retractedAt` so a
+    replayed plan writes nothing. None touches `createdAt`. `SetQualityAsync` writes `trendingScore`/`trendingAt`
+    on any post (person posts are ranked too) and leaves `updatedAt` alone: a score is derived state, not an edit.
+- **`FeedSourceReader`** also fills `FeedSource.Copy` (what hashtags are read from) and `Body` (a person's words the
+  card shows: update/comment content). Nullable columns are coalesced in the projection (`summary ?? ""`) because SQL
+  `NULL || text` is NULL.
+- **`FeedReadStore`** (`IFeedReadStore`): the feed read side's non-post reads - the viewer's follows, memberships,
+  engaged tags, project sectors and skills; names for cards and reasons; active taxonomy terms; native-thread reply
+  counts; and the quality pass's signal batches. Data access only: every visibility rule is composed in
+  `Application/Feed/FeedService`.
+  - Engaged tags: three index range reads - `Post(authorId, createdAt)`, `PostLike(userId, createdAt)`,
+    `PostComment(authorId, createdAt)` (the last two come with migration `20261031000000`) - each the viewer's latest
+    200 engagements, merged in memory by when they engaged, top 200, then one read of those posts' tags. The seeks
+    carry NO hashtag filter: a join to `Post` in the seek makes Postgres fetch and sort the viewer's whole history
+    before the LIMIT. So interests come from the latest 200 engagements, tagged or not (untagged ones add nothing).
+    Never one `authorId = v OR EXISTS(like) OR EXISTS(reply)` query: that cannot seek and scans `Post` per page.
+  - Quality signals: `COUNT(DISTINCT userId)` per post over the like / share / bookmark ROWS, joined to `Post` to drop
+    the author's own; repliers as distinct (post, person) pairs across the card and a DISCUSSION card's native
+    thread, author excluded in memory. The raw counters are never read (Application/Feed/AGENTS.md §Quality score).
+    Every grouping is by `postId`, served by `PostLike(postId, userId)` / `PostBookmark(postId, userId)` (unique) and
+    `PostShare(postId)` / `PostComment(postId)` (migration `20261031000000`) - without the last two each 500-post
+    batch of every pass scanned both tables.
 - **`FeedProjectorHostedService`** runs one cycle per fresh scope on `Feed:Projector:IntervalSeconds`;
-  the first cycle after start sweeps, then hourly. It owns the in-memory `FeedProjectorWatermark` (the cycle is
+  the first cycle after start sweeps, then hourly. After the cycle, when `ScoreIntervalMinutes` has elapsed, it runs
+  `FeedQualityPass` in its own scope (its own connection, so it takes the runner lock the cycle just released). It owns the in-memory `FeedProjectorWatermark` (the cycle is
   Scoped and cannot), which is why a restart forgets it - see Application/Feed/AGENTS.md §Windows.
   `AddFeedProjector` registers the timer only when `Feed:Projector:Enabled` is explicitly true; a malformed
   setting registers `FeedProjectorMisconfiguredAlarm` instead (Critical log at host start, timer off, API up).

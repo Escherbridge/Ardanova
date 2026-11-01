@@ -30,6 +30,7 @@ import { TreasuryEndpoint } from "./endpoints/treasury";
 import { ProjectGatesEndpoint } from "./endpoints/project-gates";
 import { ExchangeEndpoint } from "./endpoints/exchange";
 import { PostsEndpoint } from "./endpoints/posts";
+import { FeedEndpoint } from "./endpoints/feed";
 import { NotificationsEndpoint } from "./endpoints/notifications";
 import { ActivitiesEndpoint } from "./endpoints/activities";
 import { WalletsEndpoint } from "./endpoints/wallets";
@@ -268,6 +269,13 @@ export type {
   CreatePostShareDto,
 } from "./endpoints/posts";
 export type {
+  FeedCard,
+  FeedPage,
+  FeedPageParams,
+  FeedPostTypeCode,
+  FeedScope,
+} from "./endpoints/feed";
+export type {
   Notification,
   NotificationSummary,
 } from "./endpoints/notifications";
@@ -370,6 +378,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
   readonly projectGates: ProjectGatesEndpoint;
   readonly exchange: ExchangeEndpoint;
   readonly posts: PostsEndpoint;
+  readonly feed: FeedEndpoint;
   readonly notifications: NotificationsEndpoint;
   readonly activities: ActivitiesEndpoint;
   readonly wallets: WalletsEndpoint;
@@ -412,6 +421,7 @@ export class ArdaNovaApiClient extends BaseApiClient {
     this.projectGates = new ProjectGatesEndpoint(this);
     this.exchange = new ExchangeEndpoint(this);
     this.posts = new PostsEndpoint(this);
+    this.feed = new FeedEndpoint(this);
     this.notifications = new NotificationsEndpoint(this);
     this.activities = new ActivitiesEndpoint(this);
     this.wallets = new WalletsEndpoint(this);
