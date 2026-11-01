@@ -1848,4 +1848,57 @@ export const projectRouter = createTRPCRouter({
 
       return response.data;
     }),
+
+  // ========================================
+  // PROJECT FOLLOW (SR-03 Phase 3 §2, §8-6)
+  // ========================================
+  // Viewer-only: the follower is the signed actor (`protectedProcedure` already runs inside
+  // `runWithActorAssertion`), never a request value. The API alone decides visibility (a hidden
+  // project 404s) and idempotency (following twice is still 200) - this stays a thin proxy.
+
+  /** Follows a project. Idempotent: following an already-followed project still answers 200. */
+  followProject: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .mutation(async ({ input }) => {
+      const response = await apiClient.projects.followProject(input.projectId);
+      if (response.error) {
+        throw new TRPCError({
+          code: response.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
+      }
+      return response.data ?? { projectId: input.projectId, isFollowing: true };
+    }),
+
+  /** Unfollows a project. Idempotent: unfollowing one never followed still answers 200. */
+  unfollowProject: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .mutation(async ({ input }) => {
+      const response = await apiClient.projects.unfollowProject(
+        input.projectId,
+      );
+      if (response.error) {
+        throw new TRPCError({
+          code: response.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
+      }
+      return response.data ?? { projectId: input.projectId, isFollowing: false };
+    }),
+
+  /** The signed-in viewer's own follow state. There is no follower list/count route (plan §8-6). */
+  getMyFollowState: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input }) => {
+      const response = await apiClient.projects.getMyFollowState(
+        input.projectId,
+      );
+      if (response.error) {
+        throw new TRPCError({
+          code: response.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+          message: response.error,
+        });
+      }
+      return response.data ?? { projectId: input.projectId, isFollowing: false };
+    }),
 });

@@ -13,7 +13,8 @@ export type PostType =
   | "TASK_COMPLETED"
   | "MILESTONE"
   | "PROPOSAL"
-  | "SHOP_ITEM";
+  | "SHOP_ITEM"
+  | "HELP_WANTED";
 
 /** Mirrors `ArdaNova.Domain.Models.Enums.PostVisibility` JSON values. */
 export type PostVisibility =
@@ -32,6 +33,8 @@ export interface Post {
   title?: string | null;
   content: string;
   metadata?: string | null;
+  /** Set only on HELP_WANTED: the task this ask is for. `Post.taskId` is `[unique]` (S3). */
+  taskId?: string | null;
   likesCount: number;
   commentsCount: number;
   sharesCount: number;
@@ -54,6 +57,8 @@ export interface CreatePostDto {
   title?: string;
   content: string;
   metadata?: string;
+  /** Required when `type` is `HELP_WANTED`; refused on any other type (plan §2 HELP_WANTED rules). */
+  taskId?: string;
   [key: string]: unknown;
 }
 

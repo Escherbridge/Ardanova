@@ -84,6 +84,7 @@ export type {
   CreateCommentDto,
   ProjectSupport,
   CreateSupportDto,
+  ProjectFollowDto,
 } from "./endpoints/projects";
 export type {
   Guild,
@@ -99,6 +100,7 @@ export type {
 export type {
   Task,
   TaskCommerceView,
+  TaskHelpWanted,
   CreateTaskDto,
   UpdateTaskDto,
   SearchTasksParams,

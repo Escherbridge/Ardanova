@@ -325,6 +325,16 @@ export interface CreateProjectInvitationDto {
   message?: string;
 }
 
+/**
+ * The signed-in viewer's follow relationship to one project. There is deliberately no follower
+ * list/count here (plan §8-6: guild follow's public list and any-user check are flaws Project
+ * follow must not repeat) - `isFollowing` is the only state the card's Follow toggle needs.
+ */
+export interface ProjectFollowDto {
+  projectId: string;
+  isFollowing: boolean;
+}
+
 // ============ Projects Endpoint ============
 
 export class ProjectsEndpoint {
@@ -917,6 +927,32 @@ export class ProjectsEndpoint {
   ): Promise<ApiResponse<ProjectInvitation>> {
     return this.client.post<ProjectInvitation>(
       apiPath`/api/projects/${projectId}/invitations/${invitationId}/reject`,
+    );
+  }
+
+  // ============ Follow Methods ============
+  // Route assumed from Lane L's ProjectFollowService (plan §6 row L); not yet merged at
+  // computed_at_commit 9a40e43. Confirm against ProjectsController.cs at the Phase 3 join.
+  // No `userId`/`followerId` parameter: the follower is the signed actor, same as `posts.like`.
+
+  followProject(projectId: string): Promise<ApiResponse<ProjectFollowDto>> {
+    return this.client.post<ProjectFollowDto>(
+      apiPath`/api/projects/${projectId}/follow`,
+      {},
+    );
+  }
+
+  unfollowProject(projectId: string): Promise<ApiResponse<ProjectFollowDto>> {
+    return this.client.delete<ProjectFollowDto>(
+      apiPath`/api/projects/${projectId}/follow`,
+    );
+  }
+
+  getMyFollowState(
+    projectId: string,
+  ): Promise<ApiResponse<ProjectFollowDto>> {
+    return this.client.get<ProjectFollowDto>(
+      apiPath`/api/projects/${projectId}/follow`,
     );
   }
 }
