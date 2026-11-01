@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+
 import { api } from "~/trpc/react";
 
 import {
@@ -34,22 +36,28 @@ export function useAttachableSubjects(enabled: boolean) {
     ...listOptions,
     enabled,
   });
-  return {
-    projects: (projects.data ?? []).map(
-      (project): AttachableProject => ({
-        id: project.id,
-        name: project.title,
-        card: cardProjectOf(project),
-      }),
-    ),
-    guilds: (guilds.data ?? []).map(
-      (guild): AttachableGuild => ({
-        id: guild.id,
-        name: guild.name,
-        card: cardGuildOf(guild),
-      }),
-    ),
-  };
+  const projectRows = projects.data;
+  const guildRows = guilds.data;
+  // Stable between reads, so a caller can derive memoised cards from these lists.
+  return useMemo(
+    () => ({
+      projects: (projectRows ?? []).map(
+        (project): AttachableProject => ({
+          id: project.id,
+          name: project.title,
+          card: cardProjectOf(project),
+        }),
+      ),
+      guilds: (guildRows ?? []).map(
+        (guild): AttachableGuild => ({
+          id: guild.id,
+          name: guild.name,
+          card: cardGuildOf(guild),
+        }),
+      ),
+    }),
+    [projectRows, guildRows],
+  );
 }
 
 /** A task an ask may name: nobody holds it and it is not done (the API refuses a COMPLETED task). */

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { matchMutation, useQueryClient } from "@tanstack/react-query";
@@ -8,31 +8,22 @@ import { getMutationKey } from "@trpc/react-query";
 import { ArrowUpRight } from "lucide-react";
 
 import { useSubjectFollow } from "~/app/tag/[tag]/use-subject-follow";
-import { FeedStream, FieldNoteComposer } from "~/components/feed";
-import { SetupPrompt } from "~/components/onboarding/setup-prompt";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
+  FeedStream,
+  FieldNoteComposer,
+  feedCardFromPost,
+  useAttachableSubjects,
+  type ComposerAuthor,
+  type PublishedPost,
+} from "~/components/feed";
+import { SetupPrompt } from "~/components/onboarding/setup-prompt";
 import { feedRoutes } from "~/lib/feed/routes";
 import type { FeedKitCard } from "~/lib/feed/types";
 import { api, type RouterOutputs } from "~/trpc/react";
 
-type MyProject = RouterOutputs["project"]["getMyProjects"]["items"][number];
 type MyTask = RouterOutputs["task"]["getMyTasks"]["items"][number];
-type PublishedPost = RouterOutputs["post"]["create"];
-
-interface HomeViewer {
-  id: string;
-  name?: string | null;
-  image?: string | null;
-}
 
 const RAIL_TASK_LIMIT = 3;
-const NO_PROJECTS: readonly MyProject[] = [];
 
 /** Home is the feed: composer, ranked stream, cold-start row; "Your work" and the record notes in the rail. See ./AGENTS.md. */
 export default function HomePage() {
@@ -40,18 +31,13 @@ export default function HomePage() {
   const viewerId = session?.user?.id;
   const viewerName = session?.user?.name;
   const viewerImage = session?.user?.image;
-  const viewer = useMemo<HomeViewer | null>(
+  const viewer = useMemo<ComposerAuthor | null>(
     () =>
       viewerId ? { id: viewerId, name: viewerName, image: viewerImage } : null,
     [viewerId, viewerName, viewerImage],
   );
 
-  const myProjectsQuery = api.project.getMyProjects.useQuery(
-    { limit: 100, page: 1 },
-    { enabled: viewer !== null },
-  );
-  const projects = myProjectsQuery.data?.items ?? NO_PROJECTS;
-  const published = usePublishedCards(viewer, projects);
+  const published = usePublishedCards(viewer);
   const onToggleFollow = useSubjectFollow();
 
   return (
@@ -60,7 +46,11 @@ export default function HomePage() {
 
       <div className="min-w-0 space-y-6">
         <SetupPrompt />
-        {projects.length > 0 ? <HomeComposer projects={projects} /> : null}
+        {viewer ? (
+          <section aria-label="Post an update">
+            <FieldNoteComposer author={viewer} />
+          </section>
+        ) : null}
         <FeedStream
           scope="home"
           viewerId={viewer?.id ?? null}
@@ -80,69 +70,25 @@ export default function HomePage() {
   );
 }
 
-/** The field-note composer over one of the person's projects (its current props need a project). */
-function HomeComposer({ projects }: { projects: readonly MyProject[] }) {
-  const [chosenId, setChosenId] = useState<string | null>(null);
-  const pickerId = useId();
-  const project =
-    projects.find((candidate) => candidate.id === chosenId) ?? projects[0];
-  if (!project) return null;
-
-  return (
-    <section aria-label="Post an update">
-      <div className="text-muted-foreground mb-2 flex min-h-9 items-center gap-2 text-xs">
-        {projects.length > 1 ? (
-          <>
-            <label htmlFor={pickerId}>Post to</label>
-            <Select value={project.id} onValueChange={setChosenId}>
-              <SelectTrigger
-                id={pickerId}
-                size="sm"
-                className="text-foreground max-w-64"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((candidate) => (
-                  <SelectItem key={candidate.id} value={candidate.id}>
-                    {candidate.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </>
-        ) : (
-          <p>
-            Post to{" "}
-            <span className="text-foreground font-semibold">
-              {project.title}
-            </span>
-          </p>
-        )}
-      </div>
-      {/* Not keyed by project: switching the target keeps the draft. */}
-      <FieldNoteComposer projectId={project.id} />
-    </section>
-  );
-}
-
 /**
- * Every post the person publishes while Home is open, newest first, as leading cards: they sit above the
- * stream because they are newer than its pinned asOf. Observer on the mutation cache, so it follows any
- * composer that writes through `post.create` without depending on that composer's callback shape.
+ * Every post the person publishes (or, as an ask, edits) while Home is open, newest first, as leading cards: they
+ * sit above the stream because they are newer than its pinned asOf, and an edit replaces the stream's copy. Observer
+ * on the mutation cache, so it follows any composer that writes through `post.create`/`post.update` without depending
+ * on that composer's callback shape. The card's subject comes from the composer's own attach lists (same cache).
  */
-function usePublishedCards(
-  viewer: HomeViewer | null,
-  projects: readonly MyProject[],
-): FeedKitCard[] {
+function usePublishedCards(viewer: ComposerAuthor | null): FeedKitCard[] {
   const queryClient = useQueryClient();
   const [posts, setPosts] = useState<PublishedPost[]>([]);
+  const subjects = useAttachableSubjects(viewer !== null);
 
   useEffect(() => {
-    const createPost = { mutationKey: getMutationKey(api.post.create) };
+    const writes = [api.post.create, api.post.update].map((procedure) => ({
+      mutationKey: getMutationKey(procedure),
+    }));
     return queryClient.getMutationCache().subscribe((event) => {
       if (event.type !== "updated" || event.action.type !== "success") return;
-      if (!matchMutation(createPost, event.mutation)) return;
+      const mutation = event.mutation;
+      if (!writes.some((write) => matchMutation(write, mutation))) return;
       const post = event.action.data as PublishedPost | undefined;
       if (!post?.id) return;
       setPosts((current) => [
@@ -154,55 +100,20 @@ function usePublishedCards(
 
   return useMemo(
     () =>
-      viewer ? posts.map((post) => publishedCard(post, viewer, projects)) : [],
-    [posts, viewer, projects],
+      viewer
+        ? posts.map((post) =>
+            feedCardFromPost(post, {
+              author: viewer,
+              project: subjects.projects.find(
+                (project) => project.id === post.projectId,
+              )?.card,
+              guild: subjects.guilds.find((guild) => guild.id === post.guildId)
+                ?.card,
+            }),
+          )
+        : [],
+    [posts, viewer, subjects.projects, subjects.guilds],
   );
-}
-
-/** A just-published post as the feed card the API will later serve for it (author's own view). */
-function publishedCard(
-  post: PublishedPost,
-  author: HomeViewer,
-  projects: readonly MyProject[],
-): FeedKitCard {
-  const project = projects.find((candidate) => candidate.id === post.projectId);
-  const hashtags = Array.isArray(post.hashtags)
-    ? post.hashtags.filter((tag): tag is string => typeof tag === "string")
-    : [];
-  return {
-    id: post.id,
-    postType: post.type,
-    sourceType: null,
-    occurredAt: post.createdAt,
-    author: {
-      id: author.id,
-      name: author.name ?? null,
-      image: author.image ?? null,
-    },
-    title: post.title ?? null,
-    body: post.content,
-    bodyIsUserWritten: true,
-    hashtags,
-    project: project
-      ? {
-          id: project.id,
-          title: project.title,
-          slug: project.slug,
-          summary: project.description ?? null,
-          sectors: project.categories ?? [],
-        }
-      : null,
-    guild: null,
-    opportunity: null,
-    event: null,
-    funding: null,
-    thread: null,
-    counters: { likes: 0, replies: 0, shares: 0 },
-    viewer: { isMember: true, isFollowing: false, canClaim: false },
-    isDiscovery: false,
-    reasons: [],
-    task: post.taskId ? { id: post.taskId, state: "OPEN" } : null,
-  };
 }
 
 /** Rail (lg+): up to three open tasks assigned to the person. */

@@ -73,7 +73,7 @@ const seedLibrary = {
   sectors: ["FOOD_BEVERAGE"],
 };
 
-/** Ada's own project as .NET `GET /api/projects/user/{id}` returns it (ProjectDto). */
+/** Cy's barn, which Ada joined, as .NET `GET /api/projects/mine` lists it (ProjectDto). */
 const adaProjectDto = {
   id: "project-barn",
   title: "Barn raising",
@@ -105,9 +105,31 @@ const adaProjectDto = {
   completedAt: null,
   commerceEnabled: false,
   storefrontDescription: null,
-  createdById: "user-ada",
-  createdBy: { id: "user-ada", name: "Ada Lovelace", image: null },
+  createdById: "user-cy",
+  createdBy: { id: "user-cy", name: "Cy Carpenter", image: null },
   assignedGuildId: null,
+};
+
+/** A guild Ada is a member of, as .NET `GET /api/guilds/mine` lists it (GuildDto). */
+const framersGuildDto = {
+  id: "guild-framers",
+  name: "Timber framers",
+  slug: "timber-framers",
+  description: "Joinery and frames.",
+  website: null,
+  email: "framers@example.org",
+  phone: null,
+  address: null,
+  logo: null,
+  portfolio: null,
+  specialties: null,
+  isVerified: false,
+  rating: null,
+  reviewsCount: 0,
+  projectsCount: 0,
+  createdAt: "2026-10-01T12:00:00Z",
+  updatedAt: "2026-10-01T12:00:00Z",
+  ownerId: "user-cy",
 };
 
 /** .NET FeedCardDto JSON for a card Ada sees through discovery: not a member, not following. */
@@ -148,10 +170,11 @@ function feedPages(
   });
 }
 
-/** Every route Home reads for a person with no projects and no tasks; custody status is left unmodelled (503). */
+/** Every route Home reads for a person on no team and with no tasks; custody status is left unmodelled (503). */
 function zeroFollowApi(overrides: DotNetRoutes): DotNetRoutes {
   return {
-    "GET /api/projects/user/user-ada": () => ({ body: [] }),
+    "GET /api/projects/mine": () => ({ body: [] }),
+    "GET /api/guilds/mine": () => ({ body: [] }),
     "GET /api/tasks/me": () => ({ body: [] }),
     ...overrides,
   };
@@ -242,65 +265,93 @@ describe("Home is the feed (SR-03 plan §1)", () => {
     ).toEqual(["home", "home"]);
   });
 
-  it("puts a just-published update first, above the ranked stream", async () => {
-    const dotNet = fakeDotNetApi(
-      zeroFollowApi({
-        "GET /api/projects/user/user-ada": () => ({ body: [adaProjectDto] }),
-        "GET /api/feed": feedPages({
-          "": { items: [seeds], nextCursor: null },
-        }),
-        "POST /api/posts": (call) => ({
-          status: 201,
-          body: {
-            id: "post-trusses",
-            authorId: "user-ada",
-            projectId: "project-barn",
-            guildId: null,
-            type: "PROJECT_UPDATE",
-            visibility: "PUBLIC",
-            title: null,
-            content: (call.body as { content: string }).content,
-            metadata: null,
-            hashtags: [],
-            taskId: null,
-            likesCount: 0,
-            commentsCount: 0,
-            sharesCount: 0,
-            viewsCount: 0,
-            isPinned: false,
-            createdAt: "2026-11-01T10:00:00Z",
-            updatedAt: "2026-11-01T10:00:00Z",
+  it.each([
+    {
+      subject: "a project she joined",
+      attach: "project:project-barn",
+      name: "Barn raising",
+      sent: { type: "PROJECT_UPDATE", projectId: "project-barn" },
+    },
+    {
+      subject: "a guild she is in",
+      attach: "guild:guild-framers",
+      name: "Timber framers",
+      sent: { type: "GUILD_ACTIVITY", guildId: "guild-framers" },
+    },
+  ])(
+    "posts to $subject from the bare composer, and the update goes first, naming it",
+    async ({ attach, name, sent }) => {
+      const dotNet = fakeDotNetApi(
+        zeroFollowApi({
+          "GET /api/projects/mine": () => ({ body: [adaProjectDto] }),
+          "GET /api/guilds/mine": () => ({ body: [framersGuildDto] }),
+          "GET /api/feed": feedPages({
+            "": { items: [seeds], nextCursor: null },
+          }),
+          "POST /api/posts": (call) => {
+            const request = call.body as Record<string, string | undefined>;
+            return {
+              status: 201,
+              body: {
+                id: "post-trusses",
+                authorId: "user-ada",
+                projectId: request.projectId ?? null,
+                guildId: request.guildId ?? null,
+                type: request.type,
+                visibility: request.visibility,
+                title: null,
+                content: request.content,
+                metadata: null,
+                hashtags: [],
+                taskId: null,
+                likesCount: 0,
+                commentsCount: 0,
+                sharesCount: 0,
+                viewsCount: 0,
+                isPinned: false,
+                createdAt: "2026-11-01T10:00:00Z",
+                updatedAt: "2026-11-01T10:00:00Z",
+              },
+            };
           },
         }),
-      }),
-    );
-    vi.stubGlobal("fetch", dotNet.fetch);
-    renderOverRouter(<HomePage />, router, createTRPCContext);
+      );
+      vi.stubGlobal("fetch", dotNet.fetch);
+      renderOverRouter(<HomePage />, router, createTRPCContext);
 
-    await screen.findByText("Saving seeds this spring");
-    const composer = await screen.findByRole("region", {
-      name: "Post an update",
-    });
-    expect(composer.textContent).toContain("Post to Barn raising");
-    const words = composer.querySelector("textarea")!;
-    fireEvent.change(words, { target: { value: "Roof trusses are up." } });
-    fireEvent.submit(words.closest("form")!);
+      await screen.findByText("Saving seeds this spring");
+      const composer = await screen.findByRole("region", {
+        name: "Post an update",
+      });
+      // The composer's own picker: no Home-side "Post to".
+      expect(composer.textContent).not.toContain("Post to");
+      await within(composer).findByRole("option", { name });
+      fireEvent.change(within(composer).getByLabelText("Attach"), {
+        target: { value: attach },
+      });
+      const words = composer.querySelector("textarea")!;
+      fireEvent.change(words, { target: { value: "Roof trusses are up." } });
+      fireEvent.submit(words.closest("form")!);
 
-    // The textarea echoes the draft as text, so wait on the stream itself.
-    await waitFor(() =>
-      expect(renderedBodies()).toEqual([
-        "Roof trusses are up.",
-        "Saving seeds this spring",
-      ]),
-    );
-    const published = dotNet.calls.find((call) => call.path === "/api/posts");
-    expect(published?.body).toMatchObject({
-      projectId: "project-barn",
-      content: "Roof trusses are up.",
-    });
-    // Her own project's card: the subject chip, no Follow toggle.
-    const first = screen.getAllByRole("article")[0];
-    within(first).getByRole("link", { name: "Barn raising" });
-    expect(within(first).queryByRole("button", { name: /^Follow/ })).toBeNull();
-  });
+      // The textarea echoes the draft as text, so wait on the stream itself.
+      await waitFor(() =>
+        expect(renderedBodies()).toEqual([
+          "Roof trusses are up.",
+          "Saving seeds this spring",
+        ]),
+      );
+      const published = dotNet.calls.find((call) => call.path === "/api/posts");
+      expect(published?.body).toEqual({
+        content: "Roof trusses are up.",
+        visibility: "PUBLIC",
+        ...sent,
+      });
+      // Her own team's card: the subject chip names it, and there is no Follow toggle.
+      const first = screen.getAllByRole("article")[0];
+      within(first).getByRole("link", { name });
+      expect(
+        within(first).queryByRole("button", { name: /^Follow/ }),
+      ).toBeNull();
+    },
+  );
 });

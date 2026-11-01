@@ -17,15 +17,18 @@ Studio CTAs ("Open Nova Studio", "Draft with Nova") are gone. Studio is reachabl
 
 ## Composer
 
-`FieldNoteComposer` is mounted with its current props (`projectId`, required), so Home offers it over the person's
-own projects (`project.getMyProjects`, which is projects they created) with a "Post to" picker when there are
-several, and shows no composer to someone with none. **Join step:** once Lane C's composer takes an optional
-attach target, mount it bare and delete `HomeComposer`'s picker.
+`FieldNoteComposer` is mounted bare with `author` (final join a): its own attach picker offers every project and
+guild the person belongs to (`project.getMyMemberships` / `guild.getMyMemberships`, see
+`components/feed/composer/AGENTS.md` §Attach list), or nothing at all for a plain `POST`. Anyone signed in gets the
+composer; there is no Home-side "Post to" picker.
 
 A just-published post goes first via `leadingCards`. `usePublishedCards` observes the mutation cache for
-`post.create` successes while Home is open (Observer pattern) instead of relying on the composer's callback, so it
-keeps working whatever callback shape the composer ends up with, and it holds the posts in state so mutation-cache
-garbage collection cannot drop them. The card is the author's own view of what the API will later serve.
+`post.create` and `post.update` successes while Home is open (Observer pattern) instead of relying on the composer's
+callback, so it keeps working whatever callback shape the composer ends up with, and it holds the posts in state so
+mutation-cache garbage collection cannot drop them. `post.update` is the composer's "Edit your ask": the edited ask
+replaces the stream's copy at the top (same id). The card is `feedCardFromPost` (the composer's own builder) with the
+project or guild looked up in the composer's attach lists, which share its query cache, so a guild note names its
+guild and a joined project names its project without another read.
 
 ## Cold-start row data source
 
@@ -45,4 +48,3 @@ in the rail, closed by the same double rule that ends the stream.
 
 - "Your work" runs its query on small screens too, where it is hidden. One cheap read; revisit with a media-query
   gate if the rail grows more reads.
-- Posting to a project the person joined but did not create waits for Lane C's composer (above).

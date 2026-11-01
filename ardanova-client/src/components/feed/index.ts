@@ -22,7 +22,12 @@ export { SubjectChip, type FollowToggleHandler } from "./subject-chip";
 
 // SR-03 Phase 3 composer (Lane C); see ./composer/AGENTS.md.
 export type { FieldNoteComposerProps } from "./field-note-composer";
-export type { ComposerAuthor } from "./composer/published-card";
+export {
+  feedCardFromPost,
+  type ComposerAuthor,
+  type PublishedPost,
+} from "./composer/published-card";
+export { useAttachableSubjects } from "./composer/use-composer-subjects";
 export {
   audienceDescriptionFor,
   audienceOptionsFor,

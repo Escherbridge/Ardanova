@@ -34,8 +34,8 @@ interface FieldNoteComposerProps {
 }
 ```
 
-- **G (Home):** `<FieldNoteComposer author={me} onPublished={(card) => setLeading((cards) => [card, ...cards])} />`, then
-  `<FeedStream leadingCards={leading} />`.
+- **G (Home):** `<FieldNoteComposer author={me} />`, bare. Home pins what it publishes by observing the mutation cache
+  and builds each card with `feedCardFromPost` (`app/dashboard/AGENTS.md` §Composer), so it passes no `onPublished`.
 - **H (project page):** same with `projectId`.
 - **W (work-item modal, "Ask for help"):** `projectId` + `taskId` (mode defaults to help). Pass `projectId` as well:
   the API derives the project from the task either way, but the picker needs it to show the task's title.
