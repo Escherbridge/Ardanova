@@ -86,7 +86,8 @@ export default function CredentialDetailPage() {
 }
 `;
 
-describe("the words a non-crypto member is shown", () => {
+// Every case spawns the guard as a child process, which can exceed 5 s under a parallel full-suite run.
+describe("the words a non-crypto member is shown", { timeout: 20_000 }, () => {
   it("catches every chain term the shipped credential page rendered", () => {
     const root = fixture({
       "src/app/credentials/[id]/page.tsx": shippedCredentialPage,
@@ -173,5 +174,5 @@ export const Reader = () => (
     expect(report.scannedFiles).toBeGreaterThan(100);
     expect(report.violations).toEqual([]);
     expect(result.status).toBe(0);
-  }, 15_000);
+  });
 });
