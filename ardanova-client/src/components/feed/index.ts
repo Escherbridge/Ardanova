@@ -8,3 +8,14 @@ export {
   projectAudienceOptions,
   type FieldNoteAudience,
 } from "./field-note-audience";
+
+// SR-03 Phase 3 feed kit; see ./AGENTS.md.
+export {
+  FeedStream,
+  defaultFeedEnd,
+  type FeedEndState,
+  type FeedStreamProps,
+} from "./feed-stream";
+export { FeedCard, type FeedCardProps } from "./feed-card";
+export { ColdStartRow } from "./cold-start-row";
+export { SubjectChip, type FollowToggleHandler } from "./subject-chip";
