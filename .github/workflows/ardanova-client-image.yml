@@ -211,7 +211,10 @@ jobs:
           cache-from: type=gha,scope=ardanova-api
           cache-to: type=gha,mode=max,scope=ardanova-api
 
+      # GitHub's REST API has no package-visibility endpoint (this call answers 404); visibility is set
+      # once in the package's GitHub settings. Kept non-fatal so the image digests still get recorded.
       - name: Make the API image public
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
@@ -267,7 +270,9 @@ jobs:
           cache-from: type=gha,scope=ardanova-client
           cache-to: type=gha,mode=max,scope=ardanova-client
 
+      # Non-fatal for the same reason as the API image step above.
       - name: Make the client image public
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
