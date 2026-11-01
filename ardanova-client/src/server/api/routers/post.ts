@@ -9,7 +9,7 @@ import { runWithActorAssertion } from "~/server/actor-assertion";
 import { apiClient } from "~/lib/api";
 
 /**
- * Field notes are project-scoped; there is no global feed.
+ * Field notes are project-scoped posts; the one ranked feed (SR-03) surfaces them alongside other activity.
  *
  * Writes are `protectedProcedure`, so the API takes the author from the signed actor
  * assertion and a caller can never post as someone else. Reads stay public, but attach
