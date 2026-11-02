@@ -10,6 +10,10 @@ export type AzoaKycStatus =
   | "UnderReview";
 
 export interface AzoaCustodialAccountStatusDto {
+  ownership?: "custodial" | "claimed";
+  consent?: "granted" | "none";
+  consentScopes?: string[];
+  consentExpiresAt?: string | null;
   avatarId?: string | null;
   walletId?: string | null;
   walletAddress?: string | null;
