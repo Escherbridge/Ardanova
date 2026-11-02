@@ -12,11 +12,25 @@ The owner explicitly extended the takeover to the remaining payment integration
 across ArdaNova and AZOA, and chose existing green CI audit evidence instead of a
 new npm audit. The feed closeout is a milestone within this same active goal.
 
+Local implementation verification is complete. The node full run and targeted
+repairs resolve all 13 initial failures; independent TRX parsing reports latest
+outcomes of 1,205 passed, zero failed and one existing G3 skip across 1,206 unique
+cases, including four new regressions. This is full-plus-targeted evidence, not a
+single green full rerun. Final release gates remain open. Arda source is in local,
+unpushed backend `c760b51` and frontend `d4faa5a` commits. Node source is committed
+and pushed at `1f83837b` on its review branch, with all 103 reviewed files matching
+the final attestation; node main is unchanged, no deployment occurred, and branch
+[draft PR #3](https://github.com/JadeZaher/azoa-autonomous-zones-of-action/pull/3)
+is open with PR CI run `41377213143` in progress. See the
+[release evidence and proposed rollout](PAYMENT-RELEASE-RUNBOOK-2026-11-01.md)
+for exact checks, publication/adoption, release CI and protected-file/database
+prerequisites. No payment deployment or activation is claimed.
+
 ## Working copies and ownership
 
-- ArdaNova: current workspace, baseline main `8f1641d` plus reviewed feed cleanup.
+- ArdaNova: current workspace, released feed baseline main `f915686`.
   Its existing `node_modules` is stale; `.omc/qa/takeover-verify` has a clean
-  lockfile install and the reviewed feed diff for validation.
+  lockfile install, verified payment source and actual SDK 0.6 overlay for validation.
 - AZOA: clean independent clone `.omc/payment-node`, based on confirmed remote
   main `c7cfa4af`. The original dirty checkout and owner-held main worktree are
   untouched. Its `origin` points to the project's canonical GitHub remote.
@@ -43,6 +57,14 @@ to approve or decline the exact persisted grant. Renewal is consent-only.
 Payout-account setup remains a first-party action on the node's hosted flow.
 Default claim switches remain off until the complete return journey is verified.
 
+Frozen tenant routes are `POST .../custodial-accounts/{external}/handoff`,
+`POST .../handoff/{requestId}/resend`, and `GET .../handoff/{requestId}`. The BFF
+supplies the authenticated member's stored email and its own fixed return URL.
+The response contains only request ID, target, ownership, status, expiry, and
+`delivery: operator_stub`. It never contains the raw link. Member preview,
+read, approve and decline live under `/api/user/handoffs`; delivery retrieval is
+restricted to a recent node-operator session. Stub UI must not claim email was sent.
+
 ## Lane A: ArdaNova backend continuity and sale proof
 
 Consume ownership/consent before requiring full binding fields. A minimal claimed
@@ -62,6 +84,13 @@ Provide host-priced durable quotes and request-keyed sale admission for the SDK'
 `{requestKey, quoteId}` contract. A browser-generated label is not a quote or an
 idempotency guarantee. Lane A owns DBML, additive migrations and generated models.
 
+The schema batch is `20261101000000_sale_admission_proof`: immutable payout
+deadline/command/quote/request-key fields and a persisted `PayoutSaleQuote`.
+New quote/admission endpoints are `POST /api/Payouts/sale/quotes`,
+`POST /api/Payouts/sale`, and actor-scoped `GET /api/Payouts/sale/{id}`. A retry
+must resolve its admitted request before checking an expired quote. Value amounts
+cross the new boundary as decimal strings, with explicit ARDA precision.
+
 ## Lane C: host transport and money screens
 
 Implement `AzoaMoneyTransport` over thin authenticated tRPC/BFF endpoints; no node
@@ -74,6 +103,27 @@ withdrawal requests before sending. Lost responses, refresh, consent failures an
 unknown results preserve the key; an empty 2xx is unconfirmed. The ownership step
 uses node delivery metadata and first-party hosted setup, never an ArdaNova-held
 node login. Node frontend also adopts the SDK money layer as its first host.
+
+Integration inspection reopened two unpublished SDK issues. Cash-out/sale local
+discard and broad refusal codes could forget a key after a lost accepted reply;
+those flows must retain the key until a validated named result resolves it.
+Recovery must remain possible through same-key retry after setup or consent is
+restored. Also, sale proceeds and ARDA balances need explicit denomination and
+bounded precision rather than assuming ISO currency or displaying a USD reference
+as actual proceeds. Both changes require SDK seam tests and renewed publish review.
+
+The independent reviews also found queued sends crossing account switches and
+unreadable saved keys being overwritten. Every host procedure now needs an
+expected-subject guard against its authenticated session, and unreadable pending
+storage must block a replacement rather than masquerade as an absent request.
+
+Retention alone leaves a liveness gap when no sale/cash-out was admitted. Add
+authoritative void-or-reveal operations: ArdaNova sale requests use a scoped
+`PayoutSaleVoid` tombstone under the same admission lock; node cash-outs use a
+`fiat_payout_request_fence` in the same transaction as payout admission. A failed
+void never clears a key. Existing transactions are revealed, never blindly
+refunded or aborted. The new node void route remains disabled until old node
+processes without this fence have drained, then receives explicit activation.
 
 ## Review and verification gates
 
