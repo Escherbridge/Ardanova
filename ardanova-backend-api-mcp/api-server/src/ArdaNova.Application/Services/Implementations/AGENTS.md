@@ -104,25 +104,47 @@ reconciliation can name. A withdrawal is a node-owned cash-out that ArdaNova REA
 rather than mirrors: duplicating it would make two records of one movement of real money,
 the ledger-of-record shape D47 rejected for stake.
 
-Units move only against a TERMINAL receipt. A timeout or a 409 is AMBIGUOUS - the
-exchange may already have run - so the row parks with the units still LOCKED. Returning
-them on a maybe is how one holding gets sold twice. Only an outright refusal (NotFound,
-ValidationError, BadRequest, Forbidden, Unauthorized) unlocks, because those mean the node
-read the request, said no, and created nothing.
+Units move only against terminal node evidence. HTTP refusals alone do not unlock: a
+receipt read can lose permission after a send, and an absent receipt can precede a late send.
+Only a terminal failed receipt or the immutable admission proof below returns units.
 
-A parked row is chased by an operator through `GET /api/Payouts/pending` (widened to
-include PROCESSING) and `POST /api/Payouts/{id}/process`, which is a READ of the receipt
-under the original key and can only ever observe the first submission. The person-facing
-copy says exactly that: nothing on a timer finishes a parked sale.
+## Quoted sales and immutable admission proof (P5-39a)
 
-The node's own refusal text NEVER reaches a person. `AzoaNodeClient` flattens a refusal to
-sentences that name the node, so both `PayoutService.DescribeRefusal` and
-`AzoaCashOutClient.Refused` re-word it from the refusal KIND. The node's text stays where
-operators read it - the transport log.
+`CreateSaleQuoteAsync` persists subject, exact exchange command, quantity, proceeds,
+denomination, and expiry. `AcceptSaleQuoteAsync` serializes admissions per subject;
+(user, requestKey) and quoteId are unique. Replays resolve the original sale before expiry or
+readiness checks and never reprice it. Unadmitted requests use a separate subject/key/quote
+bound PayoutSaleVoid tombstone. Void and admission share the same subject lock: missing means
+a durable void; an existing admission is revealed, never cancelled blindly. Expired or missing
+quotes can therefore resolve without fabricated sale rows or an endlessly saved browser key.
 
-**Open before cash-out (ledger P5-39a).** `PayoutService` (~:797) still unlocks a seller's units on a receipt
-`NotFound` with no window - the same "a NOT_FOUND is only absence at read time" flaw §Node proof closes for
-sponsorships. It must take the same rule before cash-out opens.
+A new sale commits one `exchangeAdmitBefore` before any node call. It is immutable across
+attempts. Only the node's typed NOT_FOUND, from a read that started after the deadline plus
+clock skew and margin, proves no admission is possible; NodeEnforcesAdmitBefore must also
+be attested. Legacy null deadlines and any observed node receipt/operation stay unresolved.
+Revoked consent, timeouts, plain 404s and HTTP refusal codes never prove absence.
+Cancellation obeys the same proof.
+
+Terminalization takes the subject advisory lock and then the payout row lock, refreshes
+state, and changes balances and payout state in one transaction. It rechecks absence against
+the fresh row. Two reconcilers, cancellation and a late answer cannot return or debit the
+same units twice. Test composition may omit the store; production registers it and quoted
+admission refuses a missing store. Node calls remain outside accounting transactions.
+
+New sale JSON carries large amounts as decimal strings. Each quote and sale persist their
+ARDA denomination; `PayoutSaleDenomination` defines its two-decimal base-unit contract.
+
+## Claimed-account continuity and handoff
+
+Minimal claimed status intentionally withholds KYC and wallet fields. Preserve local mirrors
+and never persist its Unknown as a new compliance verdict. A full, correctly bound claimed
+response may refresh the wallet while the node user id stays stable. Value actions check live
+grant scopes and expiry; paused dispatch keeps its idempotency key and reservations.
+
+Handoff derives email from the verified server user and builds a fixed return path from the
+configured application origin. Responses carry metadata only. Tokens and hosted URLs stay
+in the node's protected operator delivery stub; delivery acknowledgement never means email
+was sent. Node and BFF gates default off. Bank setup is a first-party node-hosted action.
 
 A holding with no recorded `holderClass` is LISTED but never sellable. Every sellability
 rule is keyed on the class, and defaulting one would decide a sale on an invented fact;
@@ -736,3 +758,9 @@ later comma-pads are all byte-for-byte the same value regardless of the caller's
 value (not a known code) passes through trimmed only, as typed. `ValidateCategories` also refuses
 any single category value containing a comma - the column uses commas as its only delimiter, so an
 unrefused one (e.g. `"Solar, Wind"`) would silently become two stored categories.
+
+The actual payout INSERT selects the owner's frozen quote only while expiresAt is later than
+clock_timestamp(), the immutable admission deadline remains future, and no request tombstone
+exists. This fences expiry at the write itself even when a process pauses after prechecks.
+A failed insertion rolls back the balance reservation. Cash-out void is likewise a proxy of
+the node's typed void-or-reveal result; a refusal keeps the saved request key.

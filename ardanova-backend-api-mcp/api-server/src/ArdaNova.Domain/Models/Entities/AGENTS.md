@@ -330,3 +330,11 @@ The `why` for the column and its migration is in
 That same migration retires the card rail: `ProjectInvestment.stripePaymentIntentId` and the
 whole `StripeWebhookEvent` receipt table are gone, because the rail they served no longer
 exists. `PayoutRequest.stripePayoutId` is a DIFFERENT rail and is deliberately untouched.
+
+# Payout sale admissions
+
+`PayoutSaleQuote` freezes subject, exact command, price, quantity, denomination and expiry.
+`PayoutRequest.requestKey` is unique per subject and quoteId is single-use. The nullable
+exchangeAdmitBefore is assigned once before a new sale can send; null legacy rows cannot
+acquire negative receipt proof. exchangeCommandJson copies the quote, never a new rate.
+Currency defaults use PayoutSaleDenomination to match the exchange's ARDA scale.

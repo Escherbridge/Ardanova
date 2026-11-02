@@ -12,6 +12,8 @@ export const PayoutRequestSchema = z.object({
   holderClass: TokenHolderClassSchema,
   gateStatusAtRequest: ProjectGateStatusSchema,
   id: z.cuid(),
+  currencyCode: z.string(),
+  currencyDecimals: z.number().int(),
   userId: z.string(),
   sourceProjectTokenConfigId: z.string().nullable(),
   sourceTokenAmount: z.number().int(),
@@ -26,6 +28,10 @@ export const PayoutRequestSchema = z.object({
   requestedAt: z.coerce.date(),
   processedAt: z.coerce.date().nullable(),
   completedAt: z.coerce.date().nullable(),
+  requestKey: z.string().nullable(),
+  quoteId: z.string().nullable(),
+  exchangeAdmitBefore: z.coerce.date().nullable(),
+  exchangeCommandJson: z.string().nullable(),
 })
 
 export type PayoutRequest = z.infer<typeof PayoutRequestSchema>

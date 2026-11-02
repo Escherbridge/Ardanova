@@ -2564,6 +2564,8 @@ model TokenBalance {
 
 model PayoutRequest {
   id                         String              @id @default(cuid())
+  currencyCode               String              @default("ARDA")
+  currencyDecimals           Int                 @default(2)
   userId                     String
   sourceProjectTokenConfigId String?
   sourceTokenAmount          Int
@@ -2581,8 +2583,39 @@ model PayoutRequest {
   requestedAt                DateTime            @default(now())
   processedAt                DateTime?
   completedAt                DateTime?
+  requestKey                 String?
+  quoteId                    String?             @unique
+  exchangeAdmitBefore        DateTime?
+  exchangeCommandJson        String?             @db.Text
   user                       User                @relation("PayoutRequest_userId", fields: [userId], references: [id])
   sourceProjectTokenConfig   ProjectTokenConfig? @relation("PayoutRequest_sourceProjectTokenConfigId", fields: [sourceProjectTokenConfigId], references: [id])
+
+  @@unique([userId, requestKey])
+}
+
+model PayoutSaleQuote {
+  id                     String           @id
+  currencyCode           String           @default("ARDA")
+  currencyDecimals       Int              @default(2)
+  userId                 String
+  projectTokenConfigId   String
+  holderClass            TokenHolderClass
+  sourceUnitAmount       Int
+  platformMinorUnits     BigInt
+  usdReferenceMinorUnits BigInt
+  commandJson            String           @db.Text
+  createdAt              DateTime
+  expiresAt              DateTime
+}
+
+model PayoutSaleVoid {
+  id         String   @id
+  userId     String
+  requestKey String
+  quoteId    String
+  createdAt  DateTime
+
+  @@unique([userId, requestKey])
 }
 
 model PlatformTreasury {

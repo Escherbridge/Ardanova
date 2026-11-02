@@ -49,7 +49,7 @@ Anyone can found a guild and so become a manager, so an invitation response that
 whether an email has an account is an account-enumeration oracle (QA confirmed it live: unknown
 email 400, registered email 409). `GuildInvitationService.CreateAsync` by email therefore:
 
-- refuses only a duplicate of the inviter's own still-pending invitation to the *same email* (409);
+- refuses only a duplicate of the inviter's own still-pending invitation to the _same email_ (409);
   nothing about the account decides the answer;
 - binds the row to the account when an account uses the email, is not already a member, and has no
   answerable invitation here; otherwise it stores an **unbound** row (no `invitedUserId`) that nobody
@@ -176,3 +176,16 @@ feedback; the service rules are the ones that apply.
 It matches display names only. It used to also match an exact email, which let an anonymous caller
 confirm who owns an address and link it to a name, bio and LinkedIn. Inviting a known person by email
 goes through the manager-only invitation path above, where that disclosure is scoped to managers.
+
+## Consent coverage
+
+`AzoaConsentCoverage` preflights only the three value actions used by this BFF.
+Known custodial ownership permits reserve sale (`swap:sign`) through the node's
+special tenant-provisioned exchange coverage, and inbound reserve allocation
+(`units:issue`) as a participation credit. The allocation preflight describes the
+recipient action; it does not claim that `units:issue` is literally stored in
+`TenantProvisionedGrant.ImpliedScopes`. The node still binds and checks the
+actual issuance authority. Custodial ownership never grants `transfer:sign` for
+cash-out. Claimed ownership requires the exact explicit scope, granted consent
+and a future expiry when present. Unknown ownership and unsupported scopes fail
+closed. This helper does not replace node authorization or broaden stored grants.

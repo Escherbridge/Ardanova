@@ -2,6 +2,7 @@ namespace ArdaNova.Infrastructure.Data;
 
 using ArdaNova.Domain.Models.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 /// <summary>
 /// EF Core DbContext for ArdaNova.
@@ -162,6 +163,11 @@ public class ArdaNovaDbContext : DbContext
     public DbSet<SwapQuote> SwapQuotes => Set<SwapQuote>();
     public DbSet<SwapOrder> SwapOrders => Set<SwapOrder>();
     public DbSet<TaxonomyTerm> TaxonomyTerms => Set<TaxonomyTerm>();
+    public DbSet<PayoutSaleQuote> PayoutSaleQuotes => Set<PayoutSaleQuote>();
+    public DbSet<PayoutSaleVoid> PayoutSaleVoids => Set<PayoutSaleVoid>();
+
+
+
 
 
 
@@ -198,6 +204,17 @@ public class ArdaNovaDbContext : DbContext
         modelBuilder.Entity<ProposalExecution>()
             .Property(e => e.result)
             .HasColumnType("jsonb");
+
+        var utcTimestamp = new ValueConverter<DateTime, DateTime>(
+            value => DateTime.SpecifyKind(value, DateTimeKind.Unspecified),
+            value => DateTime.SpecifyKind(value, DateTimeKind.Utc));
+        modelBuilder.Entity<PayoutSaleQuote>().Property(q => q.createdAt).HasColumnType("timestamp(3)").HasConversion(utcTimestamp);
+        modelBuilder.Entity<PayoutSaleQuote>().Property(q => q.expiresAt).HasColumnType("timestamp(3)").HasConversion(utcTimestamp);
+        modelBuilder.Entity<PayoutSaleVoid>().Property(v => v.createdAt).HasColumnType("timestamp(3)").HasConversion(utcTimestamp);
+        modelBuilder.Entity<PayoutRequest>().Property(p => p.requestedAt).HasColumnType("timestamp(3)").HasConversion(utcTimestamp);
+        modelBuilder.Entity<PayoutRequest>().Property(p => p.processedAt).HasColumnType("timestamp(3)").HasConversion(utcTimestamp);
+        modelBuilder.Entity<PayoutRequest>().Property(p => p.completedAt).HasColumnType("timestamp(3)").HasConversion(utcTimestamp);
+        modelBuilder.Entity<PayoutRequest>().Property(p => p.exchangeAdmitBefore).HasColumnType("timestamp(3)").HasConversion(utcTimestamp);
 
         // Composite indexes and other generated configurations
         modelBuilder.ApplyGeneratedConfigurations();

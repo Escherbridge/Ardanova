@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 /// <summary>Tenant-scoped transport for AZOA-owned identity, custody, and KYC.</summary>
 public sealed class AzoaCustodialAccountGateway
-    : IAzoaCustodialAccountGateway, IAzoaConsentRevocationGateway
+    : IAzoaCustodialAccountGateway, IAzoaConsentRevocationGateway, IAzoaAccountHandoffGateway
 {
     /// <summary>The node's offboard route for the implied provisioning grant; a constant, never caller-supplied.</summary>
     /// <remarks>Allowed by <c>AzoaNodeRoutePolicy.IsProvisionedConsentPath</c>, which names this gateway as its consumer.</remarks>
@@ -70,7 +70,7 @@ public sealed class AzoaCustodialAccountGateway
             body: null,
             binding.IdempotencyKey,
             ct);
-        return MapStatus(result);
+        return MapStatus(result, binding);
     }
 
     public async Task<Result<AzoaCustodialAccountStatus>> GetStatusAsync(
@@ -78,7 +78,7 @@ public sealed class AzoaCustodialAccountGateway
         CancellationToken ct = default)
     {
         var result = await _node.GetAsync<StatusWire>(AccountPath(binding.ArdaNovaUserId), ct);
-        return MapStatus(result);
+        return MapStatus(result, binding);
     }
 
     public async Task<Result<AzoaKycSession>> BeginKycAsync(
@@ -105,6 +105,8 @@ public sealed class AzoaCustodialAccountGateway
     }
 
     /// <summary>Hands one person's standing provisioning permission back to them at the node.</summary>
+    public bool CanRevokeConsent => ResolveCustodyTransport() is not null;
+
     public async Task<Result<AzoaConsentRevocation>> RevokeProvisionedConsentAsync(
         string ardaNovaUserId,
         CancellationToken ct = default)
@@ -160,6 +162,20 @@ public sealed class AzoaCustodialAccountGateway
             PermissionsWithdrawn: withdrawn));
     }
 
+    public async Task<Result<AzoaConsentRevocation>> RevokeClaimedConsentAsync(string userId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId)) return Result<AzoaConsentRevocation>.ValidationError("An account is required.");
+        var path = $"{AccountPath(userId)}/consent";
+        var transport = ResolveCustodyTransport();
+        if (transport is null || !AzoaNodePathPolicy.IsCustodialPath(path))
+            return Result<AzoaConsentRevocation>.Conflict("Account permission could not be withdrawn.");
+        var result = await AzoaNodeClient.SendAsync<RelinquishWire>(transport, _logger,
+            new HttpRequestMessage(HttpMethod.Delete, path), ct);
+        return result.IsSuccess && result.Value is { } value
+            ? Result<AzoaConsentRevocation>.Success(new(true, value.RevokedCount > 0 ? value.RelinquishedAt : null, value.RevokedCount))
+            : MapFailure<RelinquishWire, AzoaConsentRevocation>(result);
+    }
+
     // The custody credential lives on the typed client registered as
     // AddHttpClient<IAzoaCustodialNodeClient, AzoaCustodialNodeClient> (Infrastructure
     // DependencyInjection.cs:110). IHttpClientFactory names that registration after the SERVICE
@@ -178,12 +194,65 @@ public sealed class AzoaCustodialAccountGateway
         return client.BaseAddress is null ? null : client;
     }
 
-    private static Result<AzoaCustodialAccountStatus> MapStatus(Result<StatusWire> result)
+    public async Task<Result<AccountHandoff>> BeginHandoffAsync(string externalSubject, string email,
+        string returnUrl, string? requestId, CancellationToken ct)
+    {
+        var path = $"{AccountPath(externalSubject)}/handoff";
+        if (requestId is not null)
+        {
+            if (!Guid.TryParse(requestId, out _)) return Result<AccountHandoff>.ValidationError("Invalid account request.");
+            path += $"/{Uri.EscapeDataString(requestId)}/resend";
+        }
+        return ValidateHandoff(await _node.PostAsync<AccountHandoff>(path,
+            new { deliveryEmail = email, returnUrl }, "handoff:" + (requestId ?? externalSubject), ct), requestId);
+    }
+
+    public async Task<Result<AccountHandoff>> ReadHandoffAsync(string externalSubject, string requestId, CancellationToken ct)
+    {
+        if (!Guid.TryParse(requestId, out _)) return Result<AccountHandoff>.ValidationError("Invalid account request.");
+        return ValidateHandoff(await _node.GetAsync<AccountHandoff>(
+            $"{AccountPath(externalSubject)}/handoff/{Uri.EscapeDataString(requestId)}", ct), requestId);
+    }
+
+    private static Result<AccountHandoff> ValidateHandoff(Result<AccountHandoff> result, string? requestId)
+    {
+        if (result.IsFailure) return result;
+        var value = result.Value;
+        return value is not null && Guid.TryParse(value.RequestId, out _)
+            && Guid.TryParse(value.TargetUserId, out _) && (requestId is null || value.RequestId == requestId)
+            && value.Ownership is "custodial" or "claimed"
+            && value.Status is "pending" or "approving" or "approved" or "declined"
+            && value.Delivery == "operator_stub"
+            ? result : Result<AccountHandoff>.Conflict("The account request could not be confirmed.");
+    }
+
+    private static Result<AzoaCustodialAccountStatus> MapStatus(Result<StatusWire> result, AzoaCustodialAccountBinding binding)
     {
         if (result.IsFailure)
             return MapFailure<StatusWire, AzoaCustodialAccountStatus>(result);
 
         var value = result.Value!;
+        if (value.Ownership is not (null or "custodial" or "claimed")
+            || value.Consent is not (null or "granted" or "none"))
+            return Result<AzoaCustodialAccountStatus>.Conflict("The account permission state was not recognized.");
+
+        var claimed = value.Ownership == "claimed";
+        if (claimed && value.Consent is not ("granted" or "none"))
+            return Result<AzoaCustodialAccountStatus>.Conflict("The claimed account permission was missing.");
+        var scopes = value.ConsentScopes ?? [];
+        var minimal = claimed && !scopes.Contains("kyc:read", StringComparer.Ordinal);
+        if (minimal)
+        {
+            if (value.Ready || value.KycStatus is not (null or "Unknown")
+                || value.TenantId is not null || value.ExternalSubject is not null || value.AvatarId is not null
+                || value.WalletId is not null || value.WalletAddress is not null)
+                return Result<AzoaCustodialAccountStatus>.Conflict("The restricted account status was inconsistent.");
+            return Result<AzoaCustodialAccountStatus>.Success(new(
+                binding.TenantId, binding.ArdaNovaUserId, null, null, null, AzoaKycStatus.Unknown,
+                false, false, false, false, "Your permission is needed to read this account.",
+                Ownership: "claimed", Consent: value.Consent ?? "none", ConsentScopes: scopes,
+                ConsentExpiresAt: value.ConsentExpiresAt, IsMinimal: true));
+        }
         var externalSubject = value.ExternalSubject ?? value.ArdaNovaUserId;
         if (!TryParseKycStatus(value.KycStatus, out var status)
             || string.IsNullOrWhiteSpace(value.TenantId)
@@ -205,7 +274,8 @@ public sealed class AzoaCustodialAccountGateway
             value.WalletReady,
             value.Ready,
             value.UnavailableReason,
-            value.ReviewDueAt));
+            value.ReviewDueAt,
+            value.Ownership ?? "custodial", value.Consent ?? "granted", scopes, value.ConsentExpiresAt));
     }
 
     private static bool TryParseKycStatus(string? value, out AzoaKycStatus status)
@@ -231,6 +301,8 @@ public sealed class AzoaCustodialAccountGateway
         return mapped.WithCode(source.Code);
     }
 
+    private sealed record RelinquishWire(int RevokedCount, DateTimeOffset RelinquishedAt);
+
     private sealed record CapabilitiesWire
     {
         public bool Enabled { get; init; }
@@ -252,6 +324,10 @@ public sealed class AzoaCustodialAccountGateway
 
     private sealed record StatusWire
     {
+        public string? Ownership { get; init; }
+        public string? Consent { get; init; }
+        public string[]? ConsentScopes { get; init; }
+        public DateTimeOffset? ConsentExpiresAt { get; init; }
         public string? TenantId { get; init; }
         public string? ExternalSubject { get; init; }
         [JsonPropertyName("ardanovaUserId")]
@@ -305,7 +381,12 @@ public sealed record AzoaConsentRevocation(
 /// </summary>
 public interface IAzoaConsentRevocationGateway
 {
+    bool CanRevokeConsent => true;
+
     Task<Result<AzoaConsentRevocation>> RevokeProvisionedConsentAsync(
         string ardaNovaUserId,
         CancellationToken ct = default);
+
+    Task<Result<AzoaConsentRevocation>> RevokeClaimedConsentAsync(string userId, CancellationToken ct = default)
+        => Task.FromResult(Result<AzoaConsentRevocation>.Conflict("Account permission could not be withdrawn."));
 }

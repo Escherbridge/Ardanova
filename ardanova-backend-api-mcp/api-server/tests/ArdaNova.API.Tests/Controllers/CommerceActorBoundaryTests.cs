@@ -42,27 +42,17 @@ public class CommerceActorBoundaryTests
     public async Task PayoutRequest_SellsForTheActorNotACallerSuppliedIdentity()
     {
         var payouts = new Mock<IPayoutService>(MockBehavior.Strict);
-        payouts.Setup(service => service.RequestPayoutAsync(
-                "actor-1",
-                It.Is<CreatePayoutRequestDto>(dto =>
-                    dto.SourceProjectTokenConfigId == "config-1" && dto.SourceTokenAmount == 10),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<PayoutRequestDto>.Success(new PayoutRequestDto
-            {
-                Id = "payout-1",
-                UserId = "actor-1",
-            }));
+        var sales = payouts.As<IQuotedSaleService>();
+        sales.Setup(service => service.AcceptSaleQuoteAsync("actor-1",
+            It.Is<AcceptUnitSaleQuote>(dto => dto.RequestKey == "key" && dto.QuoteId == "quote"), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<PayoutRequestDto>.Success(new PayoutRequestDto { Id = "payout-1", UserId = "actor-1", ArdaMinorUnits = 100 }));
         var controller = WithActor(new PayoutsController(payouts.Object), "actor-1");
-
-        var result = await controller.RequestPayout(new CreatePayoutRequestDto
-        {
-            SourceProjectTokenConfigId = "config-1",
-            SourceTokenAmount = 10,
-            HolderClass = TokenHolderClass.CONTRIBUTOR
-        }, CancellationToken.None);
-
+        var result = await controller.AcceptSaleQuote(new("key", "quote"), CancellationToken.None);
         result.Should().BeOfType<OkObjectResult>();
-        payouts.VerifyAll();
+        sales.VerifyAll();
+        var legacy = await controller.RequestPayout(new CreatePayoutRequestDto
+            { SourceProjectTokenConfigId = "config-1", SourceTokenAmount = 10, HolderClass = TokenHolderClass.CONTRIBUTOR }, CancellationToken.None);
+        legacy.Should().BeOfType<BadRequestObjectResult>();
     }
 
     /// <summary>

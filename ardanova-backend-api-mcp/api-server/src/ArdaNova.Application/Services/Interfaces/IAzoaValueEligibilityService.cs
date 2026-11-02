@@ -111,3 +111,22 @@ public interface IAzoaValueEligibilityService
         string action,
         CancellationToken ct = default);
 }
+
+public static class AzoaConsentCoverage
+{
+    /// <summary>Preflights supported value actions; see Services/AGENTS.md ?Consent coverage.</summary>
+    public static bool Covers(AzoaCustodialAccountStatusDto? status, string scope, DateTimeOffset now)
+    {
+        if (status is null || scope is not ("swap:sign" or "units:issue" or "transfer:sign"))
+            return false;
+
+        return status.Ownership switch
+        {
+            "custodial" => scope is "swap:sign" or "units:issue",
+            "claimed" => status.Consent == "granted"
+                && status.ConsentScopes.Contains(scope, StringComparer.Ordinal)
+                && (status.ConsentExpiresAt is null || status.ConsentExpiresAt > now),
+            _ => false,
+        };
+    }
+}
