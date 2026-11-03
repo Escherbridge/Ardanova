@@ -2,7 +2,7 @@
 type: plan
 track: mvp-readiness-loop_20261026
 date: 2026-11-01
-updated: 2026-11-02
+updated: 2026-11-03
 status: in-progress
 source_session: c17ff8f2-e847-43ba-bca8-5bf8a66e911e
 ---
@@ -10,10 +10,11 @@ source_session: c17ff8f2-e847-43ba-bca8-5bf8a66e911e
 # Payment integration completion
 
 The owner explicitly extended the takeover to the remaining payment integration
-across ArdaNova and AZOA, and chose existing green CI audit evidence instead of a
-new npm audit. The feed closeout is a milestone within this same active goal.
+across ArdaNova and AZOA, and chose no fresh local dependency audit. Ordinary
+release CI retains its production-audit check. The feed closeout is a milestone
+within this same active goal.
 
-Snapshot: November 2. Node review head
+Snapshot updated November 3 UTC. Node review head
 `f1b8824b30901cfb2073f2e14e9e08f2219b33e0` includes the reviewed 16-file hosted
 handoff/login-validator repair. Current PR CI `41449375013` is **SUCCESS with all
 nine jobs successful**: single full unit 5,687 passed/zero failed/skipped in
@@ -24,21 +25,19 @@ Playwright run passed all eight cases in 1.8 minutes at 13:07 UTC, including all
 three new handoff journeys, the sign-in shell, and existing signup/KYC, on-ramp,
 KYB and webhook journeys. Prior head `1f83837b` retains its separate fully green
 CI `41377213143`; the current counts above are direct current-head evidence.
-The new Arda payment UI now has both its
-earlier overlay verification and a clean Linux public-registry install/import
-proof for the published SDK 0.6.0. Combined-branch build/test CI remains pending.
-Arda backend head `bcbc2258da3ae32a8c55d47090cd0aeae599de06` is pushed separately on
-`codex/payment-backend-closeout-20261101` in
-[draft PR #8](https://github.com/Escherbridge/Ardanova/pull/8), with corrected CI
-`41381713622` successful: full Application 1,606 passed/one existing skip out of
-1,607 and API 652 passed; client validation also passed, while three image
-publication jobs were skipped as a PR. The first run's lone old feed-registration
-harness failure was fixed by reusing its existing test-only warning helper;
-11 targeted cases passed, and production registration was unchanged. The combined
-frontend/documentation branch remains local at
-`62d3e52f9b6339ce409acbf5dc494f2b088d934b`, with frontend `d4faa5a`, prior docs
-`f1f02bb`, backend harness cherry-pick `83f38c9`, current decision ledger
-`63b119e` and the two-file SDK adoption commit `62d3e52`. Node source is committed
+Combined Arda [draft PR #9](https://github.com/Escherbridge/Ardanova/pull/9) at
+`072585db831a93914d80452d112a387805f71383` has terminal **SUCCESS** in CI
+`41462170432`: Application 1,606 passed/one existing skip out of 1,607; API 652
+passed; full published-SDK client 1,035 passed across 111 files; typecheck, lint,
+vocabulary, formatting, pin/platform guards and 48-page build passed. The ordinary
+CI production audit reported zero vulnerabilities; no local audit was launched.
+Both validation jobs succeeded and all three image-publication/record jobs were
+skipped as a PR, so this is validation rather than image publication or deployment.
+Backend-only PR #8 is now closed as superseded by this exact-head combined proof;
+its earlier CI and 11-case harness-repair evidence remain retained. The pushed
+combined branch includes frontend `d4faa5a`, backend harness correction `83f38c9`,
+decision ledger `63b119e`, Linux-generated SDK adoption `62d3e52` and docs
+`072585db`. Node source is committed
 and pushed at `f1b8824b` on its review branch; the preceding 103-file source
 attestation at `1f83837b` and the new 16-file reviewed repair remain recorded.
 Node main is unchanged, no payment deployment occurred, and
@@ -55,27 +54,35 @@ including the webhook excluded locally by the unchanged receiver-subnet policy.
 Production activation flags remain closed. The deployed Arda-to-node-to-bank
 withdrawal journey remains a further gate.
 
-The owner authorized the real key backup; one file is now backed up with verified
-DPAPI CurrentUser recovery. The protected manifest records backup hash
-`2a301d...559c` (abbreviated). The owner explicitly authorized outbound restore;
-the protected volume was seeded through the private helper with the one matching
-file, hashes, ownership and modes verified. It is now retained **unattached**.
-The final continuity wrapper has 50 passing
-synthetic cases, actual Create/Verify proof against the unchanged old API
-deployment `3177e8e7-fa01-4f73-aa4e-d482a9bf8340`, and successful verification of
-the same challenge while the helper held the seeded volume. API attachment with
-`skipDeploys: true` failed with `BAD_USER_INPUT`: attachment requires deployment.
-Its sole staged delta was cleared. A never-used empty test volume on the helper
-then proved that an explicit same-build redeploy did not apply its staged mount;
-that patch was cleared and the empty test volume deleted. Current helper deployment
-`8265f5ac-e914-46fc-aee8-c780be2c5fc3` is idle on the same pinned image with no
-actual volume mount; all staging is empty. API deployment `3177e8e7-fa01-4f73-aa4e-d482a9bf8340`,
-its original source/image and its running state remain unchanged. There has been
-no API cutover or restart. The skip-deploy attachment/same-build route is not a
-viable procedure; a supported pinned-image alternative is under review, with no
-automatic API fallback. PostgreSQL and SurrealDB snapshot
-catalog records were created at 12:59 UTC; workflow status returned Not Authorized
-and no restoration was proven. npm owner `jadeoni-az` published 0.6.0; the public
+**Protected storage A1/A2 is CLOSED and independently approved.** The owner-authorized
+one-file DPAPI CurrentUser backup/recovery and seeded-volume checks were followed
+by an exact-c7 maintenance image cutover. API deployment
+`3a0e8eb9-06fd-4a9a-87c7-199e15b93f7d` is SUCCESS at immutable public index
+`sha256:f001e8c54bd337b11dcae69a3024df9f793c8361304efce47839b6c1a76b1934`
+(linux/amd64 manifest `sha256:434a2d39da60e55626ec0f1312d4b95efd7d2f3e5c348236660280578bbd242e`),
+with volume `3c9b266d-586b-495b-98d1-6113e981f1f7` mounted persistently at `/app/data`.
+The original one-file, 1,001-byte key hash `dc95ebb8...83795` is unchanged, file
+mode `0600`/ring mode `0700` and UID/GID `1654` verified. The original `9098` challenge passed
+on the API before and after an actual controlled restart: PID1 start ticks changed
+from `418222674` to `418252693`, health returned `200 Healthy`, and the probe ran as real/
+effective UID/GID `1654` with zero supplementary groups. Wrapper `c056985b...efb3a`
+passed 53 Windows and six actual Linux checks; DLL and transfer artifacts are unchanged.
+C's closure receipt and the post-restart proof are linked in the runbook.
+The runtime remains source `c7cfa4af`, environment Staging and boot migrations
+skipped; Node PR3 `f1b8824b` is not deployed. Helper deployment
+`a6863596-908b-4671-ac80-6ebe03306e39` is retained idle without a mount for later
+probe work; staging is empty. Earlier rejected skip-deploy/staged-mount attempts
+are historical receipts, not current blockers or replayable procedures.
+
+Database recoverability remains open. PostgreSQL and SurrealDB snapshot catalog
+records do not establish a completed disposable restore. Read-only PG 17.11
+inspection and independent release-blob comparison found 27 applied migrations
+with matching checksums and only `20261101000000_sale_admission_proof` pending,
+Linux release SHA256 `92adcf8e3617eac53e539545794d2839b7795a2ca03d248dc366343fbcf75bf8`.
+Its SQL and actual catalog are compatible; recoverability and shared migration
+execution remain gates. No database migration or real-money activation occurred.
+
+npm owner `jadeoni-az` published 0.6.0; the public
 archive exactly matches reviewed SHA256
 `7431db9e1a5bfc5e628b8764f0371d2128c8fa68b6e41442032542d9d48ec3fd`
 and registry SRI. The reviewed Linux-generated `^0.6.0` manifest/lock are committed;
@@ -89,6 +96,15 @@ under the accepted authorization; owner choices are carried in the current
 for exact checks, publication/adoption, release CI and protected-file/database
 prerequisites. No payment deployment or activation is claimed.
 
+Normal AZOA production-promotion configuration still needs the required
+protected environments, designated reviewer identity and scoped Railway deployment
+credential. The eight nonsecret target variables are now configured and their
+exact IDs/health URLs were read back successfully.
+This is an existing administration prerequisite, not a new blanket approval gate
+for engineering. Reviewer selection is recorded as PAY-D04; nonsecret IDs/URLs
+remain routine configuration. The separate maintenance publisher has no
+environment or deployment authority and does not waive production protections.
+
 ## Working copies and ownership
 
 - ArdaNova: current workspace, released feed baseline main `f915686`.
@@ -98,8 +114,9 @@ prerequisites. No payment deployment or activation is claimed.
   main `c7cfa4af`. The original dirty checkout and owner-held main worktree are
   untouched. Its `origin` points to the project's canonical GitHub remote.
 - SDK: public `0.6.0` exactly matches the reviewed archive. Arda's `^0.6.0`
-  manifest/lock adoption is committed at `62d3e52` after independent review and
-  clean Linux install/import proof; combined release CI and deployment remain.
+  manifest/lock adoption is committed at `62d3e52` after independent review,
+  clean Linux install/import proof and successful combined CI `41462170432`;
+  release-image publication, migrations and deployment remain.
 
 ## Lane N: node requests, delivery and hosted ownership flow
 
@@ -203,12 +220,12 @@ processes without this fence have drained, then receives explicit activation.
 5. Exercise claim/resend races, cross-tenant denial, immutable scope approval,
    renewal/revoke/decline, response loss and ambiguous payout receipts in an
    isolated integrated stack. Never use demo SurrealDB or fabricate compliance.
-6. Exact reviewed SDK publication and source adoption are verified; obtain the
-   combined branch's clean registry CI before release. Migrate-first
+6. Exact reviewed SDK publication, source adoption and combined clean registry CI
+   are verified. Obtain immutable release images and migrate-first
    with backup for shared data. Deploy node before BFF/client and enable each
    capability only after its consumer and hosted return path are verified.
 
 Identomat, Stripe TEST prerequisites, dependency decisions, coordinated Postgres
-password rotation, and combined release CI remain explicit. Never
+password rotation, and release-image/operational gates remain explicit. Never
 rotate the AZOA value key while P6-03 remains open. None of this plan authorizes
 live-money activation or invented KYC/KYB evidence.
