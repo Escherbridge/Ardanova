@@ -1,6 +1,7 @@
 namespace ArdaNova.API.Controllers;
 
 using System.Security.Claims;
+using System.Globalization;
 using ArdaNova.API.Middleware;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
@@ -63,7 +64,82 @@ public class PayoutsController : ControllerBase
     [HttpPost]
     [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
     public async Task<IActionResult> RequestPayout([FromBody] CreatePayoutRequestDto dto, CancellationToken ct)
-        => ToActionResult(await _payoutService.RequestPayoutAsync(ActorId, dto, ct));
+        => BadRequest(new { error = "Use a server-priced quote and a request key to start a sale." });
+
+    [HttpPost("sale/quotes")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> CreateSaleQuote([FromBody] CreateUnitSaleQuote dto, CancellationToken ct)
+        => _payoutService is IQuotedSaleService sales
+            ? QuoteAction(await sales.CreateSaleQuoteAsync(ActorId, dto, ct))
+            : ServiceUnavailable(CashOutUnavailableMessage);
+
+    [HttpPost("sale")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> AcceptSaleQuote([FromBody] AcceptUnitSaleQuote dto, CancellationToken ct)
+        => _payoutService is IQuotedSaleService sales
+            ? SaleAction(await sales.AcceptSaleQuoteAsync(ActorId, dto, ct))
+            : ServiceUnavailable(CashOutUnavailableMessage);
+
+    [HttpGet("sale/{id}")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> ReadSale(string id, CancellationToken ct)
+        => _payoutService is IQuotedSaleService sales
+            ? SaleAction(await sales.ReadSaleAsync(ActorId, id, ct))
+            : ServiceUnavailable(CashOutUnavailableMessage);
+
+    [HttpPost("sale/requests/{requestKey}/void")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> VoidSaleRequest(string requestKey, [FromBody] SaleVoidRequestDto dto, CancellationToken ct)
+    {
+        if (_payoutService is not IQuotedSaleService sales) return ServiceUnavailable(CashOutUnavailableMessage);
+        var result = await sales.VoidSaleRequestAsync(ActorId, new(requestKey, dto.QuoteId), ct);
+        if (result.IsFailure || result.Value is not { } resolution)
+            return ToActionResult(result, MoneyRefusalContext.CashOutGeneral);
+        if (resolution.Outcome == "voided") return Ok(new { outcome = "voided" });
+        if (resolution.Sale is not { ArdaMinorUnits: not null } sale)
+            return Conflict(new { error = "The exact sale record needs reconciliation." });
+        return Ok(new { outcome = "revealed", sale = SdkSaleBody(sale) });
+    }
+
+    private IActionResult QuoteAction(Result<UnitSaleQuote> result)
+    {
+        if (result.IsFailure || result.Value is not { } quote)
+            return ToActionResult(result, MoneyRefusalContext.CashOutGeneral);
+        return Ok(new
+        {
+            quote.QuoteId, quote.ProjectTokenConfigId, quote.UnitName, quote.SourceUnitAmount,
+            quantityBaseUnits = quote.SourceUnitAmount.ToString(CultureInfo.InvariantCulture),
+            platformMinorUnits = quote.PlatformMinorUnits.ToString(CultureInfo.InvariantCulture),
+            usdReferenceMinorUnits = quote.UsdReferenceMinorUnits.ToString(CultureInfo.InvariantCulture),
+            sellableUnitCount = quote.SellableUnitCount.ToString(CultureInfo.InvariantCulture),
+            quote.RestrictedUntil, quote.CanSell, quote.StatusMessage, quote.ExpiresAt, quote.CurrencyCode, quote.CurrencyDecimals,
+        });
+    }
+
+    private IActionResult SaleAction(Result<ArdaNova.Application.DTOs.PayoutRequestDto> result)
+    {
+        if (result.IsFailure || result.Value is not { } sale)
+            return ToActionResult(result, MoneyRefusalContext.CashOutGeneral);
+        if (sale.ArdaMinorUnits is null)
+            return Conflict(new { error = "The exact sale amount needs reconciliation." });
+        return Ok(SdkSaleBody(sale));
+    }
+
+    private static object SdkSaleBody(PayoutRequestDto sale)
+        => new
+        {
+            sale.Id, sale.Status, sale.SourceTokenAmount,
+            quantityBaseUnits = sale.SourceTokenAmount.ToString(CultureInfo.InvariantCulture),
+            ardaMinorUnits = sale.ArdaMinorUnits!.Value.ToString(CultureInfo.InvariantCulture),
+            usdReferenceMinorUnits = sale.UsdReferenceMinorUnits?.ToString(CultureInfo.InvariantCulture),
+            sale.CurrencyCode, sale.CurrencyDecimals, sale.RequestedAt, sale.ProcessedAt, sale.CompletedAt, sale.FailureReason,
+            statusMessage = sale.Status switch
+            {
+                PayoutStatus.COMPLETED => "The sale is complete. Funds are in your balance.",
+                PayoutStatus.FAILED or PayoutStatus.CANCELLED => sale.FailureReason ?? "No units were sold.",
+                _ => "The sale is still being confirmed. Your units stay set aside.",
+            },
+        };
 
     /// <summary>What a sale would pay, checked against the same gates the sale itself faces.</summary>
     [HttpGet("quote")]
@@ -162,10 +238,22 @@ public class PayoutsController : ControllerBase
         if (CashOut is null)
             return ServiceUnavailable(CashOutUnavailableMessage);
 
-        // F-H8 (oasis-sleek FiatPayoutController.BeginAccountSetup) is the node's only documented
-        // 403 on this POST: a tenant-driven principal cannot open somebody else's bank destination.
-        return ToActionResult(
-            await CashOut.BeginDestinationSetupAsync(ActorId, ct), MoneyRefusalContext.PayoutDestinationSetup);
+        return StatusCode(StatusCodes.Status403Forbidden, MoneyRefusal.ToErrorBody(MoneyRefusal.For(MoneyRefusalCodes.AccountHolderRequired,
+            "Continue through the secure account handoff before setting up your bank.")));
+    }
+
+    [HttpPost("withdraw/requests/{requestKey}/void")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> VoidWithdrawal(string requestKey, CancellationToken ct)
+    {
+        if (CashOut is null) return ServiceUnavailable(CashOutUnavailableMessage);
+        var result = await CashOut.VoidWithdrawalAsync(ActorId, requestKey, ct);
+        if (result.IsSuccess && result.Value is { Outcome: "voided", CashOut: null })
+            return Ok(new { outcome = "voided" });
+        if (result.IsSuccess && result.Value is { Outcome: "revealed", CashOut: { } cashOut })
+            return Ok(new { outcome = "revealed", cashOut });
+        return Conflict(MoneyRefusal.ToErrorBody(MoneyRefusal.ForFailedVoid(result,
+            MoneyRefusalContext.CashOutGeneral, "The request could not be resolved. Keep its saved key.")));
     }
 
     /// <summary>Sends money to this person's own bank. Idempotent on the request key.</summary>
@@ -238,3 +326,5 @@ public class PayoutsController : ControllerBase
         };
     }
 }
+
+public sealed record SaleVoidRequestDto(string QuoteId);

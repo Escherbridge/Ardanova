@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -216,9 +217,14 @@ describe("verify-azoa-sdk-pin", () => {
     if (result.status === 0) {
       expect(result.output).toContain("pin is consistent");
     } else {
-      // Still blocked on OI-01 (azoa-sdk unpublished, npm whoami 401s).
-      expect(result.output).toContain("npm install azoa-sdk@^0.4.0");
-      expect(result.output).toContain("Publish azoa-sdk@0.4.0");
+      const manifest = JSON.parse(
+        readFileSync(path.join(clientRoot, "package.json"), "utf8"),
+      ) as { dependencies: Record<string, string> };
+      const declaredRange = manifest.dependencies["azoa-sdk"];
+      expect(result.output).toContain(`npm install azoa-sdk@${declaredRange}`);
+      expect(result.output).toContain(
+        `Publish azoa-sdk@${declaredRange.replace(/^[~^]/u, "")}`,
+      );
     }
   });
 });

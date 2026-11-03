@@ -56,6 +56,8 @@ namespace ArdaNova.Application.Services.Interfaces
         DateTimeOffset? PaidAt,
         DateTimeOffset? ReversedAt);
 
+    public sealed record CashOutRequestResolution(string Outcome, CashOutRecord? CashOut = null);
+
     /// <summary>What a sale would pay, and whether it may go ahead. Moves nothing.</summary>
     /// <remarks>
     /// Produced by the SAME gates and the SAME arithmetic that a real sale runs, so a quote a
@@ -70,7 +72,11 @@ namespace ArdaNova.Application.Services.Interfaces
         long SellableUnitCount,
         DateTimeOffset? RestrictedUntil,
         bool CanSell,
-        string StatusMessage);
+        string StatusMessage,
+        string? QuoteId = null,
+        DateTimeOffset? ExpiresAt = null,
+        string CurrencyCode = "ARDA",
+        int CurrencyDecimals = ArdaNova.Application.Services.Implementations.Money.MinorUnitDigits);
 
     /// <summary>One project's units as they stand for one holder: sellable now, or held until a date.</summary>
     /// <remarks>
@@ -122,6 +128,9 @@ namespace ArdaNova.Application.Services.Interfaces
         Task<Result<CashOutRecord>> RequestAsync(
             Guid avatarId, string requestKey, long amountMinorUnits, CancellationToken ct = default);
 
+        Task<Result<CashOutRequestResolution>> VoidRequestAsync(Guid avatarId, string requestKey, CancellationToken ct = default)
+            => Task.FromResult(Result<CashOutRequestResolution>.Conflict("This request could not be resolved."));
+
         /// <summary>This person's own cash-out history, newest first.</summary>
         Task<Result<IReadOnlyList<CashOutRecord>>> ListAsync(
             Guid avatarId, int limit, CancellationToken ct = default);
@@ -166,6 +175,9 @@ namespace ArdaNova.Application.Services.Interfaces
         Task<Result<CashOutRecord>> WithdrawAsync(
             string userId, string requestKey, long amountMinorUnits, CancellationToken ct = default);
 
+        Task<Result<CashOutRequestResolution>> VoidWithdrawalAsync(string userId, string requestKey, CancellationToken ct = default)
+            => Task.FromResult(Result<CashOutRequestResolution>.Conflict("This request could not be resolved."));
+
         /// <summary>This person's own withdrawals, newest first.</summary>
         Task<Result<IReadOnlyList<CashOutRecord>>> GetWithdrawalsAsync(
             string userId, CancellationToken ct = default);
@@ -194,7 +206,7 @@ namespace ArdaNova.Application.Services.Implementations
     /// locked, because releasing them on a maybe is how one holding gets sold twice.
     /// </para>
     /// </remarks>
-    public class PayoutService : IPayoutService, ICashOutService
+    public partial class PayoutService : IPayoutService, ICashOutService, IQuotedSaleService
     {
         /// <summary>Person-facing name of step one, used in every readiness refusal.</summary>
         public const string SellAction = "sell your units";
@@ -232,6 +244,8 @@ namespace ArdaNova.Application.Services.Implementations
         private readonly IRepository<TokenBalance>? _tokenBalanceRepository;
         private readonly IRepository<TokenAllocation>? _allocationRepository;
         private readonly TimeProvider _timeProvider;
+        private readonly IPayoutSaleStore? _saleStore;
+        private readonly ExchangeAdmissionPolicy _admission;
 
         /// <param name="exchangeService">
         /// Kept in the signature, and deliberately unused: pricing a sale now goes through
@@ -260,7 +274,9 @@ namespace ArdaNova.Application.Services.Implementations
             IRepository<User>? userRepository = null,
             IRepository<TokenBalance>? tokenBalanceRepository = null,
             IRepository<TokenAllocation>? allocationRepository = null,
-            TimeProvider? timeProvider = null)
+            TimeProvider? timeProvider = null,
+            IPayoutSaleStore? saleStore = null,
+            ExchangeAdmissionPolicy? admission = null)
         {
             _payoutRepository = payoutRepository;
             _projectTokenConfigRepository = projectTokenConfigRepository;
@@ -277,6 +293,8 @@ namespace ArdaNova.Application.Services.Implementations
             _tokenBalanceRepository = tokenBalanceRepository;
             _allocationRepository = allocationRepository;
             _timeProvider = timeProvider ?? TimeProvider.System;
+            _saleStore = saleStore;
+            _admission = admission ?? ExchangeAdmissionPolicy.Default;
         }
 
         // -- Step one: sell units for platform funds -----------------------------
@@ -354,6 +372,7 @@ namespace ArdaNova.Application.Services.Implementations
                 usdReferenceMinorUnits = priced.UsdReferenceMinorUnits,
                 ardaTokenAmount = ToWholeUnitsForDisplay(priced.PlatformMinorUnits),
                 usdAmount = Money.ToDisplayDouble(Money.FromMinorUnits(priced.UsdReferenceMinorUnits)),
+                exchangeAdmitBefore = _admission.AdmitBefore(_timeProvider.GetUtcNow().UtcDateTime).UtcDateTime,
             };
 
             await _payoutRepository.AddAsync(payoutRequest, ct);
@@ -389,7 +408,9 @@ namespace ArdaNova.Application.Services.Implementations
                 Rate: rate,
                 ReleaseNotBefore: null,
                 Purpose: ExchangePurpose,
-                PreviewOnly: false);
+                PreviewOnly: false,
+                AdmitBefore: payoutRequest.exchangeAdmitBefore is { } deadline
+                    ? new DateTimeOffset(DateTime.SpecifyKind(deadline, DateTimeKind.Utc)) : null);
 
             var receipt = await _exchangeNode!.ExchangeAsync(
                 avatarId, command, payoutRequest.ExchangeIdempotencyKey, ct);
@@ -449,8 +470,10 @@ namespace ArdaNova.Application.Services.Implementations
             if (_exchangeNode is null)
                 return Result<PayoutRequestDto>.Failure(NoExchangeConfigured);
 
+            var readStartedAt = _timeProvider.GetUtcNow().UtcDateTime;
             var receipt = await _exchangeNode.GetReceiptAsync(payoutRequest.ExchangeIdempotencyKey, ct);
-            return await ApplyExchangeOutcomeAsync(payoutRequest, receipt, ct);
+            return await ApplyExchangeOutcomeAsync(payoutRequest, receipt, ct,
+                readStartedAt);
         }
 
         /// <summary>Puts back a sale the node never settled, and returns the units.</summary>
@@ -461,52 +484,18 @@ namespace ArdaNova.Application.Services.Implementations
             if (payoutRequest is null)
                 return Result<PayoutRequestDto>.NotFound("That sale could not be found.");
 
-            if (payoutRequest.status != PayoutStatus.PENDING)
-            {
-                return Result<PayoutRequestDto>.Conflict(
-                    "This sale is no longer waiting, so it cannot be called off.");
-            }
+            if (payoutRequest.status is not (PayoutStatus.PENDING or PayoutStatus.PROCESSING)
+                || payoutRequest.IsNodeSettled || _exchangeNode is null)
+                return Result<PayoutRequestDto>.Conflict("This sale cannot be called off. Check its recorded result.");
 
-            // A row the node already answered for is NOT cancellable, whatever its status column
-            // says: the units have left, and unlocking them here would let them be sold twice.
-            if (payoutRequest.IsNodeSettled)
-            {
-                return Result<PayoutRequestDto>.Conflict(
-                    "This sale already went through, so it cannot be called off.");
-            }
-
-            await _unitOfWork.BeginTransactionAsync(ct);
-            try
-            {
-                var unlockResult = await _tokenBalanceService.UnlockAsync(
-                    payoutRequest.userId,
-                    payoutRequest.sourceProjectTokenConfigId ?? string.Empty,
-                    payoutRequest.sourceTokenAmount,
-                    payoutRequest.holderClass,
-                    ct);
-
-                if (!unlockResult.IsSuccess)
-                {
-                    await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
-                    _unitOfWork.ClearTrackedChanges();
-                    return Result<PayoutRequestDto>.Failure(
-                        "Your units could not be released, so the sale was left as it was.");
-                }
-
-                payoutRequest.status = PayoutStatus.CANCELLED;
-                payoutRequest.completedAt = _timeProvider.GetUtcNow().UtcDateTime;
-                await _payoutRepository.UpdateAsync(payoutRequest, ct);
-                await _unitOfWork.SaveChangesAsync(ct);
-                var resultDto = _mapper.Map<PayoutRequestDto>(payoutRequest);
-                await _unitOfWork.CommitTransactionAsync(ct);
-                return Result<PayoutRequestDto>.Success(resultDto);
-            }
-            catch
-            {
-                await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
-                _unitOfWork.ClearTrackedChanges();
-                throw;
-            }
+            var readStartedAt = _timeProvider.GetUtcNow().UtcDateTime;
+            var receipt = await _exchangeNode.GetReceiptAsync(payoutRequest.ExchangeIdempotencyKey, ct);
+            if (receipt.Type == ResultType.NotFound && SaleAbsenceIsProof(payoutRequest, readStartedAt))
+                return await FailSaleAsync(payoutRequest, "This sale was called off. Your units are available again.",
+                    _timeProvider.GetUtcNow().UtcDateTime, ct, cancelled: true, absenceReadStartedAt: readStartedAt);
+            if (receipt.IsSuccess)
+                await ApplyExchangeOutcomeAsync(payoutRequest, receipt, ct);
+            return Result<PayoutRequestDto>.Conflict("We cannot yet prove this sale stopped. Your units stay set aside.");
         }
 
         public async Task<Result<IReadOnlyList<PayoutRequestDto>>> GetPayoutsByUserAsync(
@@ -722,6 +711,15 @@ namespace ArdaNova.Application.Services.Implementations
                 avatar.AvatarId, requestKey.Trim(), amountMinorUnits, ct);
         }
 
+        public async Task<Result<CashOutRequestResolution>> VoidWithdrawalAsync(string userId, string requestKey, CancellationToken ct = default)
+        {
+            if (!IsAcceptableRequestKey(requestKey))
+                return Result<CashOutRequestResolution>.ValidationError("A valid saved request key is required.");
+            var avatar = await ResolveAvatarAsync<CashOutRequestResolution>(userId, ct);
+            return avatar.Refusal is not null ? avatar.Refusal
+                : await _cashOutNode!.VoidRequestAsync(avatar.AvatarId, requestKey, ct);
+        }
+
         /// <inheritdoc />
         public async Task<Result<IReadOnlyList<CashOutRecord>>> GetWithdrawalsAsync(
             string userId, CancellationToken ct = default)
@@ -735,24 +733,12 @@ namespace ArdaNova.Application.Services.Implementations
 
         // -- Applying what the node answered --------------------------------------
 
-        /// <summary>Settles the row on the node's answer, moving units ONLY against a terminal receipt.</summary>
-        /// <remarks>
-        /// Four outcomes, kept apart on purpose.
-        /// <list type="bullet">
-        /// <item>A TERMINAL receipt with no failure code debits the units and completes the row.</item>
-        /// <item>A receipt that is not terminal, or asks for reconciliation, parks the row in
-        /// PROCESSING with the units still locked.</item>
-        /// <item>A DECLINE - the node read the request, said no, and created nothing - returns the
-        /// units and fails the row.</item>
-        /// <item>Anything else is AMBIGUOUS: a timeout, an unreachable node, a conflict. The
-        /// exchange may already have run, so the row parks with the units still locked. Returning
-        /// them on a maybe is exactly how one holding gets sold twice.</item>
-        /// </list>
-        /// </remarks>
+        /// <summary>Applies terminal receipts or fenced absence proof; see AGENTS.md cash-out rules.</summary>
         private async Task<Result<PayoutRequestDto>> ApplyExchangeOutcomeAsync(
             PayoutRequest payoutRequest,
             Result<ArdaNovaExchangeReceipt> receipt,
-            CancellationToken ct)
+            CancellationToken ct,
+            DateTime? absenceReadStartedAt = null)
         {
             var now = _timeProvider.GetUtcNow().UtcDateTime;
 
@@ -764,12 +750,7 @@ namespace ArdaNova.Application.Services.Implementations
 
                 if (!settled.IsTerminal || settled.RequiresReconciliation)
                 {
-                    payoutRequest.status = PayoutStatus.PROCESSING;
-                    payoutRequest.failureReason = null;
-                    await _payoutRepository.UpdateAsync(payoutRequest, ct);
-                    await _unitOfWork.SaveChangesAsync(ct);
-
-                    return Result<PayoutRequestDto>.Success(_mapper.Map<PayoutRequestDto>(payoutRequest));
+                    return await ParkSaleAsync(payoutRequest, null, settled, ct);
                 }
 
                 if (!string.IsNullOrWhiteSpace(settled.FailureCode))
@@ -784,37 +765,47 @@ namespace ArdaNova.Application.Services.Implementations
                 return await CompleteSaleAsync(payoutRequest, settled, now, ct);
             }
 
-            // The node DECLINED - it read the request, said no, and created nothing. Only these
-            // outcomes are safe to unlock on. A transport failure or a conflict is AMBIGUOUS: the
-            // exchange may already have run, and returning the units on a maybe is how the same
-            // holding gets sold twice.
-            //
-            // BadRequest is load-bearing here, not incidental: the node answers a refusal that
-            // provably moved nothing (REQUEST_DECLINED, e.g. a buy-back the operator has not
-            // opened) with HTTP 422, and the transport maps 422 to BadRequest. Dropping it from
-            // this set puts the seller's units back under an indefinite lock over a plain "no".
-            var declined = receipt.Type
-                is ResultType.NotFound
-                or ResultType.ValidationError
-                or ResultType.BadRequest
-                or ResultType.Forbidden
-                or ResultType.Unauthorized;
+            if (receipt.Type == ResultType.NotFound && absenceReadStartedAt is { } readStart
+                && SaleAbsenceIsProof(payoutRequest, readStart))
+                return await FailSaleAsync(payoutRequest, "This sale did not go through, so your units are back where they were.", now, ct,
+                    absenceReadStartedAt: readStart);
 
-            if (declined)
-                return await FailSaleAsync(payoutRequest, DescribeRefusal(receipt.Type), now, ct);
+            return await ParkSaleAsync(payoutRequest, DescribeRefusal(ResultType.Conflict), null, ct);
+        }
 
-            var unresolved = DescribeRefusal(receipt.Type);
-
-            if (payoutRequest.status != PayoutStatus.PROCESSING)
+        private async Task<Result<PayoutRequestDto>> ParkSaleAsync(PayoutRequest payoutRequest, string? message,
+            ArdaNovaExchangeReceipt? receipt, CancellationToken ct)
+        {
+            await _unitOfWork.BeginTransactionAsync(ct);
+            try
             {
+                if (_saleStore is not null) await _saleStore.LockAdmissionAsync(payoutRequest.userId, ct);
+                payoutRequest = _saleStore is null ? payoutRequest : await _saleStore.LockPayoutAsync(payoutRequest.id, ct) ?? payoutRequest;
+                if (payoutRequest.status is not (PayoutStatus.PENDING or PayoutStatus.PROCESSING))
+                {
+                    await _unitOfWork.CommitTransactionAsync(ct);
+                    return Result<PayoutRequestDto>.Success(_mapper.Map<PayoutRequestDto>(payoutRequest));
+                }
                 payoutRequest.status = PayoutStatus.PROCESSING;
-                payoutRequest.processedAt ??= now;
-                payoutRequest.failureReason = unresolved;
+                payoutRequest.processedAt ??= _timeProvider.GetUtcNow().UtcDateTime;
+                payoutRequest.failureReason = message;
+                if (receipt is not null)
+                {
+                    payoutRequest.SellReceiptReference = receipt.ReceiptReference;
+                    payoutRequest.SellOperationId = receipt.OperationId?.ToString();
+                }
                 await _payoutRepository.UpdateAsync(payoutRequest, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
+                await _unitOfWork.CommitTransactionAsync(ct);
+                return message is null ? Result<PayoutRequestDto>.Success(_mapper.Map<PayoutRequestDto>(payoutRequest))
+                    : Result<PayoutRequestDto>.Conflict(message);
             }
-
-            return Result<PayoutRequestDto>.Conflict(unresolved);
+            catch
+            {
+                await _unitOfWork.RollbackTransactionAsync(CancellationToken.None);
+                _unitOfWork.ClearTrackedChanges();
+                throw;
+            }
         }
 
         /// <summary>ArdaNova's own words for a refusal the shared node returned.</summary>
@@ -858,6 +849,15 @@ namespace ArdaNova.Application.Services.Implementations
             await _unitOfWork.BeginTransactionAsync(ct);
             try
             {
+                if (_saleStore is not null) await _saleStore.LockAdmissionAsync(payoutRequest.userId, ct);
+                payoutRequest = _saleStore is null ? payoutRequest : await _saleStore.LockPayoutAsync(payoutRequest.id, ct) ?? payoutRequest;
+                if (payoutRequest.status is not (PayoutStatus.PENDING or PayoutStatus.PROCESSING))
+                {
+                    await _unitOfWork.CommitTransactionAsync(ct);
+                    return Result<PayoutRequestDto>.Success(_mapper.Map<PayoutRequestDto>(payoutRequest));
+                }
+                payoutRequest.SellReceiptReference = settled.ReceiptReference;
+                payoutRequest.SellOperationId = settled.OperationId?.ToString();
                 var configId = payoutRequest.sourceProjectTokenConfigId ?? string.Empty;
 
                 var unlockResult = await _tokenBalanceService.UnlockAsync(
@@ -907,19 +907,33 @@ namespace ArdaNova.Application.Services.Implementations
 
         /// <summary>Returns the units and records why the sale did not happen.</summary>
         private async Task<Result<PayoutRequestDto>> FailSaleAsync(
-            PayoutRequest payoutRequest, string reason, DateTime now, CancellationToken ct)
+            PayoutRequest payoutRequest, string reason, DateTime now, CancellationToken ct, bool cancelled = false, DateTime? absenceReadStartedAt = null)
         {
             await _unitOfWork.BeginTransactionAsync(ct);
             try
             {
-                await _tokenBalanceService.UnlockAsync(
-                    payoutRequest.userId,
-                    payoutRequest.sourceProjectTokenConfigId ?? string.Empty,
-                    payoutRequest.sourceTokenAmount,
-                    payoutRequest.holderClass,
-                    ct);
-
-                payoutRequest.status = PayoutStatus.FAILED;
+                if (_saleStore is not null) await _saleStore.LockAdmissionAsync(payoutRequest.userId, ct);
+                payoutRequest = _saleStore is null ? payoutRequest : await _saleStore.LockPayoutAsync(payoutRequest.id, ct) ?? payoutRequest;
+                if (payoutRequest.status is not (PayoutStatus.PENDING or PayoutStatus.PROCESSING))
+                {
+                    await _unitOfWork.CommitTransactionAsync(ct);
+                    return Result<PayoutRequestDto>.Success(_mapper.Map<PayoutRequestDto>(payoutRequest));
+                }
+                if (absenceReadStartedAt is { } readStart && !SaleAbsenceIsProof(payoutRequest, readStart))
+                {
+                    await _unitOfWork.CommitTransactionAsync(ct);
+                    return Result<PayoutRequestDto>.Conflict("This sale still needs reconciliation. Your units stay set aside.");
+                }
+                var unlocked = await _tokenBalanceService.UnlockAsync(payoutRequest.userId,
+                    payoutRequest.sourceProjectTokenConfigId ?? string.Empty, payoutRequest.sourceTokenAmount,
+                    payoutRequest.holderClass, ct);
+                if (unlocked.IsFailure)
+                {
+                    await _unitOfWork.RollbackTransactionAsync(ct);
+                    _unitOfWork.ClearTrackedChanges();
+                    return Result<PayoutRequestDto>.Conflict("The sale stopped, but your units could not be released here. Support can reconcile it.");
+                }
+                payoutRequest.status = cancelled ? PayoutStatus.CANCELLED : PayoutStatus.FAILED;
                 payoutRequest.failureReason = reason;
                 payoutRequest.completedAt = now;
                 await _payoutRepository.UpdateAsync(payoutRequest, ct);
@@ -933,7 +947,8 @@ namespace ArdaNova.Application.Services.Implementations
                 throw;
             }
 
-            return Result<PayoutRequestDto>.Failure(reason);
+            return cancelled ? Result<PayoutRequestDto>.Success(_mapper.Map<PayoutRequestDto>(payoutRequest))
+                : Result<PayoutRequestDto>.Failure(reason);
         }
 
         // -- The gate every sale passes, quoted or executed -------------------------
@@ -974,6 +989,9 @@ namespace ArdaNova.Application.Services.Implementations
             var readiness = await _valueEligibility.RequireReadyAsync(userId, SellAction, ct);
             if (!readiness.IsSuccess)
                 return ValueEligibilityFailure.Propagate<AzoaCustodialAccountStatusDto, SaleAssessment>(readiness);
+
+            if (!AzoaConsentCoverage.Covers(readiness.Value, "swap:sign", _timeProvider.GetUtcNow()))
+                return Result<SaleAssessment>.Forbidden("Your permission is needed before selling these units.").WithCode("CONSENT_REQUIRED");
 
             if (!Guid.TryParse(readiness.Value?.AvatarId, out var avatarId) || avatarId == Guid.Empty)
             {
@@ -1313,6 +1331,10 @@ namespace ArdaNova.Application.Services.Implementations
                         Guid.Empty,
                         ValueEligibilityFailure.Propagate<AzoaCustodialAccountStatusDto, T>(readiness));
                 }
+
+                if (!AzoaConsentCoverage.Covers(readiness.Value, "transfer:sign", _timeProvider.GetUtcNow()))
+                    return new ResolvedAvatar<T>(Guid.Empty,
+                        Result<T>.Forbidden("Your permission is needed before sending money.").WithCode("CONSENT_REQUIRED"));
 
                 if (Guid.TryParse(readiness.Value?.AvatarId, out var readyAvatarId)
                     && readyAvatarId != Guid.Empty)

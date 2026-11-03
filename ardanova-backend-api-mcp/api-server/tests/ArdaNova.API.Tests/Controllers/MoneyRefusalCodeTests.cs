@@ -72,6 +72,13 @@ public sealed class MoneyRefusalCodeTests
     }
 
     [Fact]
+    public void ClaimedGrantScopeRefusalNamesConsentAndNeverConfiguration()
+    {
+        var refusal = MoneyRefusal.From(Result<object>.Forbidden("Permission is needed.").WithCode("CONSENT_REQUIRED"));
+        refusal.Code.Should().Be(MoneyRefusalCodes.ConsentRevoked);
+    }
+
+    [Fact]
     public async Task Begin_NodeRateLimited_IsRailBusyWithARetryHint()
     {
         var controller = CreateAddFundsController(RealFiatRail(_ => new HttpResponseMessage((HttpStatusCode)429)));
@@ -471,7 +478,11 @@ public sealed class MoneyRefusalCodeTests
             new Mock<IMapper>().Object,
             new Mock<ITokenBalanceService>().Object,
             new Mock<IExchangeService>().Object,
-            ReadyEligibility().Object,
+            ReadyEligibility(Result<AzoaCustodialAccountStatusDto>.Success(new()
+            {
+                AvatarId = AvatarId.ToString(), Ready = true, Ownership = "claimed", Consent = "granted",
+                ConsentScopes = ["transfer:sign"], ConsentExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+            })).Object,
             cashOutNode: cashOutNode);
 
         return new PayoutsController(payouts, payouts)

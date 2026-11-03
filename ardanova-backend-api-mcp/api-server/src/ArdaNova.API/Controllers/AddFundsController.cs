@@ -123,7 +123,17 @@ public sealed class AddFundsController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>Starts, or resumes on the same request key, one payment that adds funds.</summary>
+    /// <summary>Reports checkout availability without operator configuration.</summary>
+    [HttpGet("capabilities")]
+    [Authorize(Policy = AuthorizationPolicies.ActorAssertion)]
+    public async Task<IActionResult> Capabilities(CancellationToken ct)
+    {
+        var result = await _fiatRail.GetCapabilitiesAsync(ct);
+        return result.IsSuccess && result.Value is { } value
+            ? Ok(new { available = value.Available, unavailableReason = value.UnavailableReason })
+            : StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = "Adding funds availability could not be confirmed." });
+    }
+
     [HttpPost]
     public async Task<IActionResult> Begin([FromBody] AddFundsRequestDto request, CancellationToken ct)
     {

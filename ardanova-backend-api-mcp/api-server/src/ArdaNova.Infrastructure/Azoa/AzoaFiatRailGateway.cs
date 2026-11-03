@@ -46,6 +46,17 @@ public sealed class AzoaFiatRailGateway : IFiatRailGateway
         _options = options;
     }
 
+    public async Task<Result<FiatCheckoutCapabilities>> GetCapabilitiesAsync(CancellationToken ct = default)
+    {
+        if (!_options.Enabled)
+            return Result<FiatCheckoutCapabilities>.Success(new(false, "Adding funds is unavailable on this deployment."));
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/fiat/checkout/capabilities");
+        var result = await AzoaNodeClient.SendAsync<FiatCheckoutCapabilities>(_http, _logger, request, ct);
+        return result.IsSuccess && result.Value is { } value
+            ? Result<FiatCheckoutCapabilities>.Success(new(value.Available, value.Available ? null : "Adding funds is unavailable on this deployment."))
+            : Result<FiatCheckoutCapabilities>.Failure("Adding funds availability could not be confirmed.");
+    }
+
     /// <inheritdoc />
     public Task<Result<FiatCheckoutSession>> BeginAddFundsAsync(
         FiatCheckoutStart request, CancellationToken ct = default)

@@ -160,6 +160,7 @@ public static class MoneyRefusal
     /// </remarks>
     private static (string Code, string? Reason)? FromUpstreamCode(string? upstreamCode) => upstreamCode switch
     {
+        "CONSENT_REQUIRED" => (MoneyRefusalCodes.ConsentRevoked, null),
         UpstreamFailureCodes.KybRequired => (MoneyRefusalCodes.KybRequired, null),
         UpstreamFailureCodes.RequestVoided => (MoneyRefusalCodes.Definite, MoneyRefusalReasons.Voided),
         UpstreamFailureCodes.IntentExpired => (MoneyRefusalCodes.Definite, MoneyRefusalReasons.Expired),

@@ -20,6 +20,10 @@ public enum AzoaKycStatus
 /// <summary>Authoritative AZOA account, wallet, and KYC readiness without custody material.</summary>
 public sealed record AzoaCustodialAccountStatusDto
 {
+    public string Ownership { get; init; } = "custodial";
+    public string Consent { get; init; } = "granted";
+    public IReadOnlyList<string> ConsentScopes { get; init; } = [];
+    public DateTimeOffset? ConsentExpiresAt { get; init; }
     public string? AvatarId { get; init; }
     public string? WalletId { get; init; }
     public string? WalletAddress { get; init; }

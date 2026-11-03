@@ -58,7 +58,7 @@ public sealed class PayoutServiceDeclinedTests
     // ── The sale: what a decline does to the seller's units ───────────────────
 
     [Fact]
-    public async Task A_declined_sale_releases_the_lock_and_leaves_the_row_retryable()
+    public async Task An_http_decline_keeps_units_locked_until_receipt_absence_is_proved()
     {
         var fixture = new SaleFixture();
         fixture.NodeAnswers(Result<ArdaNovaExchangeReceipt>.BadRequest("declined"));
@@ -66,14 +66,13 @@ public sealed class PayoutServiceDeclinedTests
         var result = await fixture.SellAsync();
 
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("units are back where they were");
+        result.Error.Should().Contain("units stay set aside");
 
         // The units come back exactly once, nothing is debited, and the row is FAILED rather
         // than parked in PROCESSING - so the seller can simply start another sale.
-        fixture.VerifyUnlockedOnce();
+        fixture.VerifyNeverUnlocked();
         fixture.VerifyNothingDebited();
-        fixture.LastWrittenStatus.Should().Be(PayoutStatus.FAILED);
-        fixture.LastWrittenStatus.Should().NotBe(PayoutStatus.PROCESSING);
+        fixture.LastWrittenStatus.Should().Be(PayoutStatus.PROCESSING);
     }
 
     [Fact]

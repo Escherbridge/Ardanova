@@ -22,6 +22,7 @@ vi.mock("~/server/auth", () => ({
 // (mirrors src/server/api/root.test.ts).
 const releaseFixtures: Record<string, string> = {
   AUTH_SECRET: "release-check-auth-secret-is-not-for-runtime-use",
+  AUTH_URL: "https://ardanova.example",
   GOOGLE_CLIENT_ID: "release-check-google-client",
   GOOGLE_CLIENT_SECRET: "release-check-google-secret",
   DATABASE_URL:
@@ -129,4 +130,84 @@ describe("tRPC route handler: request body cap", () => {
       "BAD_REQUEST",
     );
   });
+});
+
+describe("tRPC mutation origin guard", () => {
+  it.each([
+    { origin: "https://another.example" },
+    { origin: "null" },
+    { "sec-fetch-site": "cross-site" },
+    { origin: "http://localhost:3000", "sec-fetch-site": "cross-site" },
+  ])(
+    "rejects cross-origin metadata before consuming the body: %j",
+    async (headers: Record<string, string | undefined>) => {
+      const requestHeaders = new Headers({
+        "content-type": "application/json",
+      });
+      for (const [name, value] of Object.entries(headers))
+        if (value) requestHeaders.set(name, value);
+      const request = new NextRequest(ENDPOINT, {
+        method: "POST",
+        headers: requestHeaders,
+        body: "{}",
+      });
+      const response = await POST(request);
+      expect(response.status).toBe(403);
+      expect(request.bodyUsed).toBe(false);
+    },
+  );
+  it("lets a same-origin mutation reach input validation", async () => {
+    const request = new NextRequest(ENDPOINT, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://ardanova.example",
+        "sec-fetch-site": "same-origin",
+      },
+      body: "{}",
+    });
+    expect((await POST(request)).status).not.toBe(403);
+  });
+});
+
+describe("mutation origins behind a trusted reverse proxy", () => {
+  it("uses configured AUTH_URL rather than the internal NextRequest host", async () => {
+    const request = new NextRequest(
+      "http://0.0.0.0:8080/api/trpc/governance.create",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "https://ardanova.example",
+          "sec-fetch-site": "same-origin",
+        },
+        body: "{}",
+      },
+    );
+    expect((await POST(request)).status).not.toBe(403);
+  });
+  it.each([
+    "https://evil.example",
+    "https://ardanova.example/path",
+    "https://user@ardanova.example",
+    "null",
+  ])(
+    "rejects untrusted or malformed Origin %s before reading the body",
+    async (origin) => {
+      const request = new NextRequest(
+        "http://0.0.0.0:8080/api/trpc/governance.create",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            origin,
+            "x-forwarded-host": "evil.example",
+          },
+          body: "{}",
+        },
+      );
+      expect((await POST(request)).status).toBe(403);
+      expect(request.bodyUsed).toBe(false);
+    },
+  );
 });

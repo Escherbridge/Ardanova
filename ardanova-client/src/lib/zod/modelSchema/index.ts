@@ -89,6 +89,8 @@ export * from './ProjectTokenConfigSchema';
 export * from './TokenAllocationSchema';
 export * from './TokenBalanceSchema';
 export * from './PayoutRequestSchema';
+export * from './PayoutSaleQuoteSchema';
+export * from './PayoutSaleVoidSchema';
 export * from './PlatformTreasurySchema';
 export * from './PlatformTreasuryTransactionSchema';
 export * from './ProjectInvestmentSchema';

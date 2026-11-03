@@ -55,6 +55,12 @@ public sealed class AzoaValueEligibilityService : IAzoaValueEligibilityService
 
         var status = statusResult.Value;
 
+        if (status.Ownership == "claimed" && (status.Consent != "granted"
+            || status.ConsentExpiresAt is { } expires && expires <= DateTimeOffset.UtcNow
+            || !status.ConsentScopes.Contains("kyc:read", StringComparer.Ordinal)))
+            return Result<AzoaCustodialAccountStatusDto>.Forbidden("Your account permission needs to be renewed before this action.")
+                .WithCode("CONSENT_REQUIRED");
+
         // The node itself reported it cannot provide the account. That is a platform state;
         // telling this person to finish setup would be both false and unactionable. It is
         // checked FIRST: when the node cannot answer, nothing else it said is worth reading.

@@ -8,6 +8,7 @@ using ArdaNova.Domain.Models.Enums;
 
 namespace ArdaNova.Domain.Models.Entities;
 
+[Index(nameof(quoteId), IsUnique = true)]
 [Table("PayoutRequest")]
 public partial class PayoutRequest
 {
@@ -15,6 +16,12 @@ public partial class PayoutRequest
     [Key]
     [Required]
     public string id { get; set; } = string.Empty;
+
+    [Required]
+    public string currencyCode { get; set; } = PayoutSaleDenomination.Code;
+
+    [Required]
+    public int currencyDecimals { get; set; } = PayoutSaleDenomination.Decimals;
 
     [Required]
     public string userId { get; set; } = string.Empty;
@@ -55,6 +62,15 @@ public partial class PayoutRequest
     public DateTime? processedAt { get; set; }
 
     public DateTime? completedAt { get; set; }
+
+    public string? requestKey { get; set; }
+
+    public string? quoteId { get; set; }
+
+    public DateTime? exchangeAdmitBefore { get; set; }
+
+    [Column(TypeName = "text")]
+    public string? exchangeCommandJson { get; set; }
 
     [ForeignKey("userId")]
     public virtual User? User { get; set; }
