@@ -73,7 +73,7 @@ export function OperatorContact() {
           (509) 578-4603
         </a>
       </p>
-      <p>1140 S Colorado Ln, Boise, ID</p>
+      <p>Boise, Idaho</p>
     </address>
   );
 }

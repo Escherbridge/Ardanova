@@ -74,5 +74,17 @@ describe("sitewide JSON-LD", () => {
     expect(JSON.stringify(graph)).not.toMatch(
       /instagram|facebook|twitter\.com/i,
     );
+    expect(postalAddressKeys(graph)).toEqual([]);
   });
 });
+
+const postalField = new Set(["streetAddress", "postalCode"]);
+
+function postalAddressKeys(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(postalAddressKeys);
+  if (typeof value !== "object" || value === null) return [];
+  return Object.entries(value).flatMap(([key, child]) => {
+    const nested = postalAddressKeys(child);
+    return postalField.has(key) ? [key, ...nested] : nested;
+  });
+}
