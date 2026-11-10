@@ -20,6 +20,12 @@ describe("public sitemap URLs", () => {
       "https://ardanova.com/notes/two-records-one-agreement",
     );
     expect(urls).toContain("https://ardanova.com/patterns");
+    expect(urls).toContain(
+      "https://ardanova.com/patterns/a-record-is-not-a-right",
+    );
+    expect(urls).toContain(
+      "https://ardanova.com/patterns/two-records-one-agreement",
+    );
     expect(urls).toContain("https://ardanova.com/patterns/decision-logs");
     expect(urls).toContain("https://ardanova.com/patterns/problem-intake");
   });
