@@ -9,7 +9,7 @@ import { HomePrimaryNavMenu } from "~/components/marketing/home-primary-nav";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
-import { shareImage } from "~/lib/site";
+import { publicCanonical, shareImage } from "~/lib/site";
 import { authForPage } from "~/server/auth";
 import { HydrateClient } from "~/trpc/server";
 
@@ -17,6 +17,11 @@ const homeCanonical = "https://ardanova.com/";
 
 export const metadata: Metadata = {
   openGraph: { images: [shareImage] },
+  alternates: {
+    types: {
+      "application/rss+xml": publicCanonical("/feed.xml"),
+    },
+  },
 };
 
 const operatingSteps = [
@@ -106,6 +111,18 @@ export default async function Home() {
                 href={projectsHref}
               >
                 Projects
+              </Link>
+              <Link
+                className="hover:text-primary inline-flex min-h-11 min-w-11 items-center justify-center"
+                href="/notes"
+              >
+                Notes
+              </Link>
+              <Link
+                className="hover:text-primary inline-flex min-h-11 min-w-11 items-center justify-center"
+                href="/patterns"
+              >
+                Patterns
               </Link>
             </nav>
 

@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { JsonLd } from "~/components/brand/json-ld";
 import { NotesShell } from "~/components/brand/notes-shell";
+import { RelatedLinks } from "~/components/brand/related-links";
+import { SimulationNotice } from "~/components/brand/simulation-notice";
+import { publicPageMetadata } from "~/lib/page-metadata";
+import { articleSchema, breadcrumbList } from "~/lib/schema";
+import { noteBySlug, noteCanonical, notes } from "~/lib/writing";
 
-import { shareImage } from "~/lib/site";
-
-import { noteBySlug, noteCanonical, NoteBody, notes } from "../articles";
+import { NoteBody } from "../articles";
 
 export function generateStaticParams() {
   return notes.map((note) => ({ slug: note.slug }));
@@ -19,18 +23,13 @@ export async function generateMetadata({
   const { slug } = await params;
   const note = noteBySlug(slug);
   if (!note) return { title: "Notes" };
-  const canonical = noteCanonical(note.slug);
-  return {
+  return publicPageMetadata({
+    path: `/notes/${note.slug}`,
     title: note.title,
-    description: note.summary,
-    alternates: { canonical },
-    openGraph: {
-      url: canonical,
-      title: note.title,
-      description: note.summary,
-      images: [shareImage],
-    },
-  };
+    description: note.description,
+    kind: "article",
+    publishedAt: note.publishedAt,
+  });
 }
 
 export default async function NotePage({
@@ -43,8 +42,36 @@ export default async function NotePage({
   if (!note) notFound();
 
   return (
-    <NotesShell kicker={note.date} title={note.title}>
-      <NoteBody slug={note.slug} />
-    </NotesShell>
+    <>
+      <JsonLd
+        data={breadcrumbList([
+          { name: "Home", path: "/" },
+          { name: "Notes", path: "/notes" },
+          { name: note.title, path: `/notes/${note.slug}` },
+        ])}
+      />
+      <JsonLd
+        data={articleSchema({
+          headline: note.title,
+          description: note.description,
+          publishedAt: note.publishedAt,
+          canonical: noteCanonical(note.slug),
+          citations: note.citations,
+        })}
+      />
+      <NotesShell
+        kicker={`${note.publishedAt} · Escherbridge`}
+        title={note.title}
+        trail={[
+          { href: "/", label: "Home" },
+          { href: "/notes", label: "Notes" },
+          { href: `/notes/${note.slug}`, label: note.title },
+        ]}
+      >
+        <SimulationNotice />
+        <NoteBody slug={note.slug} />
+        <RelatedLinks items={note.related} />
+      </NotesShell>
+    </>
   );
 }

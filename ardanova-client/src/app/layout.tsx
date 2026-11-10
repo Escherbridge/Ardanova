@@ -28,9 +28,9 @@ export const metadata: Metadata = {
     "reconciliation",
     "problem solving",
   ],
-  authors: [{ name: "ArdaNova Team" }],
-  creator: "ArdaNova",
-  publisher: "ArdaNova",
+  authors: [{ name: "Escherbridge" }],
+  creator: "Escherbridge",
+  publisher: "Escherbridge",
   icons: {
     icon: [
       { url: "/favicon.ico" },
