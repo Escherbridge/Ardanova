@@ -1003,6 +1003,476 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
       <CitedSources slug="informal-channels" />
     </>
   ),
+  "what-happened-what-was-decided": () => (
+    <>
+      <p>
+        HMRC, quoting ISO 15489-1:2016, defines records as information created,
+        received and maintained as evidence and information in the transaction
+        of business, and says it creates records to provide information about
+        what happened, what was decided, and how to do things. If the note does
+        not tell a later reader those three things, it is not doing the work
+        HMRC names. This is a short field note about what a record is for, not a
+        product page, and not legal advice.
+      </p>
+      <section className="space-y-3">
+        <h2 className="text-xl">Hero figures</h2>
+        <ul className="list-disc space-y-3 pl-5">
+          <li>
+            <strong>
+              HMRC Records and Information Collection Policy, published 19 May
+              2026.
+            </strong>{" "}
+            &quot;Records are defined as information created, received and
+            maintained as evidence and information by an organisation or person,
+            in pursuance of legal obligations or in the transaction of business
+            (ISO 15489-1:2016 Information and documentation — Records management
+            — Part 1: Concepts and principles).&quot; The definition is
+            attributed to HMRC quoting the standard, not to a clause number that
+            was not opened.
+          </li>
+          <li>
+            <strong>HMRC&apos;s own sentence:</strong> &quot;HMRC creates
+            records in the day-to-day management of its services to provide
+            information about what happened, what was decided, and how to do
+            things. These records are a valuable resource because of the
+            information they contain.&quot; &quot;This policy is format neutral,
+            and applies to paper, digital, hybrid and any other record
+            formats.&quot;
+          </li>
+          <li>
+            <strong>HMRC also quotes ISO 15489-1:2016</strong> on records
+            management as the field of management &quot;responsible for the
+            efficient and systemic control of the creation, receipt,
+            maintenance, use and disposition of records.&quot; The word
+            &quot;systemic&quot; is quoted as it appears on the opened page; it
+            is not silently corrected to another standard&apos;s wording. The
+            benefits list on the same page is HMRC describing its own practice,
+            not a claim about ArdaNova.
+          </li>
+        </ul>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">What this page is not</h2>
+        <p>
+          This is a public-authority quotation of what a record is for. It is
+          not a private-company filing rule, and it is not a claim that ArdaNova
+          is ISO-certified or that HMRC has reviewed the product.{" "}
+          <TextLink href="/patterns/what-belongs-in-the-minutes">
+            What belongs in the minutes
+          </TextLink>{" "}
+          and <TextLink href="/patterns/decision-logs">Decision logs</TextLink>{" "}
+          are the siblings for what to put in the official note.{" "}
+          <TextLink href="/patterns/tna-section-46">
+            The National Archives Code of Practice on managing records
+          </TextLink>{" "}
+          is the companion Code, addressed to relevant authorities.
+        </p>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">An illustrative scenario</h2>
+        <p>
+          This is a worked example, not a filing and not a customer. A folder of
+          messages is labelled &quot;the record,&quot; and a later reader cannot
+          tell what happened, what was decided, or how to do the thing.
+          HMRC&apos;s sentence is already the test that folder fails.
+        </p>
+      </section>
+      <CitedSources slug="what-happened-what-was-decided" />
+    </>
+  ),
+  "tna-section-46": () => (
+    <>
+      <p>
+        The National Archives&apos; July 2021 Code, issued under section 46 of
+        the Freedom of Information Act 2000, is guidance to relevant authorities
+        on keeping, managing and destroying their records, built on the
+        principles of value, integrity and accountability — and &quot;not all
+        information is a record.&quot; The Code is about a framework so an
+        authority can account for its activities. It is official guidance to
+        public authorities, not a product badge, and not a claim that ArdaNova
+        is a relevant authority or that it has been assessed against the Code.
+        This page is not legal advice.
+      </p>
+      <section className="space-y-3">
+        <h2 className="text-xl">Hero figures</h2>
+        <ul className="list-disc space-y-3 pl-5">
+          <li>
+            <strong>
+              GOV.UK landing, &quot;Code of Practice on the Management of
+              Records issued under section 46 the Freedom of Information Act
+              2000,&quot; published 15 July 2021, The National Archives.
+            </strong>{" "}
+            &quot;Code of Practice issued under section 46 of the Freedom of
+            Information Act providing guidance to public authorities on the
+            keeping, management and destruction of records.&quot; Applies to
+            England, Northern Ireland and Wales. ISBN 978-1-5286-2517-3; 32-page
+            PDF.
+          </li>
+          <li>
+            <strong>
+              The Code PDF itself, laid before Parliament on 15 July 2021.
+            </strong>{" "}
+            &quot;This is a statutory code of practice issued under section 46
+            of the Freedom of Information Act 2000.&quot; &quot;This Code of
+            Practice (the ‘Code’) provides guidance to authorities which helps
+            them to create a framework for keeping, managing and destroying
+            their information, and therefore records. Complying with this Code
+            will help authorities to account for their activities.&quot;
+            &quot;The Code takes a principles-based approach. The three
+            principles of value, integrity and accountability provide a
+            high-level framework for authorities to manage information and
+            maintain a record of their activities.&quot; &quot;The principles
+            apply to information in any format or medium that the authority
+            holds or that another body holds on its behalf.&quot; &quot;For the
+            purposes of the Code, the term information is used as shorthand for
+            both information and records. Not all information is a record.&quot;
+          </li>
+          <li>
+            <strong>
+              On value, integrity, and accountability, from the opened table in
+              Part Two:
+            </strong>{" "}
+            the authority must manage information so it can assess current and
+            future value, &quot;keep information as long as they can show it has
+            value and dispose of it when it no longer has value,&quot; and
+            &quot;be able to explain why they no longer hold information&quot;;
+            &quot;The authority and all its stakeholders must be able to rely
+            upon and trust the information that it holds&quot;; &quot;The
+            authority’s information management must enable it to provide a clear
+            and accurate account of its activity in accordance with its legal
+            and other obligations.&quot; Reasons to keep information include
+            &quot;for accountability and audit,&quot; &quot;to comply with
+            regulatory requirements,&quot; &quot;to protect legal and other
+            rights and interests,&quot; and &quot;as a historical record.&quot;
+          </li>
+          <li>
+            <strong>Who it is for.</strong> Annex A: the Code applies to
+            &quot;relevant authorities&quot; as defined in FOIA s.46(7) — public
+            authorities and certain bodies whose records are public records —
+            not to bodies subject only to the Scottish FOI Act. Annex B: it
+            fulfils the Secretary of State&apos;s duty to provide guidance on
+            practice which it would &quot;be desirable for them to follow in
+            connection with the keeping, management and destruction of their
+            records.&quot; The Information Commissioner may issue a practice
+            recommendation under FOIA s.48 to public authorities whose practice
+            does not conform. The glossary (which &quot;does not form part of
+            the Code itself&quot;) defines records, quoting BS ISO 15489-1:2016,
+            as &quot;recorded information created, received, and maintained as
+            evidence and as an asset by an organisation or person, in pursuit of
+            legal obligations or in the transaction of business.&quot; If that
+            wording sits next to HMRC&apos;s, each is kept intact; they are not
+            identical.
+          </li>
+        </ul>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">What this page is not</h2>
+        <p>
+          This is a source, not a claim that ArdaNova is a relevant authority or
+          that it has passed a TNA or ICO assessment. The glossary is not
+          treated as operative Code text; the PDF says it is not part of the
+          Code itself.{" "}
+          <TextLink href="/patterns/what-happened-what-was-decided">
+            What a record is for
+          </TextLink>{" "}
+          is the HMRC-definition sibling.{" "}
+          <TextLink href="/patterns/decision-logs">Decision logs</TextLink> and{" "}
+          <TextLink href="/patterns/readable-record">
+            Write a record someone else can read
+          </TextLink>{" "}
+          are the practice siblings.
+        </p>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">An illustrative scenario</h2>
+        <p>
+          This is a worked example, not an assessment and not a customer. A
+          workspace is described as &quot;compliant with the section 46
+          Code,&quot; with no authority, no assessment, and no account of what
+          was kept or destroyed. The Code is already addressed to relevant
+          authorities, and this site is not one.
+        </p>
+      </section>
+      <CitedSources slug="tna-section-46" />
+    </>
+  ),
+  "articles-of-incorporation": () => (
+    <>
+      <p>
+        People often search &quot;articles of incorporation.&quot; Under the
+        Companies Act 2006, a company must have articles of association
+        prescribing regulations for the company. Those articles are part of the
+        company&apos;s constitution; they are not the minutes of a meeting, and
+        they are not a register of members. The statutory name is used in the
+        body; the address of this page keeps the query people type. This is a
+        field note about the document that prescribes how the company is run,
+        not a formation-product page, and not legal advice about a specific
+        entity.
+      </p>
+      <section className="space-y-3">
+        <h2 className="text-xl">Hero figures</h2>
+        <ul className="list-disc space-y-3 pl-5">
+          <li>
+            <strong>Companies Act 2006, s.18 (Articles of association).</strong>{" "}
+            &quot;(1) A company must have articles of association prescribing
+            regulations for the company.&quot; &quot;(2) Unless it is a company
+            to which model articles apply by virtue of section 20 (default
+            application of model articles in case of limited company), it must
+            register articles of association.&quot; &quot;(3) Articles of
+            association registered by a company must— (a) be contained in a
+            single document, and (b) be divided into paragraphs numbered
+            consecutively.&quot; &quot;(4) References in the Companies Acts to a
+            company&apos;s ‘articles’ are to its articles of association.&quot;
+          </li>
+          <li>
+            <strong>
+              Companies Act 2006, s.20 (Default application of model articles).
+            </strong>{" "}
+            On the formation of a limited company, if articles are not
+            registered, or if they are registered but do not exclude or modify
+            the relevant model articles, &quot;the relevant model articles (so
+            far as applicable) form part of the company&apos;s articles in the
+            same manner and to the same extent as if articles in the form of
+            those articles had been duly registered.&quot; The &quot;relevant
+            model articles&quot; are &quot;the model articles prescribed for a
+            company of that description as in force at the date on which the
+            company is registered.&quot; This page does not invent a 2026
+            model-articles text that was not opened.
+          </li>
+          <li>
+            <strong>
+              Companies Act 2006, s.17 (A company&apos;s constitution).
+            </strong>{" "}
+            Unless the context otherwise requires, references to a
+            company&apos;s constitution include &quot;(a) the company&apos;s
+            articles, and (b) any resolutions and agreements to which Chapter 3
+            applies (see section 29).&quot;
+          </li>
+          <li>
+            <strong>
+              Companies Act 2006, s.8 (Memorandum of association), for the
+              contrast only.
+            </strong>{" "}
+            A memorandum states that the subscribers &quot;wish to form a
+            company under this Act, and agree to become members of the
+            company&quot; (and, where the company is to have a share capital,
+            &quot;to take at least one share each&quot;). That sentence is
+            quoted only to distinguish the memorandum from the articles. The
+            share-capital limb is left as that contrast.
+          </li>
+        </ul>
+      </section>
+      <p>
+        The dedicated Companies House &quot;model articles&quot; guidance URL
+        returned HTTP 404 on 2026-11-10 and is not linked here. The
+        formation-guide page that lists articles of association was opened and
+        is not used for liability passages. This page stays with the Act.
+      </p>
+      <section className="space-y-3">
+        <h2 className="text-xl">What they are not</h2>
+        <p>
+          Not minutes.{" "}
+          <TextLink href="/patterns/directors-minutes">
+            Directors&apos; meeting minutes
+          </TextLink>{" "}
+          and{" "}
+          <TextLink href="/patterns/records-of-resolutions">
+            Records of resolutions and general meetings
+          </TextLink>{" "}
+          are the siblings for those duties. Not the register of members;{" "}
+          <TextLink href="/patterns/company-registers">
+            What is a company register of members
+          </TextLink>{" "}
+          is the next brief in this batch.{" "}
+          <TextLink href="/patterns/two-records-one-agreement">
+            Two records, one agreement
+          </TextLink>{" "}
+          is the already-briefed companion when two records have to stay
+          aligned.
+        </p>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">An illustrative scenario</h2>
+        <p>
+          This is a worked example, not a filing and not a customer. A folder
+          labelled &quot;articles of incorporation&quot; holds only a set of
+          meeting notes, with no regulations for the company and no register of
+          members. The Act already names the articles, the minutes, and the
+          register as distinct records.
+        </p>
+      </section>
+      <CitedSources slug="articles-of-incorporation" />
+    </>
+  ),
+  "company-registers": () => (
+    <>
+      <p>
+        Every company must keep a register of its members. That register is one
+        of the company&apos;s required records; it is not the minutes of
+        directors&apos; meetings, and it is not the record of resolutions. Those
+        duties sit side by side; one file does not discharge the other. This is
+        a field distinction between two required records, and not legal advice
+        about a specific entity.
+      </p>
+      <p>
+        The opened legislation page banner read: &quot;Section 113 is up to date
+        with all changes known to be in force on or before 10 November 2026.
+        There are changes that may be brought into force at a future date.&quot;
+      </p>
+      <section className="space-y-3">
+        <h2 className="text-xl">Hero figures</h2>
+        <ul className="list-disc space-y-3 pl-5">
+          <li>
+            <strong>Companies Act 2006, s.113 (Register of members).</strong>{" "}
+            &quot;(1) Every company must keep a register of its members.&quot;
+            The in-force subsection (2), as it still stands on the opened page,
+            requires entry of &quot;(a) the names and addresses of the members,
+            (b) the date on which each person was registered as a member, and
+            (c) the date at which any person ceased to be a member.&quot;
+          </li>
+          <li>
+            <strong>A later substitution</strong> of subsection (2) and a new
+            (2A), pointing at &quot;required information&quot; in sections 113A
+            and 113B, appears on the same page with the annotation that it was
+            substituted &quot;26.10.2023 but only so far as it confers a power
+            to make regulations or relates to the exercise of the power,
+            otherwise prosp.&quot; This page does not write as if 113A and 113B
+            are already the everyday duty.
+          </li>
+          <li>
+            <strong>Subsection (3)</strong> adds, for a company having a share
+            capital, a statement of the shares held by each member (with the
+            numbering and class detail the subsection gives). That statutory
+            wording is quoted only as what the register must contain in that
+            case. Default in complying with the section is an offence by the
+            company and every officer in default (subsection (7)). No penalty
+            amount is invented beyond what was quoted from the opened page, and
+            no advice is given about a specific entity.
+          </li>
+          <li>
+            <strong>
+              Companies Act 2006, s.1134 (Meaning of &quot;company
+              records&quot;), for the contrast.
+            </strong>{" "}
+            In that Part, &quot;company records&quot; means &quot;any register,
+            index, accounting records, agreement, memorandum, minutes or other
+            document required by the Companies Acts to be kept by a
+            company,&quot; and any register of debenture holders. Registers and
+            minutes are both company records; they are not the same kind of
+            record.
+          </li>
+        </ul>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">What this page is not</h2>
+        <p>
+          ArdaNova is not described here as a live register of legal title.{" "}
+          <TextLink href="/patterns/directors-minutes">
+            Directors&apos; meeting minutes
+          </TextLink>{" "}
+          and{" "}
+          <TextLink href="/patterns/records-of-resolutions">
+            Records of resolutions and general meetings
+          </TextLink>{" "}
+          are the minutes and resolutions siblings.{" "}
+          <TextLink href="/patterns/articles-of-incorporation">
+            What are articles of association
+          </TextLink>{" "}
+          is the constitution sibling.{" "}
+          <TextLink href="/patterns/a-record-is-not-a-right">
+            A record is not a right
+          </TextLink>{" "}
+          is the already-briefed limit.
+        </p>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">An illustrative scenario</h2>
+        <p>
+          This is a worked example, not a filing and not a customer. A single
+          &quot;minute book&quot; holds names, votes, and notes, and is treated
+          as the register of members. The Act already requires a register, and
+          it already requires minutes. One pile does not discharge both.
+        </p>
+      </section>
+      <CitedSources slug="company-registers" />
+    </>
+  ),
+  "sole-member-decisions": () => (
+    <>
+      <p>
+        Where a company has only one member, a decision that may be taken by the
+        company in general meeting, and that has effect as if so agreed, must
+        still be given to the company in writing — unless it was taken as a
+        written resolution. Having no meeting does not mean there is nothing to
+        record. This is a short companion to{" "}
+        <TextLink href="/patterns/records-of-resolutions">
+          Records of resolutions and general meetings
+        </TextLink>
+        , not a formation-product page, and not legal advice about a specific
+        entity.
+      </p>
+      <section className="space-y-3">
+        <h2 className="text-xl">Hero figures</h2>
+        <ul className="list-disc space-y-3 pl-5">
+          <li>
+            <strong>
+              Companies Act 2006, s.357 (Records of decisions by sole member).
+            </strong>{" "}
+            &quot;(1) This section applies to a company limited by shares or by
+            guarantee that has only one member.&quot; &quot;(2) Where the member
+            takes any decision that— (a) may be taken by the company in general
+            meeting, and (b) has effect as if agreed by the company in general
+            meeting, he must (unless that decision is taken by way of a written
+            resolution) provide the company with details of that decision.&quot;
+            &quot;(3) If a person fails to comply with this section he commits
+            an offence.&quot; &quot;(5) Failure to comply with this section does
+            not affect the validity of any decision referred to in subsection
+            (2).&quot; The penalty in subsection (4), as quoted from the opened
+            page, is &quot;a fine not exceeding level 2 on the standard
+            scale.&quot; That figure is not turned into advice about a specific
+            person. &quot;Limited by shares&quot; and &quot;limited by
+            guarantee&quot; are the Act&apos;s words.
+          </li>
+          <li>
+            <strong>
+              Companies Act 2006, s.288, only as the cross-reference s.357
+              itself makes.
+            </strong>{" "}
+            In the Companies Acts a &quot;written resolution&quot; means a
+            resolution of a private company proposed and passed in accordance
+            with that Chapter. A written resolution of a private company
+            &quot;has effect as if passed… by the company in general
+            meeting&quot; (or by a class meeting, as the case may be). Certain
+            removals of a director or an auditor may not be passed as a written
+            resolution. Those sentences are used only to explain the
+            &quot;unless… written resolution&quot; exception in s.357. This page
+            is not a second essay on the written-resolution procedure.
+          </li>
+        </ul>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">What s.357 actually says</h2>
+        <p>
+          Scope: a company limited by shares or by guarantee that has only one
+          member. The duty: provide the company with details of the decision,
+          unless it was taken as a written resolution. Failure is an offence;
+          failure does not, by itself, undo the decision. This page does not
+          invent filing forms or deadlines that are not in the opened text.
+        </p>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">An illustrative scenario</h2>
+        <p>
+          This is a worked example, not a filing and not a customer. A
+          one-member company takes a decision that has effect as if agreed in
+          general meeting, and nothing is given to the company because
+          &quot;there was no meeting.&quot; Section 357 already requires the
+          details, unless the decision was taken as a written resolution.
+        </p>
+      </section>
+      <CitedSources slug="sole-member-decisions" />
+    </>
+  ),
   "problem-intake": () => (
     <>
       <p>
@@ -1172,6 +1642,67 @@ const closings: Partial<Record<PatternSlug, () => ReactNode>> = {
         including the date, the time, who took part, and that it happened on an
         informal channel. If something on this page is wrong,{" "}
         <TextLink href="/">write to us</TextLink>.
+      </p>
+      <ReviewedLine />
+    </>
+  ),
+  "what-happened-what-was-decided": () => (
+    <>
+      <FieldEconomy />
+      <p>
+        The useful next step is to write the note so it says what happened, what
+        was decided, and how to do the thing. If something on this page is
+        wrong, <TextLink href="/">write to us</TextLink>.
+      </p>
+      <ReviewedLine />
+    </>
+  ),
+  "tna-section-46": () => (
+    <>
+      <FieldEconomy />
+      <p>
+        The useful next step is to read the Code as guidance to public
+        authorities, not as a badge this site holds. If something on this page
+        is wrong, <TextLink href="/">write to us</TextLink>.
+      </p>
+      <ReviewedLine />
+    </>
+  ),
+  "articles-of-incorporation": () => (
+    <>
+      <FieldEconomy
+        trailing={<>A recorded vote still does not, by itself, move funds.</>}
+      />
+      <p>
+        The useful next step is to say whether you are reading the articles, the
+        minutes, or the register. If something on this page is wrong,{" "}
+        <TextLink href="/">write to us</TextLink>.
+      </p>
+      <ReviewedLine />
+    </>
+  ),
+  "company-registers": () => (
+    <>
+      <FieldEconomy
+        trailing={<>A recorded vote still does not, by itself, move funds.</>}
+      />
+      <p>
+        The useful next step is to keep the register, the minutes, and the
+        record of resolutions as distinct records. If something on this page is
+        wrong, <TextLink href="/">write to us</TextLink>.
+      </p>
+      <ReviewedLine />
+    </>
+  ),
+  "sole-member-decisions": () => (
+    <>
+      <FieldEconomy
+        trailing={<>A recorded vote still does not, by itself, move funds.</>}
+      />
+      <p>
+        The useful next step is to give the company details of the decision, or
+        to record it as a written resolution if that route applies. If something
+        on this page is wrong, <TextLink href="/">write to us</TextLink>.
       </p>
       <ReviewedLine />
     </>

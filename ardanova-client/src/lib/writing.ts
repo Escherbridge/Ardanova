@@ -90,6 +90,22 @@ const privateOfficeRecordsUrl =
   "https://www.gov.uk/government/publications/guidance-management-of-private-office-information-and-records/guidance-for-the-management-of-private-office-information-and-records-html";
 const hseKeyDecisionLogUrl =
   "https://www.hse.gov.uk/foi/internalops/og/ogprocedures/investigation/decisionlog.htm";
+const section8Url = "https://www.legislation.gov.uk/ukpga/2006/46/section/8";
+const section17Url = "https://www.legislation.gov.uk/ukpga/2006/46/section/17";
+const section18Url = "https://www.legislation.gov.uk/ukpga/2006/46/section/18";
+const section20Url = "https://www.legislation.gov.uk/ukpga/2006/46/section/20";
+const section113Url =
+  "https://www.legislation.gov.uk/ukpga/2006/46/section/113";
+const section288Url =
+  "https://www.legislation.gov.uk/ukpga/2006/46/section/288";
+const section357Url =
+  "https://www.legislation.gov.uk/ukpga/2006/46/section/357";
+const section1134Url =
+  "https://www.legislation.gov.uk/ukpga/2006/46/section/1134";
+const tnaCodeLandingUrl =
+  "https://www.gov.uk/government/publications/code-of-practice-on-the-management-of-records-issued-under-section-46-the-freedom-of-information-act-2000";
+const tnaCodePdfUrl =
+  "https://assets.publishing.service.gov.uk/media/6114c3278fa8f506c4d84100/Freedom_Information_Code_Practice_Web_Accessible.pdf";
 
 export const patterns = [
   {
@@ -113,11 +129,16 @@ export const patterns = [
         label:
           "Decision logs — if it cannot be found later, it was not decided. It was only said.",
       },
+      {
+        href: "/patterns/company-registers",
+        label:
+          "What is a company register of members — a register is not, by itself, legal title.",
+      },
     ],
     citations: [
       {
         label: "Companies Act 2006, s.113 (register of members)",
-        href: "https://www.legislation.gov.uk/ukpga/2006/46/section/113",
+        href: section113Url,
         datePublished: companiesActYear,
       },
       {
@@ -182,6 +203,11 @@ export const patterns = [
         href: "/patterns/decision-logs",
         label:
           "Decision logs — if it cannot be found later, it was not decided. It was only said.",
+      },
+      {
+        href: "/patterns/articles-of-incorporation",
+        label:
+          "What are articles of association — the regulations, kept distinct from the minutes and the register.",
       },
     ],
     citations: [
@@ -248,6 +274,16 @@ export const patterns = [
         label:
           "Two records, one agreement — work is one record, voice is another, and the agreement is what binds them.",
       },
+      {
+        href: "/patterns/what-happened-what-was-decided",
+        label:
+          "What a record is for — what happened, what was decided, and how to do things.",
+      },
+      {
+        href: "/patterns/tna-section-46",
+        label:
+          "The National Archives Code of Practice — guidance to public authorities, not a badge this site holds.",
+      },
     ],
     citations: [
       {
@@ -265,7 +301,7 @@ export const patterns = [
       {
         label:
           "The National Archives, Code of Practice under s.46 FOIA, published 15 July 2021",
-        href: "https://www.gov.uk/government/publications/code-of-practice-on-the-management-of-records-issued-under-section-46-the-freedom-of-information-act-2000",
+        href: tnaCodeLandingUrl,
         datePublished: "2021-07-15",
       },
       {
@@ -342,6 +378,21 @@ export const patterns = [
         label:
           "Decision logs — a contemporaneous record of what was decided, why, by whom, and when.",
       },
+      {
+        href: "/patterns/articles-of-incorporation",
+        label:
+          "What are articles of association — the document that prescribes how the company is run.",
+      },
+      {
+        href: "/patterns/company-registers",
+        label:
+          "What is a company register of members — the register is not the minutes.",
+      },
+      {
+        href: "/patterns/sole-member-decisions",
+        label:
+          "Records of decisions by a sole member — details still have to be given to the company.",
+      },
     ],
     citations: [
       {
@@ -376,6 +427,16 @@ export const patterns = [
         href: "/patterns/two-records-one-agreement",
         label:
           "Two records. One agreement. — a recorded interest is still not, by itself, a right.",
+      },
+      {
+        href: "/patterns/sole-member-decisions",
+        label:
+          "Records of decisions by a sole member — the companion when there is only one member.",
+      },
+      {
+        href: "/patterns/articles-of-incorporation",
+        label:
+          "What are articles of association — not the minutes and not the register.",
       },
     ],
     citations: [
@@ -412,6 +473,11 @@ export const patterns = [
         href: "/patterns/decision-logs",
         label:
           "Decision logs — the pattern sibling this practice page complements, and does not rewrite.",
+      },
+      {
+        href: "/patterns/what-happened-what-was-decided",
+        label:
+          "What a record is for — what happened, what was decided, and how to do things.",
       },
     ],
     citations: [
@@ -453,6 +519,16 @@ export const patterns = [
       {
         href: "/patterns/decision-logs",
         label: "Decision logs — the pattern sibling.",
+      },
+      {
+        href: "/patterns/what-happened-what-was-decided",
+        label:
+          "What a record is for — what happened, what was decided, and how to do things.",
+      },
+      {
+        href: "/patterns/tna-section-46",
+        label:
+          "The National Archives Code of Practice — official guidance to public authorities, not a product badge.",
       },
     ],
     citations: [
@@ -504,6 +580,226 @@ export const patterns = [
       {
         label: "Companies Act 2006, s.355, as a sibling",
         href: section355Url,
+        datePublished: companiesActYear,
+      },
+    ],
+  },
+  {
+    slug: "what-happened-what-was-decided",
+    title: "What a record is for: what happened, what was decided",
+    headline: "What a record is for: what happened, what was decided",
+    eyebrow: "What a record is for",
+    indexBlurb:
+      "HMRC, quoting ISO 15489-1:2016 on 19 May 2026, says it creates records to provide information about what happened, what was decided, and how to do things. The word on that page is “systemic.”",
+    publishedAt: "2026-11-10",
+    description:
+      "HMRC, quoting ISO 15489-1:2016, defines a record as evidence in the transaction of business: what happened, what was decided, and how to do things.",
+    related: [
+      {
+        href: "/patterns/what-belongs-in-the-minutes",
+        label:
+          "What belongs in the minutes — date, time, who was there, and what was decided.",
+      },
+      {
+        href: "/patterns/decision-logs",
+        label: "Decision logs — the pattern sibling.",
+      },
+      {
+        href: "/patterns/tna-section-46",
+        label:
+          "The National Archives Code of Practice on managing records — official guidance to public authorities, not a product badge.",
+      },
+      {
+        href: "/patterns/readable-record",
+        label:
+          "Write a record someone else can read — a later reader who was not in the room.",
+      },
+    ],
+    citations: [
+      {
+        label:
+          "HMRC Records and Information Collection Policy, published 19 May 2026",
+        href: hmrcRecordsUrl,
+        datePublished: "2026-05-19",
+      },
+    ],
+  },
+  {
+    slug: "tna-section-46",
+    title: "The National Archives Code of Practice on managing records",
+    headline: "The National Archives Code of Practice on managing records",
+    eyebrow: "The National Archives Code of Practice",
+    indexBlurb:
+      "The National Archives' July 2021 Code, issued under FOIA section 46, guides relevant authorities on keeping, managing and destroying records. ISBN 978-1-5286-2517-3. It is not a badge this site holds.",
+    publishedAt: "2026-11-10",
+    description:
+      "The National Archives' 2021 Code under FOIA section 46 guides public authorities on keeping, managing and destroying records. It is not a badge this site holds.",
+    related: [
+      {
+        href: "/patterns/what-happened-what-was-decided",
+        label:
+          "What a record is for — what happened, what was decided, and how to do things.",
+      },
+      {
+        href: "/patterns/decision-logs",
+        label: "Decision logs — the pattern sibling.",
+      },
+      {
+        href: "/patterns/readable-record",
+        label:
+          "Write a record someone else can read — a later reader who was not in the room.",
+      },
+    ],
+    citations: [
+      {
+        label: "GOV.UK landing, 15 July 2021",
+        href: tnaCodeLandingUrl,
+        datePublished: "2021-07-15",
+      },
+      {
+        label:
+          "Code of Practice on the Management of Records issued under section 46 of the Freedom of Information Act 2000, laid 15 July 2021, ISBN 978-1-5286-2517-3",
+        href: tnaCodePdfUrl,
+        datePublished: "2021-07-15",
+      },
+    ],
+  },
+  {
+    slug: "articles-of-incorporation",
+    title: "What are articles of association",
+    headline: "What are articles of association",
+    eyebrow: "Articles of association",
+    indexBlurb:
+      "Companies Act 2006, s.18: a company must have articles of association prescribing regulations for the company. They are not the minutes, and they are not a register of members.",
+    publishedAt: "2026-11-10",
+    description:
+      "Under the Companies Act 2006, a company must have articles of association. They prescribe how the company is run. They are not minutes or a register of members.",
+    related: [
+      {
+        href: "/patterns/company-registers",
+        label:
+          "What is a company register of members — the register is not the minute book.",
+      },
+      {
+        href: "/patterns/directors-minutes",
+        label:
+          "Directors' meeting minutes — minutes of all directors' meetings, kept for at least ten years.",
+      },
+      {
+        href: "/patterns/records-of-resolutions",
+        label:
+          "Records of resolutions and general meetings — the record of resolutions is a separate duty.",
+      },
+      {
+        href: "/patterns/two-records-one-agreement",
+        label:
+          "Two records, one agreement — two records that have to stay aligned.",
+      },
+    ],
+    citations: [
+      {
+        label: "Companies Act 2006, s.18",
+        href: section18Url,
+        datePublished: companiesActYear,
+      },
+      {
+        label: "Companies Act 2006, s.20",
+        href: section20Url,
+        datePublished: companiesActYear,
+      },
+      {
+        label: "Companies Act 2006, s.17",
+        href: section17Url,
+        datePublished: companiesActYear,
+      },
+      {
+        label: "Companies Act 2006, s.8, for the contrast",
+        href: section8Url,
+        datePublished: companiesActYear,
+      },
+    ],
+  },
+  {
+    slug: "company-registers",
+    title: "What is a company register of members",
+    headline: "What is a company register of members",
+    eyebrow: "Register of members",
+    indexBlurb:
+      "Companies Act 2006, s.113: every company must keep a register of its members. That register is not the minutes of directors' meetings, and it is not the record of resolutions.",
+    publishedAt: "2026-11-10",
+    description:
+      "Every company must keep a register of its members. That register is not the minutes of directors' meetings, and it is not the record of resolutions.",
+    related: [
+      {
+        href: "/patterns/articles-of-incorporation",
+        label:
+          "What are articles of association — the document that prescribes how the company is run.",
+      },
+      {
+        href: "/patterns/directors-minutes",
+        label:
+          "Directors' meeting minutes — minutes of all directors' meetings.",
+      },
+      {
+        href: "/patterns/records-of-resolutions",
+        label:
+          "Records of resolutions and general meetings — the record of resolutions is a separate duty.",
+      },
+      {
+        href: "/patterns/a-record-is-not-a-right",
+        label:
+          "A record is not a right — a platform record is not, by itself, legal title.",
+      },
+    ],
+    citations: [
+      {
+        label: "Companies Act 2006, s.113",
+        href: section113Url,
+        datePublished: companiesActYear,
+      },
+      {
+        label: "Companies Act 2006, s.1134",
+        href: section1134Url,
+        datePublished: companiesActYear,
+      },
+    ],
+  },
+  {
+    slug: "sole-member-decisions",
+    title: "Records of decisions by a sole member",
+    headline: "Records of decisions by a sole member",
+    eyebrow: "Sole-member decisions",
+    indexBlurb:
+      "Companies Act 2006, s.357: a sole member must give the company details of a decision that has effect as if agreed in general meeting, unless it was a written resolution. The summary fine on the opened page is level 2 on the standard scale.",
+    publishedAt: "2026-11-10",
+    description:
+      "A sole member must still give the company details of a decision that has effect as if agreed in general meeting, unless it was a written resolution.",
+    related: [
+      {
+        href: "/patterns/records-of-resolutions",
+        label:
+          "Records of resolutions and general meetings — the broader duty to keep records of resolutions.",
+      },
+      {
+        href: "/patterns/directors-minutes",
+        label:
+          "Directors' meeting minutes — minutes of all directors' meetings.",
+      },
+      {
+        href: "/patterns/company-registers",
+        label:
+          "What is a company register of members — the register is not the minute book.",
+      },
+    ],
+    citations: [
+      {
+        label: "Companies Act 2006, s.357",
+        href: section357Url,
+        datePublished: companiesActYear,
+      },
+      {
+        label: "Companies Act 2006, s.288, for the exception",
+        href: section288Url,
         datePublished: companiesActYear,
       },
     ],

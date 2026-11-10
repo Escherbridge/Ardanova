@@ -37,6 +37,17 @@ describe("public sitemap URLs", () => {
     );
     expect(urls).toContain("https://ardanova.com/patterns/readable-record");
     expect(urls).toContain("https://ardanova.com/patterns/informal-channels");
+    expect(urls).toContain(
+      "https://ardanova.com/patterns/what-happened-what-was-decided",
+    );
+    expect(urls).toContain("https://ardanova.com/patterns/tna-section-46");
+    expect(urls).toContain(
+      "https://ardanova.com/patterns/articles-of-incorporation",
+    );
+    expect(urls).toContain("https://ardanova.com/patterns/company-registers");
+    expect(urls).toContain(
+      "https://ardanova.com/patterns/sole-member-decisions",
+    );
   });
 
   it("keeps pattern titles, descriptions, and canonicals unique", () => {

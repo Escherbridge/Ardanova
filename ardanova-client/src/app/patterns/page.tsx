@@ -31,7 +31,7 @@ export default function PatternsPage() {
         )}
       />
       <NotesShell
-        kicker="Eight patterns · the economy is simulated"
+        kicker="Thirteen patterns · the economy is simulated"
         title="The shape of a shared record."
         trail={[
           { href: "/", label: "Home" },
@@ -45,10 +45,13 @@ export default function PatternsPage() {
           sit with them, on the record itself: directors&apos; minutes, records
           of resolutions and general meetings, what belongs in the minutes, a
           record someone else can read, and a decision taken on an informal
-          channel. The figures and legal sentences are other people&apos;s, with
-          the links left on, and they are used as public contrast, not as a
-          claim that ArdaNova is a UK company, a cooperative, or a cap-table
-          product. The field notes are not legal advice.
+          channel. Five more stay with the opened wording: what a record is for,
+          the National Archives Code under section 46, articles of association,
+          a register of members, and a sole member&apos;s decision. The figures
+          and legal sentences are other people&apos;s, with the links left on,
+          and they are used as public contrast, not as a claim that ArdaNova is
+          a UK company, a cooperative, or a cap-table product. The field notes
+          are not legal advice.
         </p>
         <p>
           <strong className="font-mono">ECONOMY: SIMULATED.</strong> Platform
