@@ -45,6 +45,7 @@ export default async function PatternPage({
   const pattern = patternBySlug(slug);
   if (!pattern || !isPatternSlug(slug)) notFound();
   const canonical = patternCanonical(pattern.slug);
+  const headline = pattern.headline;
 
   return (
     <>
@@ -57,16 +58,17 @@ export default async function PatternPage({
       />
       <JsonLd
         data={articleSchema({
-          headline: pattern.title,
+          headline,
           description: pattern.description,
           publishedAt: pattern.publishedAt,
+          dateModified: pattern.publishedAt,
           canonical,
           citations: pattern.citations,
         })}
       />
       <NotesShell
-        kicker={`${pattern.publishedAt} · Escherbridge`}
-        title={pattern.title}
+        kicker={pattern.eyebrow}
+        title={headline}
         trail={[
           { href: "/", label: "Home" },
           { href: "/patterns", label: "Patterns" },

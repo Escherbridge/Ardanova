@@ -70,6 +70,7 @@ export function articleSchema(entry: {
   headline: string;
   description: string;
   publishedAt: string;
+  dateModified?: string;
   canonical: string;
   citations: readonly Citation[];
 }) {
@@ -79,6 +80,7 @@ export function articleSchema(entry: {
     headline: entry.headline,
     description: entry.description,
     datePublished: entry.publishedAt,
+    ...(entry.dateModified ? { dateModified: entry.dateModified } : {}),
     author: { "@type": "Organization", name: "Escherbridge" },
     publisher: { "@id": organizationId },
     mainEntityOfPage: entry.canonical,
@@ -87,6 +89,7 @@ export function articleSchema(entry: {
       "@type": "CreativeWork",
       name: source.label,
       url: source.href,
+      ...(source.datePublished ? { datePublished: source.datePublished } : {}),
     })),
   };
 }
