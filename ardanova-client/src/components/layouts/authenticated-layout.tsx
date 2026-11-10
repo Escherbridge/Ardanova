@@ -2,6 +2,8 @@ import { SessionProvider } from "next-auth/react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import Link from "next/link";
+
 import { AppSidebar } from "~/components/app-sidebar";
 import { AppTopbar } from "~/components/app-topbar";
 import {
@@ -43,7 +45,7 @@ export default async function AuthenticatedLayout({
           user={session.user}
           authPreview={isDevelopmentAuthPreviewEnabled}
         />
-        <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 flex-col">
           <AppTopbar
             user={session.user}
             authPreview={isDevelopmentAuthPreviewEnabled}
@@ -52,12 +54,31 @@ export default async function AuthenticatedLayout({
             id="workspace-content"
             tabIndex={-1}
             className={cn(
-              "w-full min-w-0",
+              "w-full min-w-0 flex-1",
               wide ? "p-0" : "mx-auto max-w-[96rem] px-4 pb-12 sm:px-6 lg:px-8",
             )}
           >
             {children}
           </main>
+          <footer className="border-border border-t px-4 py-4 sm:px-6 lg:px-8">
+            <nav
+              aria-label="Legal"
+              className="flex flex-wrap gap-x-6 gap-y-2 text-sm"
+            >
+              <Link
+                className="inline-flex min-h-11 items-center underline-offset-4 hover:underline"
+                href="/terms"
+              >
+                Terms of use
+              </Link>
+              <Link
+                className="inline-flex min-h-11 items-center underline-offset-4 hover:underline"
+                href="/privacy"
+              >
+                Privacy notice
+              </Link>
+            </nav>
+          </footer>
         </div>
       </div>
     </SessionProvider>

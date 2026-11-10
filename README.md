@@ -87,7 +87,7 @@ Status describes implementation presence in this repository, not automatic avail
 | **Google OAuth**           | NextAuth authentication; provider configuration required per environment                   | Available         |
 | **User Profiles**          | Roles, types, skills, and verification levels                                              | Complete          |
 | **Community Support**      | Subscriptions, volunteering, applications                                                  | Complete          |
-| **Governance Voting**      | Proposal creation, comments, and vote casting are live; execution and other project-scoped governance actions return `501` pending ArdaNova's own vote of record | Fail-closed seam  |
+| **Governance Voting**      | Proposal creation, comments, and vote casting are live. Recording a passed decision stores the tally. It does not move funds, change membership, or rewrite project terms. A direct change to a member's unit balance stays unavailable (`501`) | Recorded decision |
 | **Guild System**           | Professional guilds, membership, bidding, and reviews                                      | Complete          |
 | **Shop System**            | Shop management, products, inventory, analytics                                            | Complete          |
 | **Value Tracking**         | Project-token, credential, and ownership data kept distinct; Azoa-backed reconciliation work continues | In Progress       |
@@ -104,23 +104,9 @@ Status describes implementation presence in this repository, not automatic avail
 | **S3/Local Storage**       | File attachments with S3 or local filesystem support                                       | Complete          |
 | **C# Model Generator**     | DBML → C# entities with EF Core attributes                                                 | Complete          |
 
-### Roadmap (v2.0+)
+### What is live
 
-| Feature                       | Description                                                           | Timeline            |
-| ----------------------------- | --------------------------------------------------------------------- | ------------------- |
-| **Gamification Layer**        | XP, levels, achievements, leaderboards, seasons                       | Q1 2025             |
-| **Project Hierarchy**         | Roadmaps → Epics → Sprints → PBIs → Tasks                             | Q2 2025             |
-| **Task Marketplace**          | Bounties, bidding, escrow, multiple compensation models               | Q2 2025             |
-| **Secure Ledger Integration** | Soulbound credentials (ASA), ownership shares, wallet connect         | In Progress         |
-| **Fundraising Lifecycle**     | Equity creation, funding phases, redemption                           | Q3 2025             |
-| **Gamma Integration**         | External presentation generation behind the reviewed Nova Studio flow | Integration pending |
-| **Cooperative Governance**    | Transparent proposals, voting, treasury                               | Q3 2025             |
-| **Game SDK**                  | Unity/Godot C# SDK for play-to-earn                                   | Q4 2025             |
-| **MCP Agent**                 | AI agent for project management with role-based access                | Q4 2025             |
-| **Cross-Project Investment**  | Invest completed shares into new projects                             | Q1 2026             |
-| **Platform Cooperative**      | $ARDA shares, revenue sharing, meta-governance                        | Q2 2026             |
-
-See the full [Roadmap](./documentation/ROADMAP.md) for detailed plans.
+The capability table above is the description of this repository. The deployed service reports a simulated economy. A record in the workspace is not legal ownership and is not a right to be paid. Older planning notes under `documentation/` are an archive; they are not a description of the service that is running.
 
 ---
 

@@ -22,8 +22,7 @@ private key, mnemonic, generated password, or omnibus
 platform-wallet identity belongs in this contract. Wallet and KYC readiness are
 authoritative AZOA status, and inconsistent tenant/user bindings fail closed.
 
-The legacy `KycController` is an archival compatibility surface and returns
-410. It must never regain local submission, document-read, approval, rejection,
+The legacy `KycController` is an archival compatibility surface and returns 410. It must never regain local submission, document-read, approval, rejection,
 or verification-level authority. Provider configuration and review belong to
 AZOA. The actor-bound custodial controller may begin a provider-neutral session;
 ArdaNova does not expose provider identifiers or arbitrary document-reference
@@ -161,39 +160,42 @@ quote. `ForFailedVoid` leaves it as is: it is neither final-looking nor a releas
 `POST /api/funding-intents/requests/{requestKey}/void` (`FundingIntentsController.VoidRequest`)
 are the only answers a caller may discard a key on: 200 `voided` (nothing was or can be paid under
 it) or 200 `revealed` (keep the key, follow the named payment / sponsorship). Both are actor-scoped
+
 - the account comes from the signed actor, never the request. Add funds proxies the node's own
-void (oasis-sleek `FiatCheckoutController.VoidRequest`; it expires an open Stripe page first) and
-deliberately skips the readiness gate, like `GetPayment`. A FAILED void proved nothing:
-`MoneyRefusal.ForFailedVoid` turns a final-looking code into `unconfirmed`, so 503
-DEPENDENCY_UNAVAILABLE / RAIL_BUSY, 409 INTENT_NEEDS_REVIEW / REQUEST_KEY_IN_USE, a 400, and a 200
-with an unknown outcome word all keep the key.
+  void (oasis-sleek `FiatCheckoutController.VoidRequest`; it expires an open Stripe page first) and
+  deliberately skips the readiness gate, like `GetPayment`. A FAILED void proved nothing:
+  `MoneyRefusal.ForFailedVoid` turns a final-looking code into `unconfirmed`, so 503
+  DEPENDENCY_UNAVAILABLE / RAIL_BUSY, 409 INTENT_NEEDS_REVIEW / REQUEST_KEY_IN_USE, a 400, and a 200
+  with an unknown outcome word all keep the key.
 
 **Resolution order** (`MoneyRefusal.From`): the upstream `Result<T>.Code` first, then the
 `ResultType`, then message markers, then the call-site context as a last fallback.
 
-| Signal | Code |
-| --- | --- |
-| `KYB_REQUIRED` (node) | `kyb_required` |
-| `REQUEST_VOIDED` / `INTENT_EXPIRED` | `definite` (reason `voided` / `expired`) |
-| `INTENT_FINISHED` / `REQUEST_KEY_IN_USE` | `finished` (reason `finished` / `key_in_use`) |
-| `RAIL_REFUSED` (node 400 after its claim) | `unconfirmed` (reason `rail_refused`) |
-| `INTENT_NEEDS_REVIEW` | `needs_review` (reason `needs_review`), body `intentId` = the held payment |
-| `PAYMENTS_NOT_CONFIGURED`, BFF route-guard / unconfigured transport | `payments_not_configured` |
-| BFF `ARDANOVA_UPSTREAM_RATE_LIMITED` (a real node 429) | `rail_busy`, `retryAfterSeconds` 30 |
-| `Unauthorized` | `unauthenticated` |
-| `NotFound`, `Conflict` | `unconfirmed` |
-| `ValidationError`, `BadRequest` | `definite` |
-| `Failure` (timeout, empty/unparseable/no-payload 2xx, dropped connection) | `unconfirmed`, HTTP 503 |
-| `Forbidden` + "review team is finishing one last check" | `under_review` |
-| `Forbidden` + `KYC_FORBIDDEN:` (also never-finished KYC, and the node checkout's "has to finish identity verification", L-4) | `setup_required` |
-| `Forbidden`, add-funds checkout (units:issue consent probe) | `consent_revoked` |
-| `Forbidden`, custodial lifecycle, UNCODED | `kyb_required`; coded non-KYB → `payments_not_configured` |
-| `Forbidden`, payout destination SETUP (F-H8, POST only) | `account_holder_required` |
-| `Forbidden`, any other cash-out call (incl. withdraw, destination read) | `setup_required` |
+| Signal                                                                                                                       | Code                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `KYB_REQUIRED` (node)                                                                                                        | `kyb_required`                                                             |
+| `REQUEST_VOIDED` / `INTENT_EXPIRED`                                                                                          | `definite` (reason `voided` / `expired`)                                   |
+| `INTENT_FINISHED` / `REQUEST_KEY_IN_USE`                                                                                     | `finished` (reason `finished` / `key_in_use`)                              |
+| `RAIL_REFUSED` (node 400 after its claim)                                                                                    | `unconfirmed` (reason `rail_refused`)                                      |
+| `INTENT_NEEDS_REVIEW`                                                                                                        | `needs_review` (reason `needs_review`), body `intentId` = the held payment |
+| `PAYMENTS_NOT_CONFIGURED`, BFF route-guard / unconfigured transport                                                          | `payments_not_configured`                                                  |
+| BFF `ARDANOVA_UPSTREAM_RATE_LIMITED` (a real node 429)                                                                       | `rail_busy`, `retryAfterSeconds` 30                                        |
+| `Unauthorized`                                                                                                               | `unauthenticated`                                                          |
+| `NotFound`, `Conflict`                                                                                                       | `unconfirmed`                                                              |
+| `ValidationError`, `BadRequest`                                                                                              | `definite`                                                                 |
+| `Failure` (timeout, empty/unparseable/no-payload 2xx, dropped connection)                                                    | `unconfirmed`, HTTP 503                                                    |
+| `Forbidden` + "review team is finishing one last check"                                                                      | `under_review`                                                             |
+| `Forbidden` + `KYC_FORBIDDEN:` (also never-finished KYC, and the node checkout's "has to finish identity verification", L-4) | `setup_required`                                                           |
+| `Forbidden`, add-funds checkout (units:issue consent probe)                                                                  | `consent_revoked`                                                          |
+| `Forbidden`, custodial lifecycle, UNCODED                                                                                    | `kyb_required`; coded non-KYB → `payments_not_configured`                  |
+| `Forbidden`, payout destination SETUP (F-H8, POST only)                                                                      | `account_holder_required`                                                  |
+| `Forbidden`, any other cash-out call (incl. withdraw, destination read)                                                      | `setup_required`                                                           |
+| Result code `ARDANOVA_UNITS_NOT_SELLABLE` (a sale refused before any node call: units held, or not sellable)                 | `not_sellable` (not account setup; does not release a payment key)         |
 
 `rail_busy` is ONLY a real 429; nothing that might have been admitted is ever called busy. A
 `Failure` is the platform's fault, never the caller's request, so every money controller answers
 it with 503 (the error-envelope filter passes 503 bodies through unchanged).
+
 ## Task visibility
 
 Task and opportunity reads are anonymous-readable, so they open with the same project-visibility

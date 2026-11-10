@@ -37,6 +37,12 @@ public static class MoneyRefusalCodes
 
     public const string Unconfirmed = "unconfirmed";
     public const string Unauthenticated = "unauthenticated";
+
+    /// <summary>
+    /// The units cannot be sold on this attempt (held, or not sellable). Nothing was sent to the
+    /// node. This is not account setup, and it does not release a saved payment key.
+    /// </summary>
+    public const string NotSellable = "not_sellable";
 }
 
 /// <summary>Why a refusal carries the code it does, when the code alone does not say.</summary>
@@ -171,6 +177,7 @@ public static class MoneyRefusal
             or UpstreamFailureCodes.RouteNotAllowed
             or UpstreamFailureCodes.TransportNotConfigured => (MoneyRefusalCodes.PaymentsNotConfigured, null),
         UpstreamFailureCodes.UpstreamRateLimited => (MoneyRefusalCodes.RailBusy, null),
+        UpstreamFailureCodes.UnitsNotSellable => (MoneyRefusalCodes.NotSellable, null),
         _ => null,
     };
 

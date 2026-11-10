@@ -332,6 +332,8 @@ public class PayoutServiceTests
         result.IsSuccess.Should().BeFalse();
         // Plain words a person can act on - no chain terms, no provider names.
         result.Error.Should().Contain("not reached its funding goal");
+        // A gate refusal is not "finish account setup". The code survives the re-wrap.
+        result.Code.Should().Be(UpstreamFailureCodes.UnitsNotSellable);
 
         _tokenBalanceService.Verify(s => s.LockAsync(
             It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),

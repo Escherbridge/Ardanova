@@ -86,14 +86,14 @@ export default function TaskCommercePage() {
           <div className="border-border bg-muted/30 rounded-lg border p-4">
             <p className="text-sm font-medium">Accepted agreement</p>
             <p className="text-muted-foreground mt-1 text-sm">
-              The agreement is accepted. Viewing this page moves nothing —
-              the status below is the only record of whether units have
-              actually been reserved, paid, or disputed.
+              The agreement is accepted. Viewing this page moves nothing — the
+              status below is the only record of whether units have actually
+              been reserved, paid, or disputed.
             </p>
             <p className="text-muted-foreground mt-1 text-sm">
-              Escrow automation is not active yet. This award moves only
-              through the hold set at acceptance and released at approval,
-              never an automated escrow contract.
+              Escrow automation is not active yet. This award moves only through
+              the hold set at acceptance and released at approval, never an
+              automated escrow contract.
             </p>
           </div>
           <div className="border-border flex items-center justify-between gap-3 rounded-lg border p-4">
@@ -249,8 +249,8 @@ function SharedAwardNotice({
 }
 
 /**
- * The worker's own window, said in the worker's terms. The award is already theirs; the only
- * question the notice answers is when they can move it, and why it is held until then.
+ * The worker's own window, said in the worker's terms. The award is already on their
+ * record; the notice says when the holding period ends, and that ending it does not pay anyone.
  *
  * Never phrase this as a refund or chargeback window: these units come from the platform
  * reserve and were never bought with a card, so there is nothing to reverse.
@@ -277,9 +277,13 @@ function AwardWindowNotice({
   if (!isRestricted) {
     return (
       <div className="border-border bg-muted/30 rounded-lg border p-4">
-        <p className="text-sm font-medium">This award is yours to move</p>
+        <p className="text-sm font-medium">
+          The holding period on this record has ended
+        </p>
         <p className="text-muted-foreground mt-1 text-sm">
-          The holding period has ended. You can move these units whenever you like.
+          The units stay on the record. Selling them, or sending money to a
+          bank, is a separate step, and this deployment may not offer it. Ending
+          the holding period does not pay anyone.
         </p>
       </div>
     );
