@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { EscherbridgeProjects } from "~/components/brand/escherbridge-projects";
 import { ArdaNovaWordmark } from "~/components/brand/wordmark";
 
 /** Public-site footer. Legal links stay here so terms and privacy are reachable from every public page. */
@@ -56,10 +57,22 @@ export function SiteFooter({ workspaceHref }: { workspaceHref: string }) {
           >
             Privacy notice
           </Link>
+          <Link
+            className="hover:text-brand-cyan inline-flex min-h-11 items-center"
+            href="/notes"
+          >
+            Notes
+          </Link>
         </nav>
       </div>
+      <div className="border-brand-paper/25 mx-auto max-w-[1440px] border-t px-4 py-6 md:px-8">
+        <EscherbridgeProjects linkClassName="hover:text-brand-cyan" />
+      </div>
       <div className="border-brand-paper/25 text-brand-stone border-t px-4 py-4 text-center font-mono text-[10px] tracking-[0.14em] uppercase">
-        © {new Date().getFullYear()} ArdaNova
+        <p>© {new Date().getFullYear()} ArdaNova</p>
+        <p className="mt-2 tracking-normal normal-case">
+          Operated by Escherbridge, LLC, Boise, Idaho.
+        </p>
       </div>
     </footer>
   );

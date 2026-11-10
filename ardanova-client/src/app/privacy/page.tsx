@@ -5,8 +5,15 @@ import {
   LegalSection,
   OperatorContact,
 } from "~/components/brand/legal-document";
+import { publicCanonical, shareImage } from "~/lib/site";
 
-export const metadata: Metadata = { title: "Privacy notice" };
+const canonical = publicCanonical("/privacy");
+
+export const metadata: Metadata = {
+  title: "Privacy notice",
+  alternates: { canonical },
+  openGraph: { url: canonical, images: [shareImage] },
+};
 
 export default function PrivacyPage() {
   return (

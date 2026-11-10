@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { AppSidebar } from "~/components/app-sidebar";
 import { AppTopbar } from "~/components/app-topbar";
+import { EscherbridgeProjects } from "~/components/brand/escherbridge-projects";
 import {
   ARDANOVA_REQUEST_PATH_HEADER,
   buildSignInHref,
@@ -78,6 +79,10 @@ export default async function AuthenticatedLayout({
                 Privacy notice
               </Link>
             </nav>
+            <EscherbridgeProjects
+              className="mt-4 max-w-3xl"
+              linkClassName="underline-offset-4 hover:underline"
+            />
           </footer>
         </div>
       </div>

@@ -3,22 +3,23 @@ import "~/styles/globals.css";
 import { type Metadata } from "next";
 import { Toaster } from "sonner";
 
+import { OrganizationJsonLd } from "~/components/brand/organization-json-ld";
 import { fontVariables } from "~/styles/fonts";
 import { TRPCReactProvider } from "~/trpc/react";
 import { AuthSessionProvider } from "~/providers/session-provider";
 import { isDevelopmentAuthPreviewEnabled } from "~/server/auth";
-
-const siteUrl = "https://ardanova.com";
-const shareImageUrl = `${siteUrl}/og/ardanova-og-1200x630.png`;
+import { shareImage, SITE_ORIGIN } from "~/lib/site";
+const siteTitle = "ArdaNova — Find it. Fund it. Build it.";
+const siteDescription =
+  "A workspace for describing a problem, coordinating the work, and keeping two records — work and voice — on agreed terms. The economy is simulated. Platform records do not automatically create legal ownership, equity, or payment rights.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(SITE_ORIGIN),
   title: {
-    default: "ArdaNova",
+    default: siteTitle,
     template: "%s — ArdaNova",
   },
-  description:
-    "Plan shared work, record decisions, and reconcile contributor rights in one reviewable project workspace.",
+  description: siteDescription,
   keywords: [
     "shared projects",
     "project coordination",
@@ -44,26 +45,16 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: siteUrl,
-    title: "ArdaNova",
-    description:
-      "Find a problem. Fund it. Build it. Share in what it becomes, on agreed terms.",
+    title: siteTitle,
+    description: siteDescription,
     siteName: "ArdaNova",
-    images: [
-      {
-        url: shareImageUrl,
-        width: 1200,
-        height: 630,
-        alt: "ArdaNova",
-      },
-    ],
+    images: [shareImage],
   },
   twitter: {
     card: "summary_large_image",
-    title: "ArdaNova",
-    description:
-      "Find a problem. Fund it. Build it. Share in what it becomes, on agreed terms.",
-    images: [shareImageUrl],
+    title: siteTitle,
+    description: siteDescription,
+    images: [shareImage.url],
   },
 };
 
@@ -73,6 +64,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={fontVariables}>
       <body className="bg-background min-h-screen font-sans antialiased">
+        <OrganizationJsonLd />
         <AuthSessionProvider
           refetchOnWindowFocus={!isDevelopmentAuthPreviewEnabled}
         >

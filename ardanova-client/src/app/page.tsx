@@ -1,4 +1,5 @@
 import { ArrowRight, Check, FileText, Handshake, Scale } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { SiteFooter } from "~/components/brand/site-footer";
@@ -8,8 +9,15 @@ import { HomePrimaryNavMenu } from "~/components/marketing/home-primary-nav";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
+import { shareImage } from "~/lib/site";
 import { authForPage } from "~/server/auth";
 import { HydrateClient } from "~/trpc/server";
+
+const homeCanonical = "https://ardanova.com/";
+
+export const metadata: Metadata = {
+  openGraph: { images: [shareImage] },
+};
 
 const operatingSteps = [
   {
@@ -60,6 +68,8 @@ export default async function Home() {
 
   return (
     <HydrateClient>
+      <link rel="canonical" href={homeCanonical} />
+      <meta content={homeCanonical} property="og:url" />
       <div className="public-shell bg-background text-foreground min-h-screen">
         <a className="skip-link" href="#main-content">
           Skip to main content
@@ -129,10 +139,27 @@ export default async function Home() {
                 </div>
 
                 <div className="grid gap-8 border-t border-black/70 pt-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-                  <p className="max-w-2xl text-lg leading-relaxed md:text-xl">
-                    People who find a problem fund it, build it, and share in
-                    what it becomes, on agreed terms.
-                  </p>
+                  <div className="max-w-2xl">
+                    <p className="text-brand-signal-deep font-mono text-xs font-semibold tracking-[0.16em]">
+                      ECONOMY: SIMULATED
+                    </p>
+                    <p className="mt-4 text-lg leading-relaxed md:text-xl">
+                      People who find a problem fund it, build it, and share in
+                      what it becomes, on agreed terms. The economy in this
+                      workspace is simulated. Platform records do not
+                      automatically create legal ownership, equity, or payment
+                      rights.
+                    </p>
+                    <p className="mt-4 text-sm leading-relaxed">
+                      <a
+                        className="underline underline-offset-4"
+                        href="https://primusneo.com"
+                      >
+                        PrimusNeo, the lab whose stack this workspace belongs to
+                      </a>
+                      .
+                    </p>
+                  </div>
                   <div className="flex flex-wrap gap-3">
                     <Button asChild size="lg">
                       <Link href={session ? workspaceHref : signupHref}>
@@ -266,11 +293,27 @@ export default async function Home() {
 
               <div className="grid gap-5 border-x border-b border-black/70 p-6 md:grid-cols-[auto_1fr] md:items-center md:p-8">
                 <Badge variant="warning">Important distinction</Badge>
-                <p className="text-muted-foreground max-w-4xl text-sm leading-relaxed">
-                  Platform records do not automatically create legal ownership,
-                  equity, or payment rights. Project agreements, participant
-                  review, and applicable law determine their effect.
-                </p>
+                <div className="text-muted-foreground max-w-4xl space-y-3 text-sm leading-relaxed">
+                  <p>
+                    The economy on this workspace is simulated. Balances, unit
+                    counts, and funding records are bookkeeping inside the
+                    workspace, not a payment and not a transfer of property.
+                    Platform records do not automatically create legal
+                    ownership, equity, or payment rights. Project agreements,
+                    participant review, and applicable law determine their
+                    effect. A recorded vote does not, by itself, move funds,
+                    change who is a member, or rewrite a project&apos;s terms.
+                  </p>
+                  <p>
+                    <a
+                      className="underline underline-offset-4"
+                      href="https://azoa.ardanova.com"
+                    >
+                      AZOA, the planned workflow engine, also still a simulation
+                    </a>
+                    .
+                  </p>
+                </div>
               </div>
             </div>
           </section>
