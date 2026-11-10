@@ -22,6 +22,7 @@ import { usePathname } from "next/navigation";
 
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { clearResolvedRequestsForSubject } from "~/lib/commerce/persisted-request-key";
+import { ArdaNovaWordmark } from "~/components/brand/wordmark";
 import { cn } from "~/lib/utils";
 
 export interface WorkspaceUser {
@@ -332,10 +333,10 @@ export function AppSidebar({ user, authPreview = false }: AppSidebarProps) {
       <div className="border-sidebar-border flex min-h-16 items-center border-b-2 px-5">
         <Link
           href="/dashboard"
-          className="inline-flex min-h-11 items-center font-mono text-xl font-black tracking-[-0.06em] uppercase"
+          className="inline-flex min-h-11 items-center"
           aria-label="ArdaNova home"
         >
-          ARDA<span className="text-sidebar-primary">NOVA</span>
+          <ArdaNovaWordmark />
         </Link>
       </div>
 

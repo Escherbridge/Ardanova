@@ -8,7 +8,11 @@ import { TRPCReactProvider } from "~/trpc/react";
 import { AuthSessionProvider } from "~/providers/session-provider";
 import { isDevelopmentAuthPreviewEnabled } from "~/server/auth";
 
+const siteUrl = "https://ardanova.com";
+const shareImageUrl = `${siteUrl}/og/ardanova-og-1200x630.png`;
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: {
     default: "ArdaNova",
     template: "%s — ArdaNova",
@@ -26,21 +30,40 @@ export const metadata: Metadata = {
   authors: [{ name: "ArdaNova Team" }],
   creator: "ArdaNova",
   publisher: "ArdaNova",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   openGraph: {
     type: "website",
     locale: "en_US",
+    url: siteUrl,
     title: "ArdaNova",
     description:
       "Find a problem. Fund it. Build it. Share in what it becomes, on agreed terms.",
     siteName: "ArdaNova",
+    images: [
+      {
+        url: shareImageUrl,
+        width: 1200,
+        height: 630,
+        alt: "ArdaNova",
+      },
+    ],
   },
   twitter: {
-    // No share image ships yet; "summary_large_image" without one renders a broken card.
-    card: "summary",
+    card: "summary_large_image",
     title: "ArdaNova",
     description:
       "Find a problem. Fund it. Build it. Share in what it becomes, on agreed terms.",
+    images: [shareImageUrl],
   },
 };
 
