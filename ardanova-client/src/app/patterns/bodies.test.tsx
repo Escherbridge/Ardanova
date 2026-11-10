@@ -50,10 +50,11 @@ describe("pattern pages", () => {
     for (const slug of researchedSlugs) {
       const { container, unmount } = render(<PatternBody slug={slug} />);
       const text = container.textContent ?? "";
-      expect(text).toContain("An illustrative scenario");
-      expect(text).toContain("This is a worked example");
-      expect(text).toContain("not a customer");
-      expect(text).toContain("Every stat on this page is cited.");
+      expect(text).toContain("A situation like this");
+      expect(text).toContain("Sources");
+      expect(text).not.toMatch(
+        /Hero figures|Hero points|An illustrative scenario|Every stat on this page is cited/,
+      );
       if (withAzoa.has(slug)) {
         expect(container.innerHTML).toContain("https://azoa.ardanova.com");
       }

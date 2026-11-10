@@ -57,12 +57,12 @@ function SourceList({
   intro,
 }: {
   items: readonly { href: string; label: string }[];
-  intro: string;
+  intro?: string;
 }) {
   return (
     <section className="space-y-2">
       <h2 className="text-xl">Sources</h2>
-      <p>{intro}</p>
+      {intro ? <p>{intro}</p> : null}
       <ol className="list-decimal space-y-1 pl-5">
         {items.map((source) => (
           <li key={source.label}>
@@ -79,12 +79,7 @@ function SourceList({
 function CitedSources({ slug }: { slug: PatternSlug }) {
   const pattern = patternBySlug(slug);
   if (!pattern) return null;
-  return (
-    <SourceList
-      intro="Every stat on this page is cited."
-      items={pattern.citations}
-    />
-  );
+  return <SourceList items={pattern.citations} />;
 }
 
 function ReviewedLine() {
@@ -121,43 +116,52 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         anywhere else.
       </p>
       <section className="space-y-3">
-        <h2 className="text-xl">Hero points</h2>
         <ul className="list-disc space-y-3 pl-5">
           <li>
-            <strong>Companies Act 2006, s.113:</strong> &quot;Every company must
-            keep a register of its members.&quot; The current subsection (2)
-            requires, in respect of each member, the required information and
-            the date the person was registered as a member; (2A) requires the
-            date membership ceased. For a company with share capital, subsection
-            (3) also requires a statement of the shares held by each member
-            (number and, where relevant, class) and the amount paid or agreed to
-            be considered as paid. This is a duty to keep a record of membership
-            and, where relevant, of shareholdings. It is not a grant of title by
-            software.
+            <strong>
+              The Companies Act&apos;s rule on the register of members:
+            </strong>{" "}
+            &quot;Every company must keep a register of its members.&quot; The
+            in-force subsection (2), as it still stands on the opened page,
+            requires entry of the names and addresses of the members, the date
+            on which each person was registered as a member, and the date at
+            which any person ceased to be a member. A later substitution of
+            subsection (2) and a new (2A), pointing at &quot;required
+            information,&quot; is not written here as the everyday duty. For a
+            company with share capital, subsection (3) also requires a statement
+            of the shares held by each member (number and, where relevant,
+            class) and the amount paid or agreed to be considered as paid. This
+            is a duty to keep a record of membership and, where relevant, of
+            shareholdings. It is not a grant of title by software.
           </li>
           <li>
-            <strong>Companies Act 2006, s.127:</strong> &quot;The register of
-            members is prima facie evidence of any matters which are by this Act
-            directed or authorised to be inserted in it.&quot; Prima facie means
-            evidence in the first instance, not an unchallengeable right. The
-            transferable point is the one the live essay already makes in house
-            language: a row is not a right unless something outside the row says
-            it is.
+            <strong>
+              The Companies Act&apos;s rule on the register as evidence:
+            </strong>{" "}
+            &quot;The register of members is prima facie evidence of any matters
+            which are by this Act directed or authorised to be inserted in
+            it.&quot; Prima facie means evidence in the first instance, not an
+            unchallengeable right. The transferable point is the one the live
+            essay already makes in house language: a row is not a right unless
+            something outside the row says it is.
           </li>
           <li>
-            <strong>Companies Act 2006, s.248–249:</strong> every company
-            &quot;must cause minutes of all proceedings at meetings of its
-            directors to be recorded,&quot; and &quot;The records must be kept
-            for at least ten years from the date of the meeting.&quot; Minutes
-            recorded under s.248, if purporting to be authenticated by the
-            chairman of the meeting or of the next directors&apos; meeting,
-            &quot;are evidence (in Scotland, sufficient evidence) of the
-            proceedings at the meeting.&quot; Until the contrary is proved, the
-            meeting is deemed duly held, the proceedings deemed to have duly
-            taken place, and appointments deemed valid. Minutes are a required
-            record of proceedings, with a rebuttable evidential effect — not a
-            transfer of property and not a cap table. The ten-year figure is the
-            UK companies figure, not a house retention policy.
+            <strong>
+              The Companies Act&apos;s rule on directors&apos; minutes:
+            </strong>{" "}
+            every company &quot;must cause minutes of all proceedings at
+            meetings of its directors to be recorded,&quot; and &quot;The
+            records must be kept for at least ten years from the date of the
+            meeting.&quot; Minutes recorded under that rule, if purporting to be
+            authenticated by the chairman of the meeting or of the next
+            directors&apos; meeting, &quot;are evidence (in Scotland, sufficient
+            evidence) of the proceedings at the meeting.&quot; Until the
+            contrary is proved, the meeting is deemed duly held, the proceedings
+            deemed to have duly taken place, and appointments deemed valid.
+            Minutes are a required record of proceedings, with a rebuttable
+            evidential effect — not a transfer of property and not a cap table.
+            The ten-year figure is the UK companies figure, not a house
+            retention policy.
           </li>
           <li>
             <strong>
@@ -198,10 +202,11 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
             UK company,
           </strong>{" "}
           or inventing a US cap-table statute that was not opened. The later
-          exception in s.127 for matters of which the central register is prima
-          facie evidence, after changes associated with the Economic Crime and
-          Corporate Transparency Act 2023, is not over-explained here, and no
-          equivalent US or Idaho wording is invented.
+          exception in the Companies Act rule on the register as evidence for
+          matters of which the central register is prima facie evidence, after
+          changes associated with the Economic Crime and Corporate Transparency
+          Act 2023, is not over-explained here, and no equivalent US or Idaho
+          wording is invented.
         </p>
       </section>
       <section className="space-y-3">
@@ -239,12 +244,11 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
       </section>
       <CitedSources slug="a-record-is-not-a-right" />
       <section className="space-y-3">
-        <h2 className="text-xl">An illustrative scenario</h2>
+        <h2 className="text-xl">A situation like this</h2>
         <p>
-          This is a worked example, not a customer. A project ledger shows a
-          unit count after a week of work. A later reader asks whether anyone is
-          owed money. The record can show the work. It cannot, by itself, show
-          the right.
+          A project ledger shows a unit count after a week of work. A later
+          reader asks whether anyone is owed money. The record can show the
+          work. It cannot, by itself, show the right.
         </p>
       </section>
     </>
@@ -273,7 +277,6 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         terms.
       </EconomyParagraph>
       <section className="space-y-3">
-        <h2 className="text-xl">Hero points</h2>
         <ul className="list-disc space-y-3 pl-5">
           <li>
             <strong>
@@ -384,12 +387,12 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
       </section>
       <CitedSources slug="two-records-one-agreement" />
       <section className="space-y-3">
-        <h2 className="text-xl">An illustrative scenario</h2>
+        <h2 className="text-xl">A situation like this</h2>
         <p>
-          This is a worked example, not a customer. A contributor asks whether a
-          higher unit count should mean a louder vote. The records can show the
-          work and the rule, separately. The agreement is what would bind them.
-          The present economy still does not transfer property.
+          A contributor asks whether a higher unit count should mean a louder
+          vote. The records can show the work and the rule, separately. The
+          agreement is what would bind them. The present economy still does not
+          transfer property.
         </p>
       </section>
     </>
@@ -417,7 +420,6 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         not a product registration.
       </EconomyParagraph>
       <section className="space-y-3">
-        <h2 className="text-xl">Hero points</h2>
         <ul className="list-disc space-y-3 pl-5">
           <li>
             <strong>
@@ -465,14 +467,18 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
             is not an investigation product or an HSE tool.
           </li>
           <li>
-            <strong>Companies Act 2006, s.355:</strong> a company must keep
-            records comprising copies of members&apos; resolutions passed
-            otherwise than at general meetings, minutes of all proceedings of
-            general meetings, and specified sole-member decisions, &quot;kept
-            for at least ten years from the date of the resolution, meeting or
-            decision.&quot; Section 248 requires directors&apos; minutes to be
-            kept for at least ten years. Again: UK company law as a public
-            minute-keeping contrast, not a house retention policy.
+            <strong>
+              The Companies Act&apos;s rule on records of resolutions and
+              meetings:
+            </strong>{" "}
+            a company must keep records comprising copies of members&apos;
+            resolutions passed otherwise than at general meetings, minutes of
+            all proceedings of general meetings, and specified sole-member
+            decisions, &quot;kept for at least ten years from the date of the
+            resolution, meeting or decision.&quot; Section 248 requires
+            directors&apos; minutes to be kept for at least ten years. Again: UK
+            company law as a public minute-keeping contrast, not a house
+            retention policy.
           </li>
         </ul>
       </section>
@@ -552,12 +558,11 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
       </section>
       <CitedSources slug="decision-logs" />
       <section className="space-y-3">
-        <h2 className="text-xl">An illustrative scenario</h2>
+        <h2 className="text-xl">A situation like this</h2>
         <p>
-          This is a worked example, not a customer. A group pauses a build in a
-          voice call and cannot later agree whether they stopped or only
-          hesitated. A dated note would have settled the fact, not the right.
-          The economy is still simulated either way.
+          A group pauses a build in a voice call and cannot later agree whether
+          they stopped or only hesitated. A dated note would have settled the
+          fact, not the right. The economy is still simulated either way.
         </p>
       </section>
     </>
@@ -589,7 +594,6 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         is the pattern sibling.
       </p>
       <section className="space-y-3">
-        <h2 className="text-xl">Hero figures</h2>
         <ul className="list-disc space-y-3 pl-5">
           <li>
             <strong>
@@ -614,13 +618,16 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         </ul>
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl">What s.248 actually says</h2>
+        <h2 className="text-xl">
+          What the Companies Act rule on directors&apos; minutes actually says
+        </h2>
         <p>
           Every company; minutes of all proceedings at directors&apos; meetings;
           keep them at least ten years from the date of the meeting. That is the
           official duty, in the Act&apos;s own words. This page does not invent
-          a house minutes template as if it satisfied s.248, and it does not
-          give advice on offences or filings.
+          a house minutes template as if it satisfied the Companies Act rule on
+          directors&apos; minutes, and it does not give advice on offences or
+          filings.
         </p>
         <p>
           The members&apos; and general-meeting side of the same record-keeping
@@ -628,7 +635,7 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
           <TextLink href="/patterns/records-of-resolutions">
             records of resolutions
           </TextLink>{" "}
-          (s.355).{" "}
+          (the Companies Act rule on records of resolutions and meetings).{" "}
           <TextLink href="/patterns/informal-channels">
             Decisions on informal channels
           </TextLink>{" "}
@@ -644,9 +651,8 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         </p>
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl">An illustrative scenario</h2>
+        <h2 className="text-xl">A situation like this</h2>
         <p>
-          This is a worked example, not a customer and not a company filing.
           Directors met, a decision was taken, and the only trace is a later
           chat message. Ten years from the date of the meeting, no minute can be
           found. Section 248 already names the missing record.
@@ -675,11 +681,10 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         , not a second copy of that page, and not legal advice. It does not
         invent a constitution, a share register, or a filing duty from this
         section. It does not quote the body of section 357; that section is
-        named only as s.355 already names it. There is no ownership framing of
-        &quot;resolutions.&quot;
+        named only as the Companies Act rule on records of resolutions and
+        meetings already names it.
       </p>
       <section className="space-y-3">
-        <h2 className="text-xl">Hero figures</h2>
         <ul className="list-disc space-y-3 pl-5">
           <li>
             <strong>
@@ -703,7 +708,10 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         </ul>
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl">What s.355 actually lists</h2>
+        <h2 className="text-xl">
+          What the Companies Act rule on records of resolutions and meetings
+          actually lists
+        </h2>
         <p>
           Three kinds of record: copies of members&apos; resolutions passed
           otherwise than at general meetings; minutes of all proceedings of
@@ -714,8 +722,10 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         </p>
         <p>
           The directors&apos; side of the habit is{" "}
-          <TextLink href="/patterns/directors-minutes">s.248</TextLink>. The
-          already-live pattern siblings are{" "}
+          <TextLink href="/patterns/directors-minutes">
+            the Companies Act rule on directors&apos; minutes
+          </TextLink>
+          . The already-live pattern siblings are{" "}
           <TextLink href="/patterns/decision-logs">decision logs</TextLink> and{" "}
           <TextLink href="/patterns/two-records-one-agreement">
             two records, one agreement
@@ -728,13 +738,12 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         </p>
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl">An illustrative scenario</h2>
+        <h2 className="text-xl">A situation like this</h2>
         <p>
-          This is a worked example, not a customer and not a filing. A written
-          resolution of the members was passed outside a general meeting, and
-          the only copy is in someone&apos;s inbox. Ten years from the date of
-          the resolution, the company cannot produce it. Section 355 already
-          names the missing record.
+          A written resolution of the members was passed outside a general
+          meeting, and the only copy is in someone&apos;s inbox. Ten years from
+          the date of the resolution, the company cannot produce it. Section 355
+          already names the missing record.
         </p>
       </section>
       <CitedSources slug="records-of-resolutions" />
@@ -761,7 +770,6 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         workspace, and not a certification.
       </p>
       <section className="space-y-3">
-        <h2 className="text-xl">Hero figures</h2>
         <ul className="list-disc space-y-3 pl-5">
           <li>
             <strong>
@@ -797,8 +805,9 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         <p>
           Date, time, who, decisions — and the format, including a non-corporate
           channel if that is where it happened. What happened and what was
-          decided, in HMRC&apos;s quotation of ISO 15489. Non-corporate channels
-          do not get a free pass. The longer treatment of informal channels is{" "}
+          decided, in HMRC&apos;s quotation of the international
+          records-management standard. Non-corporate channels do not get a free
+          pass. The longer treatment of informal channels is{" "}
           <TextLink href="/patterns/informal-channels">
             If the decision happened in the chat
           </TextLink>
@@ -823,12 +832,12 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         </p>
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl">An illustrative scenario</h2>
+        <h2 className="text-xl">A situation like this</h2>
         <p>
-          This is a worked example, not a customer. A note says &quot;agreed in
-          the meeting,&quot; with no date, no names, and no decision written as
-          a decision. A later person cannot tell what was decided, or who was
-          there. The Private Office list already names the missing fields.
+          A note says &quot;agreed in the meeting,&quot; with no date, no names,
+          and no decision written as a decision. A later person cannot tell what
+          was decided, or who was there. The Private Office list already names
+          the missing fields.
         </p>
       </section>
       <CitedSources slug="what-belongs-in-the-minutes" />
@@ -854,7 +863,6 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         meeting. No &quot;key decision log&quot; product is invented here.
       </p>
       <section className="space-y-3">
-        <h2 className="text-xl">Hero figures</h2>
         <ul className="list-disc space-y-3 pl-5">
           <li>
             <strong>
@@ -906,10 +914,9 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         </p>
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl">An illustrative scenario</h2>
+        <h2 className="text-xl">A situation like this</h2>
         <p>
-          This is a worked example, not a customer and not an investigation. A
-          log entry reads &quot;same as last time, DK to handle,&quot; with no
+          A log entry reads &quot;same as last time, DK to handle,&quot; with no
           date, no reason, and no account of a decision not to act. A person who
           was not in the room cannot reconstruct the thought. HSE&apos;s
           later-reader sentence is already the test that entry fails.
@@ -935,7 +942,6 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         decision happened there, write it down in the official record.
       </p>
       <section className="space-y-3">
-        <h2 className="text-xl">Hero figures</h2>
         <ul className="list-disc space-y-3 pl-5">
           <li>
             <strong>
@@ -952,10 +958,13 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
             channels, such as WhatsApp.&quot;
           </li>
           <li>
-            <strong>Companies Act 2006, s.248 and s.355,</strong> opened 10
-            November 2026, still require minutes and resolution records to be
-            kept, without creating an exception for informal tools. They are
-            pointed at here only as the{" "}
+            <strong>
+              The Companies Act&apos;s rule on directors&apos; minutes and the
+              Companies Act rule on records of resolutions and meetings,
+            </strong>{" "}
+            opened 10 November 2026, still require minutes and resolution
+            records to be kept, without creating an exception for informal
+            tools. They are pointed at here only as the{" "}
             <TextLink href="/patterns/directors-minutes">
               directors&apos; minutes
             </TextLink>{" "}
@@ -991,13 +1000,12 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         </p>
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl">An illustrative scenario</h2>
+        <h2 className="text-xl">A situation like this</h2>
         <p>
-          This is a worked example, not a customer and not a monitoring
-          proposal. A decision was taken in a personal-device chat, everyone who
-          was there remembers it differently a month later, and the official
-          record is silent. The guidance already says the channel does not
-          excuse the missing note.
+          A decision was taken in a personal-device chat, everyone who was there
+          remembers it differently a month later, and the official record is
+          silent. The guidance already says the channel does not excuse the
+          missing note.
         </p>
       </section>
       <CitedSources slug="informal-channels" />
@@ -1015,7 +1023,6 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         product page, and not legal advice.
       </p>
       <section className="space-y-3">
-        <h2 className="text-xl">Hero figures</h2>
         <ul className="list-disc space-y-3 pl-5">
           <li>
             <strong>
@@ -1069,7 +1076,7 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         </p>
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl">An illustrative scenario</h2>
+        <h2 className="text-xl">A situation like this</h2>
         <p>
           This is a worked example, not a filing and not a customer. A folder of
           messages is labelled &quot;the record,&quot; and a later reader cannot
@@ -1094,7 +1101,6 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         This page is not legal advice.
       </p>
       <section className="space-y-3">
-        <h2 className="text-xl">Hero figures</h2>
         <ul className="list-disc space-y-3 pl-5">
           <li>
             <strong>
@@ -1184,7 +1190,7 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         </p>
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl">An illustrative scenario</h2>
+        <h2 className="text-xl">A situation like this</h2>
         <p>
           This is a worked example, not an assessment and not a customer. A
           workspace is described as &quot;compliant with the section 46
@@ -1210,10 +1216,11 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         entity.
       </p>
       <section className="space-y-3">
-        <h2 className="text-xl">Hero figures</h2>
         <ul className="list-disc space-y-3 pl-5">
           <li>
-            <strong>Companies Act 2006, s.18 (Articles of association).</strong>{" "}
+            <strong>
+              The Companies Act&apos;s rule on articles of association.
+            </strong>{" "}
             &quot;(1) A company must have articles of association prescribing
             regulations for the company.&quot; &quot;(2) Unless it is a company
             to which model articles apply by virtue of section 20 (default
@@ -1226,7 +1233,7 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
           </li>
           <li>
             <strong>
-              Companies Act 2006, s.20 (Default application of model articles).
+              The Companies Act&apos;s rule on default model articles.
             </strong>{" "}
             On the formation of a limited company, if articles are not
             registered, or if they are registered but do not exclude or modify
@@ -1241,7 +1248,7 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
           </li>
           <li>
             <strong>
-              Companies Act 2006, s.17 (A company&apos;s constitution).
+              The Companies Act&apos;s rule on a company&apos;s constitution.
             </strong>{" "}
             Unless the context otherwise requires, references to a
             company&apos;s constitution include &quot;(a) the company&apos;s
@@ -1250,8 +1257,8 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
           </li>
           <li>
             <strong>
-              Companies Act 2006, s.8 (Memorandum of association), for the
-              contrast only.
+              The Companies Act&apos;s rule on the memorandum of association,
+              for the contrast only.
             </strong>{" "}
             A memorandum states that the subscribers &quot;wish to form a
             company under this Act, and agree to become members of the
@@ -1292,7 +1299,7 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         </p>
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl">An illustrative scenario</h2>
+        <h2 className="text-xl">A situation like this</h2>
         <p>
           This is a worked example, not a filing and not a customer. A folder
           labelled &quot;articles of incorporation&quot; holds only a set of
@@ -1320,10 +1327,11 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         There are changes that may be brought into force at a future date.&quot;
       </p>
       <section className="space-y-3">
-        <h2 className="text-xl">Hero figures</h2>
         <ul className="list-disc space-y-3 pl-5">
           <li>
-            <strong>Companies Act 2006, s.113 (Register of members).</strong>{" "}
+            <strong>
+              The Companies Act&apos;s rule on the register of members.
+            </strong>{" "}
             &quot;(1) Every company must keep a register of its members.&quot;
             The in-force subsection (2), as it still stands on the opened page,
             requires entry of &quot;(a) the names and addresses of the members,
@@ -1351,8 +1359,8 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
           </li>
           <li>
             <strong>
-              Companies Act 2006, s.1134 (Meaning of &quot;company
-              records&quot;), for the contrast.
+              The Companies Act&apos;s definition of &quot;company
+              records,&quot; for the contrast.
             </strong>{" "}
             In that Part, &quot;company records&quot; means &quot;any register,
             index, accounting records, agreement, memorandum, minutes or other
@@ -1386,7 +1394,7 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         </p>
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl">An illustrative scenario</h2>
+        <h2 className="text-xl">A situation like this</h2>
         <p>
           This is a worked example, not a filing and not a customer. A single
           &quot;minute book&quot; holds names, votes, and notes, and is treated
@@ -1412,11 +1420,11 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         entity.
       </p>
       <section className="space-y-3">
-        <h2 className="text-xl">Hero figures</h2>
         <ul className="list-disc space-y-3 pl-5">
           <li>
             <strong>
-              Companies Act 2006, s.357 (Records of decisions by sole member).
+              The Companies Act&apos;s rule on decisions by a sole member
+              (Records of decisions by sole member).
             </strong>{" "}
             &quot;(1) This section applies to a company limited by shares or by
             guarantee that has only one member.&quot; &quot;(2) Where the member
@@ -1435,8 +1443,9 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
           </li>
           <li>
             <strong>
-              Companies Act 2006, s.288, only as the cross-reference s.357
-              itself makes.
+              The Companies Act&apos;s rule on written resolutions, only as the
+              cross-reference the Companies Act rule on decisions by a sole
+              member itself makes.
             </strong>{" "}
             In the Companies Acts a &quot;written resolution&quot; means a
             resolution of a private company proposed and passed in accordance
@@ -1445,13 +1454,17 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
             meeting&quot; (or by a class meeting, as the case may be). Certain
             removals of a director or an auditor may not be passed as a written
             resolution. Those sentences are used only to explain the
-            &quot;unless… written resolution&quot; exception in s.357. This page
-            is not a second essay on the written-resolution procedure.
+            &quot;unless… written resolution&quot; exception in the Companies
+            Act rule on decisions by a sole member. This page is not a second
+            essay on the written-resolution procedure.
           </li>
         </ul>
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl">What s.357 actually says</h2>
+        <h2 className="text-xl">
+          What the Companies Act rule on decisions by a sole member actually
+          says
+        </h2>
         <p>
           Scope: a company limited by shares or by guarantee that has only one
           member. The duty: provide the company with details of the decision,
@@ -1461,7 +1474,7 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
         </p>
       </section>
       <section className="space-y-3">
-        <h2 className="text-xl">An illustrative scenario</h2>
+        <h2 className="text-xl">A situation like this</h2>
         <p>
           This is a worked example, not a filing and not a customer. A
           one-member company takes a decision that has effect as if agreed in
@@ -1601,8 +1614,9 @@ const closings: Partial<Record<PatternSlug, () => ReactNode>> = {
         }
       />
       <p>
-        The useful next step is to keep the three kinds of record s.355 actually
-        lists, or to read{" "}
+        The useful next step is to keep the three kinds of record the Companies
+        Act rule on records of resolutions and meetings actually lists, or to
+        read{" "}
         <TextLink href="/patterns/directors-minutes">
           directors&apos; minutes
         </TextLink>

@@ -114,7 +114,7 @@ export const patterns = [
     headline: "A register is evidence. It is not, by itself, the right.",
     eyebrow: "A record is not a right",
     indexBlurb:
-      "Companies Act 2006, s.127: a members' register is prima facie evidence of what was entered, not an unchallengeable right. A register can be evidence without, by itself, being the right.",
+      "The Companies Act's rule on the register as evidence: a members' register is prima facie evidence of what was entered, not an unchallengeable right. A register can be evidence without, by itself, being the right.",
     publishedAt: "2026-11-10",
     description:
       "A members' register is evidence of what was entered, not ownership or a payment right. A record here is not a promise to pay; the economy is simulated.",
