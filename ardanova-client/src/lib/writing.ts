@@ -93,7 +93,7 @@ export const patterns = [
       "Companies Act 2006, s.127: a members' register is prima facie evidence of what was entered, not an unchallengeable right. A register can be evidence without, by itself, being the right.",
     publishedAt: "2026-11-10",
     description:
-      "A members' register is evidence of what was entered, not ownership or a payment right. The economy is simulated, and a record here is not a promise to pay.",
+      "A members' register is evidence of what was entered, not ownership or a payment right. A record here is not a promise to pay; the economy is simulated.",
     related: [
       {
         href: "/patterns/two-records-one-agreement",
@@ -163,7 +163,7 @@ export const patterns = [
       "ICA Principle 2: in primary cooperatives, one member, one vote; Principle 3 describes economic participation on different terms. ArdaNova is not a cooperative, so work is one record and voice is another.",
     publishedAt: "2026-11-10",
     description:
-      "Public cooperative identity separates one-member-one-vote from economic participation. ArdaNova keeps that split, simulated. A balance is not a vote or a share.",
+      "Public cooperative identity separates one-member-one-vote from economic participation. A balance is not a vote or a share. The workspace economy is simulated.",
     related: [
       {
         href: "/patterns/a-record-is-not-a-right",
