@@ -1,19 +1,18 @@
-import type { Metadata } from "next";
-
 import {
   LegalDocument,
   LegalSection,
   OperatorContact,
 } from "~/components/brand/legal-document";
-import { publicCanonical, shareImage } from "~/lib/site";
+import { publicPageMetadata } from "~/lib/page-metadata";
 
-const canonical = publicCanonical("/privacy");
+const description =
+  "What ArdaNova stores when you sign in with Google, save a profile, or submit a workspace record. The deployed economy is simulated.";
 
-export const metadata: Metadata = {
+export const metadata = publicPageMetadata({
+  path: "/privacy",
   title: "Privacy notice",
-  alternates: { canonical },
-  openGraph: { url: canonical, images: [shareImage] },
-};
+  description,
+});
 
 export default function PrivacyPage() {
   return (

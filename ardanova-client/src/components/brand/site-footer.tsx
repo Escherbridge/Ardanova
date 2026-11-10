@@ -63,6 +63,18 @@ export function SiteFooter({ workspaceHref }: { workspaceHref: string }) {
           >
             Notes
           </Link>
+          <Link
+            className="hover:text-brand-cyan inline-flex min-h-11 items-center"
+            href="/patterns"
+          >
+            Patterns
+          </Link>
+          <Link
+            className="hover:text-brand-cyan inline-flex min-h-11 items-center"
+            href="/news"
+          >
+            News
+          </Link>
         </nav>
       </div>
       <div className="border-brand-paper/25 mx-auto max-w-[1440px] border-t px-4 py-6 md:px-8">

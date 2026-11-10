@@ -1,20 +1,19 @@
-import type { Metadata } from "next";
-
 import {
   LegalDocument,
   LegalSection,
   OperatorContact,
 } from "~/components/brand/legal-document";
 import { IDAHO_GOVERNING_LAW } from "~/lib/legal/governing-law";
-import { publicCanonical, shareImage } from "~/lib/site";
+import { publicPageMetadata } from "~/lib/page-metadata";
 
-const canonical = publicCanonical("/terms");
+const description =
+  "Terms for the ArdaNova workspace, operated by Escherbridge, LLC. The economy on the deployed service is simulated. A record is not a promise of payment.";
 
-export const metadata: Metadata = {
+export const metadata = publicPageMetadata({
+  path: "/terms",
   title: "Terms of use",
-  alternates: { canonical },
-  openGraph: { url: canonical, images: [shareImage] },
-};
+  description,
+});
 
 export default function TermsPage() {
   return (

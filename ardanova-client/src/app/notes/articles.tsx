@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 
-import { publicCanonical } from "~/lib/site";
+import { type NoteSlug } from "~/lib/writing";
+
+export { noteBySlug, noteCanonical, notes } from "~/lib/writing";
 
 function FollowLink({ href, children }: { href: string; children: string }) {
   return (
@@ -45,33 +47,6 @@ const agreementSources = [
   { label: "ArdaNova terms of use", href: "https://ardanova.com/terms" },
   { label: "PrimusNeo", href: "https://primusneo.com" },
 ] as const;
-
-export const notes = [
-  {
-    slug: "a-record-is-not-a-right",
-    title: "A record is not a right",
-    date: "9 November 2026",
-    summary:
-      "ArdaNova will keep a record of work, of agreed value, and of decisions. That record is useful. It is not, by itself, ownership, equity, or a promise that anyone will pay you. The economy in the workspace is simulated, and the terms already say so.",
-  },
-  {
-    slug: "two-records-one-agreement",
-    title: "Two records. One agreement.",
-    date: "9 November 2026",
-    summary:
-      "Work and voice are easy to mash into a single score. ArdaNova keeps them as two records on purpose: what was done and how value was agreed, on one side; who was allowed to decide, and what they decided, on the other. The agreement is what binds them, not a balance.",
-  },
-] as const;
-
-export type NoteSlug = (typeof notes)[number]["slug"];
-
-export function noteBySlug(slug: string) {
-  return notes.find((note) => note.slug === slug);
-}
-
-export function noteCanonical(slug: string): string {
-  return publicCanonical(`/notes/${slug}`);
-}
 
 const bodies: Record<NoteSlug, () => ReactNode> = {
   "a-record-is-not-a-right": () => (
