@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildFeedXml } from "./feed-xml";
 import { indexableUrls } from "./public-urls";
 import { siteGraph } from "./schema";
-import { feedEntries } from "./writing";
+import { feedEntries, patternCanonical, patterns } from "./writing";
 
 describe("public sitemap URLs", () => {
   const urls = indexableUrls().map((entry) => entry.url);
@@ -28,6 +28,27 @@ describe("public sitemap URLs", () => {
     );
     expect(urls).toContain("https://ardanova.com/patterns/decision-logs");
     expect(urls).toContain("https://ardanova.com/patterns/problem-intake");
+    expect(urls).toContain("https://ardanova.com/patterns/directors-minutes");
+    expect(urls).toContain(
+      "https://ardanova.com/patterns/records-of-resolutions",
+    );
+    expect(urls).toContain(
+      "https://ardanova.com/patterns/what-belongs-in-the-minutes",
+    );
+    expect(urls).toContain("https://ardanova.com/patterns/readable-record");
+    expect(urls).toContain("https://ardanova.com/patterns/informal-channels");
+  });
+
+  it("keeps pattern titles, descriptions, and canonicals unique", () => {
+    const titles = patterns.map((pattern) => pattern.title);
+    const descriptions = patterns.map((pattern) => pattern.description);
+    const canonicals = patterns.map((pattern) =>
+      patternCanonical(pattern.slug),
+    );
+    expect(new Set(titles).size).toBe(titles.length);
+    expect(new Set(descriptions).size).toBe(descriptions.length);
+    expect(new Set(canonicals).size).toBe(canonicals.length);
+    expect(urls).not.toContain("https://ardanova.com/guides");
   });
 
   it("omits the empty news shelf and session-gated app routes", () => {

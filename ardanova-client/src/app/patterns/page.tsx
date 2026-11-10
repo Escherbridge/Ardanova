@@ -7,7 +7,7 @@ import { publicPageMetadata } from "~/lib/page-metadata";
 import { patternCanonical, researchedPatterns } from "~/lib/writing";
 
 const description =
-  "Patterns of shared work: a record is not a right; two records, one agreement; decision logs. The economy is simulated.";
+  "Patterns of shared work: a record is not a right; two records, one agreement; decision logs; and the records a meeting has to keep. The economy is simulated.";
 
 export const metadata = publicPageMetadata({
   path: "/patterns",
@@ -31,7 +31,7 @@ export default function PatternsPage() {
         )}
       />
       <NotesShell
-        kicker="Three patterns · the economy is simulated"
+        kicker="Eight patterns · the economy is simulated"
         title="The shape of a shared record."
         trail={[
           { href: "/", label: "Home" },
@@ -41,10 +41,14 @@ export default function PatternsPage() {
         <p>
           These pages are about recurring shapes of shared work: a register as
           evidence rather than title, two ledgers bound by an agreement, and a
-          decision log that a later person can actually find. The figures and
-          legal sentences are other people&apos;s, with the links left on, and
-          they are used as public contrast, not as a claim that ArdaNova is a UK
-          company, a cooperative, or a cap-table product.
+          decision log that a later person can actually find. Five field notes
+          sit with them, on the record itself: directors&apos; minutes, records
+          of resolutions and general meetings, what belongs in the minutes, a
+          record someone else can read, and a decision taken on an informal
+          channel. The figures and legal sentences are other people&apos;s, with
+          the links left on, and they are used as public contrast, not as a
+          claim that ArdaNova is a UK company, a cooperative, or a cap-table
+          product. The field notes are not legal advice.
         </p>
         <p>
           <strong className="font-mono">ECONOMY: SIMULATED.</strong> Platform
@@ -53,7 +57,7 @@ export default function PatternsPage() {
           child, not only in the footer.
         </p>
         <section className="space-y-6">
-          <h2 className="text-xl">The first three</h2>
+          <h2 className="text-xl">The patterns</h2>
           <ul className="grid gap-6">
             {researchedPatterns.map((pattern) => (
               <li className="border border-black/70 p-6" key={pattern.slug}>

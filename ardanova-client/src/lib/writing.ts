@@ -82,6 +82,14 @@ const icaStatementUrl = "https://ica.coop/en/cooperatives/cooperative-identity";
 const hmrcRecordsUrl =
   "https://www.gov.uk/government/publications/records-and-information-created-by-hmrc/hmrc-records-and-information-collection-policy";
 const termsUrl = "https://ardanova.com/terms";
+const section248Url =
+  "https://www.legislation.gov.uk/ukpga/2006/46/section/248";
+const section355Url =
+  "https://www.legislation.gov.uk/ukpga/2006/46/section/355";
+const privateOfficeRecordsUrl =
+  "https://www.gov.uk/government/publications/guidance-management-of-private-office-information-and-records/guidance-for-the-management-of-private-office-information-and-records-html";
+const hseKeyDecisionLogUrl =
+  "https://www.hse.gov.uk/foi/internalops/og/ogprocedures/investigation/decisionlog.htm";
 
 export const patterns = [
   {
@@ -120,7 +128,7 @@ export const patterns = [
       {
         label:
           "Companies Act 2006, s.248 (directors' minutes; keep at least ten years)",
-        href: "https://www.legislation.gov.uk/ukpga/2006/46/section/248",
+        href: section248Url,
         datePublished: companiesActYear,
       },
       {
@@ -251,7 +259,7 @@ export const patterns = [
       {
         label:
           "Guidance for the management of Private Office information and records, 29 December 2023",
-        href: "https://www.gov.uk/government/publications/guidance-management-of-private-office-information-and-records/guidance-for-the-management-of-private-office-information-and-records-html",
+        href: privateOfficeRecordsUrl,
         datePublished: "2023-12-29",
       },
       {
@@ -262,18 +270,18 @@ export const patterns = [
       },
       {
         label: "UK Health and Safety Executive, key decision log",
-        href: "https://www.hse.gov.uk/foi/internalops/og/ogprocedures/investigation/decisionlog.htm",
+        href: hseKeyDecisionLogUrl,
       },
       {
         label:
           "Companies Act 2006, s.355 (records of resolutions and meetings; at least ten years)",
-        href: "https://www.legislation.gov.uk/ukpga/2006/46/section/355",
+        href: section355Url,
         datePublished: companiesActYear,
       },
       {
         label:
           "Companies Act 2006, s.248 (directors' minutes; at least ten years)",
-        href: "https://www.legislation.gov.uk/ukpga/2006/46/section/248",
+        href: section248Url,
         datePublished: companiesActYear,
       },
       {
@@ -307,6 +315,198 @@ export const patterns = [
       },
     ],
     citations: [{ label: "ArdaNova homepage", href: "https://ardanova.com/" }],
+  },
+  {
+    slug: "directors-minutes",
+    title: "Directors' meeting minutes",
+    headline: "Directors' meeting minutes",
+    eyebrow: "Directors' minutes",
+    indexBlurb:
+      "Companies Act 2006, s.248: minutes of all proceedings at directors' meetings, kept for at least ten years from the date of the meeting. If no minute was recorded, the official record of that meeting does not yet exist.",
+    publishedAt: "2026-11-10",
+    description:
+      "The Companies Act 2006 requires minutes of all directors' meetings, kept for at least ten years. This guide covers that official duty. Not legal advice.",
+    related: [
+      {
+        href: "/patterns/records-of-resolutions",
+        label:
+          "Records of resolutions and general meetings — the members' and general-meeting record, kept for at least ten years.",
+      },
+      {
+        href: "/patterns/what-belongs-in-the-minutes",
+        label:
+          "What belongs in the minutes — date, time, who was there, and what was decided.",
+      },
+      {
+        href: "/patterns/decision-logs",
+        label:
+          "Decision logs — a contemporaneous record of what was decided, why, by whom, and when.",
+      },
+    ],
+    citations: [
+      {
+        label: "Companies Act 2006, s.248",
+        href: section248Url,
+        datePublished: companiesActYear,
+      },
+    ],
+  },
+  {
+    slug: "records-of-resolutions",
+    title: "Records of resolutions and general meetings",
+    headline: "Records of resolutions and general meetings",
+    eyebrow: "Records of resolutions",
+    indexBlurb:
+      "Companies Act 2006, s.355: copies of members' written resolutions, minutes of general meetings, and sole-member decisions, kept for at least ten years from the relevant date.",
+    publishedAt: "2026-11-10",
+    description:
+      "The Companies Act 2006 requires records of written resolutions, general-meeting minutes, and sole-member decisions, kept at least ten years. Not legal advice.",
+    related: [
+      {
+        href: "/patterns/directors-minutes",
+        label:
+          "Directors' meeting minutes — minutes of all directors' proceedings, kept for at least ten years.",
+      },
+      {
+        href: "/patterns/what-belongs-in-the-minutes",
+        label:
+          "What belongs in the minutes — date, time, who, and what was decided.",
+      },
+      {
+        href: "/patterns/two-records-one-agreement",
+        label:
+          "Two records. One agreement. — a recorded interest is still not, by itself, a right.",
+      },
+    ],
+    citations: [
+      {
+        label: "Companies Act 2006, s.355",
+        href: section355Url,
+        datePublished: companiesActYear,
+      },
+    ],
+  },
+  {
+    slug: "what-belongs-in-the-minutes",
+    title: "What belongs in the minutes: date, time, who, and what was decided",
+    headline:
+      "What belongs in the minutes: date, time, who, and what was decided",
+    eyebrow: "What belongs in the minutes",
+    indexBlurb:
+      "UK Private Office guidance, published 29 December 2023: record the date, the time, who took part, and the decisions, including when the exchange happened on a non-corporate channel.",
+    publishedAt: "2026-11-10",
+    description:
+      "UK Private Office guidance says a meeting record should capture the date, time, who was there, and the decisions. This guide covers that official list.",
+    related: [
+      {
+        href: "/patterns/informal-channels",
+        label:
+          "Decisions on informal channels — if it happened in the chat, the record still has to say so.",
+      },
+      {
+        href: "/patterns/readable-record",
+        label:
+          "Write a record someone else can read — contemporaneous, reasoned, dated, and readable later.",
+      },
+      {
+        href: "/patterns/decision-logs",
+        label:
+          "Decision logs — the pattern sibling this practice page complements, and does not rewrite.",
+      },
+    ],
+    citations: [
+      {
+        label:
+          '"Guidance for the management of Private Office information and records (HTML)," published 29 December 2023',
+        href: privateOfficeRecordsUrl,
+        datePublished: "2023-12-29",
+      },
+      {
+        label:
+          "HMRC Records and Information Collection Policy, 19 May 2026 (ISO 15489-1:2016 as quoted there)",
+        href: hmrcRecordsUrl,
+        datePublished: "2026-05-19",
+      },
+    ],
+  },
+  {
+    slug: "readable-record",
+    title: "Write a record someone else can read",
+    headline: "Write a record someone else can read",
+    eyebrow: "A readable record",
+    indexBlurb:
+      "UK HSE key-decision-log practice: contemporaneous, with reasons, dated and timed, including inaction and retractions, and readable by someone who was not in the room.",
+    publishedAt: "2026-11-10",
+    description:
+      "UK HSE key-decision-log practice is contemporaneous, reasoned, dated, and readable by someone who was not in the room. This guide covers that habit.",
+    related: [
+      {
+        href: "/patterns/what-belongs-in-the-minutes",
+        label:
+          "What belongs in the minutes — date, time, who was there, and what was decided.",
+      },
+      {
+        href: "/patterns/informal-channels",
+        label:
+          "Decisions on informal channels — the channel does not retire the duty to have a record.",
+      },
+      {
+        href: "/patterns/decision-logs",
+        label: "Decision logs — the pattern sibling.",
+      },
+    ],
+    citations: [
+      {
+        label: "UK Health and Safety Executive, key decision log",
+        href: hseKeyDecisionLogUrl,
+      },
+    ],
+  },
+  {
+    slug: "informal-channels",
+    title: "Decisions on informal channels still need a record",
+    headline: "Decisions on informal channels still need a record",
+    eyebrow: "Informal channels",
+    indexBlurb:
+      "Private Office guidance, published 29 December 2023, does not treat a non-corporate channel as a place official business can happen without a record. If the decision was taken there, write it down.",
+    publishedAt: "2026-11-10",
+    description:
+      "Private Office guidance does not treat a non-corporate channel as a place official business can happen without a record. If it happened there, write it down.",
+    related: [
+      {
+        href: "/patterns/what-belongs-in-the-minutes",
+        label:
+          "What belongs in the minutes — date, time, who, and what was decided.",
+      },
+      {
+        href: "/patterns/directors-minutes",
+        label:
+          "Directors' meeting minutes — the directors' statutory record, with no informal-tool exception invented here.",
+      },
+      {
+        href: "/patterns/readable-record",
+        label:
+          "Write a record someone else can read — contemporaneous, reasoned, and readable later.",
+      },
+    ],
+    citations: [
+      {
+        label:
+          '"Guidance for the management of Private Office information and records (HTML)," published 29 December 2023',
+        href: privateOfficeRecordsUrl,
+        datePublished: "2023-12-29",
+      },
+      {
+        label: "Companies Act 2006, s.248, as a sibling",
+        href: section248Url,
+        datePublished: companiesActYear,
+      },
+      {
+        label: "Companies Act 2006, s.355, as a sibling",
+        href: section355Url,
+        datePublished: companiesActYear,
+      },
+    ],
   },
 ] as const satisfies readonly WritingEntry[];
 

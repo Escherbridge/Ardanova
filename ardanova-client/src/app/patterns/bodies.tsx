@@ -32,6 +32,26 @@ function EconomyParagraph({ children }: { children?: ReactNode }) {
   );
 }
 
+/** End limit for a field note. The label is not the opening theme. */
+function FieldEconomy({
+  balances = false,
+  trailing,
+}: {
+  balances?: boolean;
+  trailing?: ReactNode;
+}) {
+  return (
+    <p>
+      The economy on this workspace is simulated.
+      {balances ? " Balances are bookkeeping, not payment." : null}{" "}
+      <strong className="font-mono">ECONOMY: SIMULATED.</strong> Platform
+      records do not automatically create legal ownership, equity, or payment
+      rights.
+      {trailing ? <> {trailing}</> : null}
+    </p>
+  );
+}
+
 function SourceList({
   items,
   intro,
@@ -542,6 +562,447 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
       </section>
     </>
   ),
+  "directors-minutes": () => (
+    <>
+      <p>
+        The Companies Act 2006 requires every company to cause minutes of all
+        proceedings at meetings of its directors to be recorded, and to keep
+        those records for at least ten years from the date of the meeting. If
+        the directors met and no minute was recorded, the official record of
+        that meeting does not yet exist.
+      </p>
+      <p>
+        This is a field note about recording directors&apos; proceedings, not a
+        product theme and not legal advice. It is not advice about any
+        particular company, and it does not say how a particular entity should
+        format minutes. It does not treat section 248 as applying, without more,
+        to every informal chat or to non-company bodies. The practice siblings —{" "}
+        <TextLink href="/patterns/what-belongs-in-the-minutes">
+          what belongs in the minutes
+        </TextLink>{" "}
+        and{" "}
+        <TextLink href="/patterns/readable-record">
+          a record someone else can read
+        </TextLink>{" "}
+        — take up the habit. The already-live{" "}
+        <TextLink href="/patterns/decision-logs">decision logs</TextLink> page
+        is the pattern sibling.
+      </p>
+      <section className="space-y-3">
+        <h2 className="text-xl">Hero figures</h2>
+        <ul className="list-disc space-y-3 pl-5">
+          <li>
+            <strong>
+              Companies Act 2006, s.248, &quot;Minutes of directors&apos;
+              meetings,&quot;
+            </strong>{" "}
+            latest available revised text on legislation.gov.uk. &quot;(1) Every
+            company must cause minutes of all proceedings at meetings of its
+            directors to be recorded. (2) The records must be kept for at least
+            ten years from the date of the meeting.&quot;
+          </li>
+          <li>
+            <strong>On default:</strong> failure to comply is an offence by
+            every officer of the company who is in default, with a fine on
+            summary conviction not exceeding level 3 on the standard scale and a
+            daily default fine for continued contravention not exceeding
+            one-tenth of level 3. Those are the Act&apos;s words. This page does
+            not convert &quot;level 3&quot; into a pound figure that is not on
+            the opened page, and it does not turn the penalty subsection into a
+            scare lede.
+          </li>
+        </ul>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">What s.248 actually says</h2>
+        <p>
+          Every company; minutes of all proceedings at directors&apos; meetings;
+          keep them at least ten years from the date of the meeting. That is the
+          official duty, in the Act&apos;s own words. This page does not invent
+          a house minutes template as if it satisfied s.248, and it does not
+          give advice on offences or filings.
+        </p>
+        <p>
+          The members&apos; and general-meeting side of the same record-keeping
+          habit is{" "}
+          <TextLink href="/patterns/records-of-resolutions">
+            records of resolutions
+          </TextLink>{" "}
+          (s.355).{" "}
+          <TextLink href="/patterns/informal-channels">
+            Decisions on informal channels
+          </TextLink>{" "}
+          is the companion for a decision that happened in chat.
+        </p>
+        <p>
+          A recorded decision on ArdaNova still needs a record. A recorded vote
+          does not, by itself, move funds or rewrite terms.{" "}
+          <TextLink href="/patterns/a-record-is-not-a-right">
+            A record is not a right
+          </TextLink>{" "}
+          is the already-live pattern for that limit.
+        </p>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">An illustrative scenario</h2>
+        <p>
+          This is a worked example, not a customer and not a company filing.
+          Directors met, a decision was taken, and the only trace is a later
+          chat message. Ten years from the date of the meeting, no minute can be
+          found. Section 248 already names the missing record.
+        </p>
+      </section>
+      <CitedSources slug="directors-minutes" />
+    </>
+  ),
+  "records-of-resolutions": () => (
+    <>
+      <p>
+        The Companies Act 2006 also requires a company to keep copies of
+        members&apos; resolutions passed otherwise than at general meetings,
+        minutes of all proceedings of general meetings, and the details of
+        sole-member decisions — and to keep those records for at least ten
+        years. A &quot;minute book&quot; in this sense is a set of records:
+        written resolutions, general-meeting minutes, and sole-member decisions,
+        kept for at least ten years from the relevant date.
+      </p>
+      <p>
+        This is a field note about the members&apos; and general-meeting record,
+        sibling to{" "}
+        <TextLink href="/patterns/directors-minutes">
+          directors&apos; minutes
+        </TextLink>
+        , not a second copy of that page, and not legal advice. It does not
+        invent a constitution, a share register, or a filing duty from this
+        section. It does not quote the body of section 357; that section is
+        named only as s.355 already names it. There is no ownership framing of
+        &quot;resolutions.&quot;
+      </p>
+      <section className="space-y-3">
+        <h2 className="text-xl">Hero figures</h2>
+        <ul className="list-disc space-y-3 pl-5">
+          <li>
+            <strong>
+              Companies Act 2006, s.355, &quot;Records of resolutions and
+              meetings etc,&quot;
+            </strong>{" "}
+            latest available revised text on legislation.gov.uk. &quot;(1) Every
+            company must keep records comprising— (a) copies of all resolutions
+            of members passed otherwise than at general meetings, (b) minutes of
+            all proceedings of general meetings, and (c) details provided to the
+            company in accordance with section 357 (decisions of sole member).
+            (2) The records must be kept for at least ten years from the date of
+            the resolution, meeting or decision (as appropriate).&quot;
+          </li>
+          <li>
+            <strong>On default:</strong> failure to comply is an offence by
+            every officer in default, with the same style of summary fine as
+            s.248 (level 3, and a daily default fine not exceeding one-tenth of
+            level 3). This page does not invent a pound figure.
+          </li>
+        </ul>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">What s.355 actually lists</h2>
+        <p>
+          Three kinds of record: copies of members&apos; resolutions passed
+          otherwise than at general meetings; minutes of all proceedings of
+          general meetings; and details of sole-member decisions provided in
+          accordance with section 357. The ten-year rule is attached to
+          &quot;the date of the resolution, meeting or decision (as
+          appropriate).&quot;
+        </p>
+        <p>
+          The directors&apos; side of the habit is{" "}
+          <TextLink href="/patterns/directors-minutes">s.248</TextLink>. The
+          already-live pattern siblings are{" "}
+          <TextLink href="/patterns/decision-logs">decision logs</TextLink> and{" "}
+          <TextLink href="/patterns/two-records-one-agreement">
+            two records, one agreement
+          </TextLink>
+          .{" "}
+          <TextLink href="/patterns/what-belongs-in-the-minutes">
+            What belongs in the minutes
+          </TextLink>{" "}
+          is the practice list for the note itself.
+        </p>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">An illustrative scenario</h2>
+        <p>
+          This is a worked example, not a customer and not a filing. A written
+          resolution of the members was passed outside a general meeting, and
+          the only copy is in someone&apos;s inbox. Ten years from the date of
+          the resolution, the company cannot produce it. Section 355 already
+          names the missing record.
+        </p>
+      </section>
+      <CitedSources slug="records-of-resolutions" />
+    </>
+  ),
+  "what-belongs-in-the-minutes": () => (
+    <>
+      <p>
+        Official UK Private Office records guidance says a meeting record should
+        capture the date, the time, who was there, and the decisions — including
+        when the exchange happened on a non-corporate channel. If the note does
+        not say when it was, who was there, and what was decided, it is not yet
+        doing the job a later reader needs.
+      </p>
+      <p>
+        This is a practice page about what to write down, sibling to the statute
+        pages and to the already-live{" "}
+        <TextLink href="/patterns/decision-logs">decision logs</TextLink>{" "}
+        pattern. It is not legal advice, not a required template, and not a
+        claim that ArdaNova, or a reader&apos;s company, is bound by Private
+        Office rules. The opened guidance is official UK government practice for
+        Private Office information and records, published 29 December 2023. It
+        is guidance to a public-authority setting, not a statute for this
+        workspace, and not a certification.
+      </p>
+      <section className="space-y-3">
+        <h2 className="text-xl">Hero figures</h2>
+        <ul className="list-disc space-y-3 pl-5">
+          <li>
+            <strong>
+              &quot;Guidance for the management of Private Office information
+              and records (HTML),&quot; published 29 December 2023,
+            </strong>{" "}
+            tells officials to &quot;Keep a record of ministers&apos; meetings
+            on substantive issues whatever the medium,&quot; and to &quot;Record
+            the date, time, location or format (in person, online, via
+            non-corporate channels), who took part, and decisions or
+            undertakings.&quot; It also says: &quot;Record decisions arising
+            from telephone or online meetings or via non-corporate communication
+            channels, such as WhatsApp.&quot; This is a public model of what
+            belongs in a decision record, not a public-records duty on users,
+            and not a surveillance recommendation.
+          </li>
+          <li>
+            <strong>
+              HMRC Records and Information Collection Policy, 19 May 2026,
+              quoting ISO 15489-1:2016:
+            </strong>{" "}
+            a record is &quot;information created, received and maintained as
+            evidence and information… in pursuance of legal obligations or in
+            the transaction of business.&quot; HMRC creates records &quot;to
+            provide information about what happened, what was decided, and how
+            to do things,&quot; and says information has most value when it is
+            &quot;accurate, up-to-date and accessible when it is needed.&quot;
+          </li>
+        </ul>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">The official list, as guidance</h2>
+        <p>
+          Date, time, who, decisions — and the format, including a non-corporate
+          channel if that is where it happened. What happened and what was
+          decided, in HMRC&apos;s quotation of ISO 15489. Non-corporate channels
+          do not get a free pass. The longer treatment of informal channels is{" "}
+          <TextLink href="/patterns/informal-channels">
+            If the decision happened in the chat
+          </TextLink>
+          .{" "}
+          <TextLink href="/patterns/readable-record">
+            A record someone else can read
+          </TextLink>{" "}
+          is the later-reader companion.{" "}
+          <TextLink href="/patterns/directors-minutes">
+            Directors&apos; minutes
+          </TextLink>{" "}
+          and{" "}
+          <TextLink href="/patterns/records-of-resolutions">
+            records of resolutions
+          </TextLink>{" "}
+          are the statute siblings.
+        </p>
+        <p>
+          The habit is the same whether or not the economy is simulated. This
+          page does not give legal advice about personal messaging apps beyond
+          what the opened guidance actually says.
+        </p>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">An illustrative scenario</h2>
+        <p>
+          This is a worked example, not a customer. A note says &quot;agreed in
+          the meeting,&quot; with no date, no names, and no decision written as
+          a decision. A later person cannot tell what was decided, or who was
+          there. The Private Office list already names the missing fields.
+        </p>
+      </section>
+      <CitedSources slug="what-belongs-in-the-minutes" />
+    </>
+  ),
+  "readable-record": () => (
+    <>
+      <p>
+        The UK Health and Safety Executive&apos;s key-decision-log practice is
+        that the log should be contemporaneous, give reasons, be dated and
+        timed, include inaction and retractions, and be readable by someone who
+        was not in the room. If only the people who were there can decode the
+        note, the record is not yet doing its job.
+      </p>
+      <p>
+        This is a field note about a later reader, not a safety-inspection
+        claim, not a rewrite of{" "}
+        <TextLink href="/patterns/decision-logs">decision logs</TextLink>, and
+        not legal advice. The opened page is official HSE internal operational
+        guidance on a key decision log. It is HSE investigation practice, not a
+        general corporate statute, and not a certification ArdaNova holds. HSE
+        rules are not claimed to apply to this workspace or to a private
+        meeting. No &quot;key decision log&quot; product is invented here.
+      </p>
+      <section className="space-y-3">
+        <h2 className="text-xl">Hero figures</h2>
+        <ul className="list-disc space-y-3 pl-5">
+          <li>
+            <strong>
+              UK Health and Safety Executive, &quot;Investigation — Stage 3:
+              Prepare the investigation,&quot; Key decision log.
+            </strong>{" "}
+            The KDL is defined as &quot;a contemporaneous record of the key
+            decisions that affect the course of an investigation and the reasons
+            for those decisions.&quot; It &quot;is not a diary of the actions
+            taken.&quot;
+          </li>
+          <li>
+            <strong>On inaction and retractions:</strong> &quot;It is equally
+            important to record decisions and reasons for not doing something as
+            for doing something and to record any changes or retractions of
+            previous decisions.&quot;
+          </li>
+          <li>
+            <strong>On timing and a later reader:</strong> Entries &quot;should
+            be made as soon as possible after making the decision&quot;;
+            &quot;all recorded decisions must be dated and timed&quot;; and
+            &quot;The record in the KDL should enable someone who is not
+            directly involved… to understand the thought processes of the
+            investigator and the reasons for the course of the
+            investigation.&quot;
+          </li>
+        </ul>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">What HSE&apos;s practice actually asks for</h2>
+        <p>
+          Contemporaneous; reasons; dated and timed; inaction and retractions
+          included; readable by someone not in the room. Useful as a habit. Not
+          an ArdaNova obligation.{" "}
+          <TextLink href="/patterns/what-belongs-in-the-minutes">
+            What belongs in the minutes
+          </TextLink>{" "}
+          is the short official list for date, time, who, and decisions.{" "}
+          <TextLink href="/patterns/directors-minutes">
+            Directors&apos; minutes
+          </TextLink>{" "}
+          and{" "}
+          <TextLink href="/patterns/records-of-resolutions">
+            records of resolutions
+          </TextLink>{" "}
+          are the statute siblings.{" "}
+          <TextLink href="/patterns/decision-logs">Decision logs</TextLink> is
+          the pattern page this one complements.
+        </p>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">An illustrative scenario</h2>
+        <p>
+          This is a worked example, not a customer and not an investigation. A
+          log entry reads &quot;same as last time, DK to handle,&quot; with no
+          date, no reason, and no account of a decision not to act. A person who
+          was not in the room cannot reconstruct the thought. HSE&apos;s
+          later-reader sentence is already the test that entry fails.
+        </p>
+      </section>
+      <CitedSources slug="readable-record" />
+    </>
+  ),
+  "informal-channels": () => (
+    <>
+      <p>
+        Official Private Office records guidance does not treat a non-corporate
+        channel as a place where official business can happen without a record.
+        If the decision was taken there, the record still has to capture it. The
+        channel does not retire the duty to have a record.
+      </p>
+      <p>
+        This is a field note about where a decision actually happened, not a
+        policy on monitoring anyone&apos;s messages, not a recommendation to
+        search private devices, and not legal advice about messaging apps. It is
+        public-authority guidance, not a private-company statute, and not a
+        surveillance recommendation. Stay with the records habit: if the
+        decision happened there, write it down in the official record.
+      </p>
+      <section className="space-y-3">
+        <h2 className="text-xl">Hero figures</h2>
+        <ul className="list-disc space-y-3 pl-5">
+          <li>
+            <strong>
+              &quot;Guidance for the management of Private Office information
+              and records (HTML),&quot; published 29 December 2023,
+            </strong>{" "}
+            already opened for the decision-logs and what-belongs pages, tells
+            officials to &quot;Keep a record of ministers&apos; meetings on
+            substantive issues whatever the medium,&quot; and to &quot;Record
+            the date, time, location or format (in person, online, via
+            non-corporate channels), who took part, and decisions or
+            undertakings.&quot; It also says: &quot;Record decisions arising
+            from telephone or online meetings or via non-corporate communication
+            channels, such as WhatsApp.&quot;
+          </li>
+          <li>
+            <strong>Companies Act 2006, s.248 and s.355,</strong> opened 10
+            November 2026, still require minutes and resolution records to be
+            kept, without creating an exception for informal tools. They are
+            pointed at here only as the{" "}
+            <TextLink href="/patterns/directors-minutes">
+              directors&apos; minutes
+            </TextLink>{" "}
+            and{" "}
+            <TextLink href="/patterns/records-of-resolutions">
+              records of resolutions
+            </TextLink>{" "}
+            siblings. Neither section is stretched into a chat-app offence.
+          </li>
+        </ul>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">What the opened guidance is for</h2>
+        <p>
+          Private Office practice; non-corporate channels included; date, time,
+          who, and decisions still belong in the record. WhatsApp is named in
+          the guidance as an example of a non-corporate communication channel,
+          not as a product recommendation, and not as a reason to install a
+          monitor. This page does not recommend a chat product, a retention
+          vendor, or a surveillance setup.
+        </p>
+        <p>
+          <TextLink href="/patterns/what-belongs-in-the-minutes">
+            What belongs in the minutes
+          </TextLink>{" "}
+          is the short list of fields.{" "}
+          <TextLink href="/patterns/readable-record">
+            A record someone else can read
+          </TextLink>{" "}
+          is the later-reader test.{" "}
+          <TextLink href="/patterns/decision-logs">Decision logs</TextLink> is
+          the pattern sibling.
+        </p>
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-xl">An illustrative scenario</h2>
+        <p>
+          This is a worked example, not a customer and not a monitoring
+          proposal. A decision was taken in a personal-device chat, everyone who
+          was there remembers it differently a month later, and the official
+          record is silent. The guidance already says the channel does not
+          excuse the missing note.
+        </p>
+      </section>
+      <CitedSources slug="informal-channels" />
+    </>
+  ),
   "problem-intake": () => (
     <>
       <p>
@@ -633,6 +1094,84 @@ const closings: Partial<Record<PatternSlug, () => ReactNode>> = {
         <TextLink href="https://ardanova.com/">homepage</TextLink> and the{" "}
         <TextLink href="https://ardanova.com/terms">Terms</TextLink>. A decision
         that cannot be found later is hard to hand to the next person.
+      </p>
+      <ReviewedLine />
+    </>
+  ),
+  "directors-minutes": () => (
+    <>
+      <p>
+        <TextLink href="https://azoa.ardanova.com">AZOA</TextLink> is the
+        planned workflow engine; its public site, like this workspace, is still
+        a simulation.{" "}
+        <TextLink href="https://primusneo.com">PrimusNeo</TextLink> is the lab
+        whose stack this workspace belongs to.
+      </p>
+      <FieldEconomy balances />
+      <p>
+        The useful next step is to record the proceedings of the meeting, or to
+        read <TextLink href="/patterns/decision-logs">decision logs</TextLink>.
+        If something on this page is wrong,{" "}
+        <TextLink href="/">write to us</TextLink>.
+      </p>
+      <ReviewedLine />
+    </>
+  ),
+  "records-of-resolutions": () => (
+    <>
+      <FieldEconomy
+        balances
+        trailing={
+          <>
+            <TextLink href="https://azoa.ardanova.com">AZOA</TextLink> is the
+            planned workflow engine, also still a simulation.{" "}
+            <TextLink href="https://primusneo.com">PrimusNeo</TextLink> is the
+            lab whose stack this workspace belongs to.
+          </>
+        }
+      />
+      <p>
+        The useful next step is to keep the three kinds of record s.355 actually
+        lists, or to read{" "}
+        <TextLink href="/patterns/directors-minutes">
+          directors&apos; minutes
+        </TextLink>
+        . If something on this page is wrong,{" "}
+        <TextLink href="/">write to us</TextLink>.
+      </p>
+      <ReviewedLine />
+    </>
+  ),
+  "what-belongs-in-the-minutes": () => (
+    <>
+      <FieldEconomy />
+      <p>
+        The useful next step is to write the date, the time, who was there, and
+        what was decided. If something on this page is wrong,{" "}
+        <TextLink href="/">write to us</TextLink>.
+      </p>
+      <ReviewedLine />
+    </>
+  ),
+  "readable-record": () => (
+    <>
+      <FieldEconomy />
+      <p>
+        The useful next step is to write the note so a person who was not in the
+        room can read it. If something on this page is wrong,{" "}
+        <TextLink href="/">write to us</TextLink>.
+      </p>
+      <ReviewedLine />
+    </>
+  ),
+  "informal-channels": () => (
+    <>
+      <FieldEconomy />
+      <p>
+        The useful next step is to write the decision into the official record,
+        including the date, the time, who took part, and that it happened on an
+        informal channel. If something on this page is wrong,{" "}
+        <TextLink href="/">write to us</TextLink>.
       </p>
       <ReviewedLine />
     </>
