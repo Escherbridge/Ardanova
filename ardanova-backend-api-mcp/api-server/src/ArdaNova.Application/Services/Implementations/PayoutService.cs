@@ -987,7 +987,7 @@ namespace ArdaNova.Application.Services.Implementations
 
             var blocked = DescribeSellability(config, holderClass);
             if (blocked is not null)
-                return Result<SaleAssessment>.Forbidden(blocked);
+                return NotSellable(blocked);
 
             // Held units are the worker's own restricted window. They are part of the balance and
             // must not be sellable, so the ceiling is what is free AFTER the hold, never the number
@@ -1000,7 +1000,7 @@ namespace ArdaNova.Application.Services.Implementations
                 userId, projectTokenConfigId, holderClass, ct);
             if (!liquidity.IsSuccess || !liquidity.Value)
             {
-                return Result<SaleAssessment>.Forbidden(
+                return NotSellable(
                     DescribeIlliquidity(config.gateStatus, holderClass, restriction));
             }
 
@@ -1027,12 +1027,16 @@ namespace ArdaNova.Application.Services.Implementations
                 config, rate.Value, priced.Value, available.Value, restriction, avatarId));
         }
 
-        /// <summary>Re-wraps a refusal onto another result type, keeping BOTH its wording and its kind.</summary>
+        /// <summary>A sale refused before any node call, labelled so it is not read as account setup.</summary>
+        private static Result<SaleAssessment> NotSellable(string message) =>
+            Result<SaleAssessment>.Forbidden(message).WithCode(UpstreamFailureCodes.UnitsNotSellable);
+
+        /// <summary>Re-wraps a refusal onto another result type, keeping its wording, kind, and machine code.</summary>
         /// <remarks>Flattening a refusal to a plain failure is how a "not yet" becomes a "server error".</remarks>
         private static Result<TOut> Carry<TIn, TOut>(Result<TIn> source)
         {
             var error = source.Error ?? "This could not be completed, so nothing was moved.";
-            return source.Type switch
+            var carried = source.Type switch
             {
                 ResultType.NotFound => Result<TOut>.NotFound(error),
                 ResultType.Forbidden => Result<TOut>.Forbidden(error),
@@ -1042,6 +1046,7 @@ namespace ArdaNova.Application.Services.Implementations
                 ResultType.BadRequest => Result<TOut>.BadRequest(error),
                 _ => Result<TOut>.Failure(error),
             };
+            return carried.WithCode(source.Code).WithReference(source.Reference);
         }
 
         // -- Pricing, in exact numbers --------------------------------------------
