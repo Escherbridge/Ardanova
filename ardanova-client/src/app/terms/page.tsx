@@ -6,8 +6,15 @@ import {
   OperatorContact,
 } from "~/components/brand/legal-document";
 import { IDAHO_GOVERNING_LAW } from "~/lib/legal/governing-law";
+import { publicCanonical, shareImage } from "~/lib/site";
 
-export const metadata: Metadata = { title: "Terms of use" };
+const canonical = publicCanonical("/terms");
+
+export const metadata: Metadata = {
+  title: "Terms of use",
+  alternates: { canonical },
+  openGraph: { url: canonical, images: [shareImage] },
+};
 
 export default function TermsPage() {
   return (

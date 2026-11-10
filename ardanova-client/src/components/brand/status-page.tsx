@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { SiteFooter } from "~/components/brand/site-footer";
 import { ArdaNovaWordmark } from "~/components/brand/wordmark";
 
 /** Full-page branded status screen shared by not-found, error and global-error. See `src/components/ui/AGENTS.md` §status-page. */
@@ -41,6 +42,7 @@ export function StatusPage({
         </div>
         <div className="flex flex-wrap gap-3">{actions}</div>
       </main>
+      <SiteFooter workspaceHref="/dashboard" />
     </div>
   );
 }
