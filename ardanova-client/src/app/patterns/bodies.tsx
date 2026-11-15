@@ -501,9 +501,9 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
           <li>
             <strong>Link forward via explicit correction events:</strong>{" "}
             Publish a new amendment or retraction entry pointing directly at the
-            prior ID (`supersedes: rec_014`), recording author, timestamp, and
-            concrete reason for the change—matching HSE guidance to log
-            retractions and changes openly.
+            prior ID (<code>supersedes: rec_014</code>), recording author,
+            timestamp, and concrete reason for the change—matching HSE guidance
+            to log retractions and changes openly.
           </li>
           <li>
             <strong>Separate projection from history:</strong> Render the latest
@@ -535,9 +535,9 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
           Mid-sprint, two partner teams agree to reduce QA scope on a demo feed
           so core shipping stabilizes first. Instead of editing last
           Monday&apos;s charter paragraph in place, the steward appends
-          amendment `#19` noting the reduced scope and linking back to entry
-          `#12`. Weeks later, a reviewer immediately sees both what was
-          originally promised and who approved the change.
+          amendment <code>#19</code> noting the reduced scope and linking back
+          to entry <code>#12</code>. Weeks later, a reviewer immediately sees
+          both what was originally promised and who approved the change.
         </p>
       </section>
       <CitedSources slug="append-only-amendments-and-retractions" />
@@ -669,8 +669,8 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
           <li>
             <strong>Consistent default framing:</strong> Non-compliance under
             s.355 mirrors s.248 (summary scale framing at level 3 plus a daily
-            contravention cap at <em>one-tenth of level 3</em>); this page does
-            not invent a pound figure beyond the statute&apos;s text.
+            contravention cap at <em>one-tenth of level 3</em>), expressed
+            directly in the Act&apos;s statutory scale.
           </li>
         </ul>
       </section>
@@ -1183,9 +1183,7 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
             initial intent to incorporate (and, where relevant,{" "}
             <em>&quot;to take at least one share each&quot;</em>)—confirming why
             founding snapshots shouldn&apos;t be confused with evolving
-            operational bylaws. (For completeness: a former Companies House
-            model-articles landing link returned HTTP 404 on 2026-11-10 and is
-            not linked here.)
+            operational bylaws.
           </li>
         </ul>
       </section>
@@ -1348,8 +1346,7 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
             Notably, subsection (5) keeps practical clarity: omitting the notice{" "}
             <em>does not affect the validity</em> of the decision itself, though
             default exposes officers to a summary scale fine (framed cleanly in
-            the Act as <em>level 2 on the standard scale</em>, left exact
-            without currency-conversion speculation).
+            the Act as <em>level 2 on the standard scale</em>).
           </li>
           <li>
             <strong>Why s.288 written resolutions appear nearby:</strong>{" "}

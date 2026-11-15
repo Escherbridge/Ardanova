@@ -45,6 +45,7 @@ describe("pattern pages", () => {
       expect(text).toContain("Sources");
       expect(text).not.toMatch(/\b(investment|token|tokens|returns?)\b/i);
       expect(text).not.toContain("The bill for a split system");
+      expect(text).not.toContain("`");
       unmount();
     }
   });
@@ -107,7 +108,9 @@ describe("pattern pages", () => {
       "at least ten years from the date of the resolution, meeting or decision (as appropriate)",
     );
     expect(resolutionsText).toContain("one-tenth of level 3");
-    expect(resolutionsText).toContain("does not invent a pound figure");
+    expect(resolutionsText).toContain(
+      "expressed directly in the Act's statutory scale",
+    );
     expect(resolutionsText).not.toMatch(/£|\bGBP\b|sterling/i);
     expect(resolutions.container.innerHTML).toContain(
       "https://www.legislation.gov.uk/ukpga/2006/46/section/355",
@@ -179,9 +182,7 @@ describe("pattern pages", () => {
       "A company must have articles of association prescribing regulations for the company.",
     );
     expect(articlesText).toContain("to take at least one share each");
-    expect(articlesText).toContain(
-      "HTTP 404 on 2026-11-10 and is not linked here",
-    );
+    expect(articlesText).not.toMatch(/HTTP 404|2026-11-10/i);
     expect(articles.container.innerHTML).not.toMatch(
       /href="[^"]*(companieshouse|model-articles)/i,
     );
