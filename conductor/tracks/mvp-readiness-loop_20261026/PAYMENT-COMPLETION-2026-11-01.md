@@ -14,7 +14,26 @@ across ArdaNova and AZOA, and chose no fresh local dependency audit. Ordinary
 release CI retains its production-audit check. The feed closeout is a milestone
 within this same active goal.
 
-Snapshot updated November 3 UTC. Node review head
+Current status addendum, November 3 UTC: Node review head is
+`9fa94356f0f65ab5c1332ee7200c024fa3bce14b`. Its fresh complete CI runs
+`41640321757` and `41640329692` are pending. The preceding exact `3f0862b3`
+push run `41629476233` passed nine jobs; its synthetic-merge PR run
+`41629483717` retained one expiry-poll fixture failure. The five-file fixture-only
+repair at `9fa94356` passed one affected run of 13 cases, zero failed/skipped, with C
+verification `payment-node-kyc-fixture-C-local-final-review-20261103.json`.
+Production polling/CAS/backoff/timeouts are unchanged. These are separate exact-
+head results; neither the old failure nor pending new-head CI is erased.
+
+Both selected real backup usability gates, private PG SQL/catalog rollback and
+active private-resource cleanup are independently closed. The config-only
+immutable desired-image adoption is also closed, without payment deployment.
+Fresh current storage-mode/synchronous-commit evidence, final CI, actual shared
+migrations, immutable payment images/protected promotion and the deployed provider
+journey remain distinct gates. See the current
+[release runbook](PAYMENT-RELEASE-RUNBOOK-2026-11-01.md) and
+[decision ledger](DECISION-LEDGER.md) for exact receipts and limitations.
+
+Historical verified snapshot (November 1–3; exact heads retained): Node review head
 `f1b8824b30901cfb2073f2e14e9e08f2219b33e0` includes the reviewed 16-file hosted
 handoff/login-validator repair. Current PR CI `41449375013` is **SUCCESS with all
 nine jobs successful**: single full unit 5,687 passed/zero failed/skipped in
@@ -74,13 +93,28 @@ skipped; Node PR3 `f1b8824b` is not deployed. Helper deployment
 probe work; staging is empty. Earlier rejected skip-deploy/staged-mount attempts
 are historical receipts, not current blockers or replayable procedures.
 
-Database recoverability remains open. PostgreSQL and SurrealDB snapshot catalog
-records do not establish a completed disposable restore. Read-only PG 17.11
+Selected real PostgreSQL backup `55258d25...` and SurrealDB backup `5e3d247b...`
+now have independently closed private recovery-usability receipts
+`payment-real-pg-recovery-usability-C-final-review-20261103.json` (`87464f61...`)
+and `payment-real-surreal-recovery-usability-C-final-review-20261103.json`
+(`0654f633...`). These close selected-point usability only, not current-source
+equality, cluster-wide recovery, archive checksum or terminal provider workflow
+proof. Private clone cleanup is independently closed in
+`payment-private-recovery-cleanup-C-final-review-20261103.json` (`ecbe5cbc...`),
+with original nine services/four visible volumes preserved; detached historical
+metadata remains and physical erasure is not claimed. Read-only PG 17.11
 inspection and independent release-blob comparison found 27 applied migrations
 with matching checksums and only `20261101000000_sale_admission_proof` pending,
 Linux release SHA256 `92adcf8e3617eac53e539545794d2839b7795a2ca03d248dc366343fbcf75bf8`.
-Its SQL and actual catalog are compatible; recoverability and shared migration
-execution remain gates. No database migration or real-money activation occurred.
+Its exact SQL/catalog transaction and explicit rollback were verified on the
+private clone in `payment-pg-clone-ddl-C-final-review-20261103.json` (`8d7fa3f1...`);
+this was not Prisma migrate deploy/history recording or shared migration.
+Desired Surreal image adoption is independently closed in
+`payment-surreal-config-only-pin-C-final-review-20261103.json` (`e43a9d7f...`):
+only desired `source.image` changed, with `skipDeploys:true` and original
+deployment/mount metadata retained. Current live storage-mode/sync still needs
+its own bounded proof; desired-image/CI evidence does not certify it. Actual
+shared migrations, promotion and real-money activation have not occurred.
 
 npm owner `jadeoni-az` published 0.6.0; the public
 archive exactly matches reviewed SHA256
