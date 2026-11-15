@@ -16,6 +16,7 @@ export function indexableUrls(): IndexableUrl[] {
     { url: publicCanonical("/"), lastModified: "2026-11-10" },
     { url: publicCanonical("/terms"), lastModified: "2026-11-10" },
     { url: publicCanonical("/privacy"), lastModified: "2026-11-10" },
+    { url: publicCanonical("/contact"), lastModified: "2026-11-15" },
     { url: publicCanonical("/notes"), lastModified: "2026-11-09" },
     ...notes.map((note) => ({
       url: noteCanonical(note.slug),

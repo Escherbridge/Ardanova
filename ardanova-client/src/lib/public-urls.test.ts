@@ -1,9 +1,27 @@
 import { describe, expect, it } from "vitest";
 
 import { buildFeedXml } from "./feed-xml";
+import { buildLlmsTxt } from "./llms-txt";
+import {
+  CONTACT_DESCRIPTION,
+  HOME_DESCRIPTION,
+  HOME_TITLE,
+  NEWS_DESCRIPTION,
+  NOTES_DESCRIPTION,
+  PATTERNS_DESCRIPTION,
+  PRIVACY_DESCRIPTION,
+  PUBLIC_INDEX_DESCRIPTIONS,
+  TERMS_DESCRIPTION,
+} from "./public-copy";
 import { indexableUrls } from "./public-urls";
 import { siteGraph } from "./schema";
-import { feedEntries, patternCanonical, patterns } from "./writing";
+import {
+  entryTitle,
+  feedEntries,
+  notes,
+  patternCanonical,
+  patterns,
+} from "./writing";
 
 describe("public sitemap URLs", () => {
   const urls = indexableUrls().map((entry) => entry.url);
@@ -12,6 +30,7 @@ describe("public sitemap URLs", () => {
     expect(urls).toContain("https://ardanova.com/");
     expect(urls).toContain("https://ardanova.com/terms");
     expect(urls).toContain("https://ardanova.com/privacy");
+    expect(urls).toContain("https://ardanova.com/contact");
     expect(urls).toContain("https://ardanova.com/notes");
     expect(urls).toContain(
       "https://ardanova.com/notes/solutionary-thinking-in-practice",
@@ -93,6 +112,41 @@ describe("public sitemap URLs", () => {
     expect(joined).not.toContain("/auth");
     expect(joined).not.toContain("railway.app");
   });
+
+  it("keeps document titles unique and within 60 characters with the brand", () => {
+    const branded = [
+      HOME_TITLE,
+      "Notes — ArdaNova",
+      "Patterns — ArdaNova",
+      "News — ArdaNova",
+      "Terms of use — ArdaNova",
+      "Privacy notice — ArdaNova",
+      "Contact — ArdaNova",
+      ...notes.map((note) => `${entryTitle(note)} — ArdaNova`),
+      ...patterns.map((pattern) => `${entryTitle(pattern)} — ArdaNova`),
+    ];
+    expect(branded.every((title) => title.length <= 60)).toBe(true);
+    expect(new Set(branded).size).toBe(branded.length);
+  });
+
+  it("keeps public descriptions in the snippet range", () => {
+    const descriptions = [
+      ...PUBLIC_INDEX_DESCRIPTIONS,
+      ...notes.map((note) => note.description),
+      ...patterns.map((pattern) => pattern.description),
+    ];
+    const lengths = descriptions.map((description) => description.length);
+    expect(Math.min(...lengths)).toBeGreaterThanOrEqual(150);
+    expect(Math.max(...lengths)).toBeLessThanOrEqual(165);
+    expect(HOME_DESCRIPTION.length).toBeGreaterThanOrEqual(150);
+    expect(NOTES_DESCRIPTION.length).toBeLessThanOrEqual(165);
+    expect(PATTERNS_DESCRIPTION.length).toBeLessThanOrEqual(165);
+    expect(NEWS_DESCRIPTION.length).toBeGreaterThanOrEqual(150);
+    expect(TERMS_DESCRIPTION.length).toBeGreaterThanOrEqual(150);
+    expect(PRIVACY_DESCRIPTION.length).toBeGreaterThanOrEqual(150);
+    expect(CONTACT_DESCRIPTION).toContain("Escherbridge, LLC, Boise, Idaho");
+    expect(CONTACT_DESCRIPTION).toContain("contact@escherbridge.com");
+  });
 });
 
 describe("RSS feed", () => {
@@ -128,6 +182,42 @@ describe("sitewide JSON-LD", () => {
       /instagram|facebook|twitter\.com/i,
     );
     expect(postalAddressKeys(graph)).toEqual([]);
+  });
+});
+
+describe("llms.txt", () => {
+  const text = buildLlmsTxt();
+
+  it("summarizes the site and lists real public URLs", () => {
+    expect(text.startsWith("# ArdaNova\n")).toBe(true);
+    expect(text).toContain("Escherbridge, LLC, Boise, Idaho");
+    expect(text).toContain("contact@escherbridge.com");
+    expect(text).toContain("https://ardanova.com/contact");
+    expect(text).toContain("https://ardanova.com/feed.xml");
+    expect(text).toContain("https://ardanova.com/sitemap.xml");
+    expect(text).toContain("https://llmstxt.org/");
+    const indexable = new Set(indexableUrls().map((entry) => entry.url));
+    const allowed = new Set([
+      ...indexable,
+      "https://ardanova.com/news",
+      "https://ardanova.com/feed.xml",
+      "https://ardanova.com/sitemap.xml",
+      "https://ardanova.com/robots.txt",
+    ]);
+    const siteLinks = [
+      ...text.matchAll(/\]\((https:\/\/ardanova\.com[^)]*)\)/g),
+    ].map((match) => match[1]);
+    expect(siteLinks.length).toBeGreaterThan(10);
+    expect(siteLinks.filter((url) => !allowed.has(url ?? ""))).toEqual([]);
+    for (const note of notes) {
+      expect(text).toContain(`https://ardanova.com/notes/${note.slug}`);
+    }
+    for (const pattern of patterns) {
+      expect(text).toContain(`https://ardanova.com/patterns/${pattern.slug}`);
+    }
+    expect(text).not.toContain("railway.app");
+    expect(text).not.toMatch(/\b(investment|token|tokens|returns?)\b/i);
+    expect(text).not.toMatch(/\b\d{5}(?:-\d{4})?\b/);
   });
 });
 

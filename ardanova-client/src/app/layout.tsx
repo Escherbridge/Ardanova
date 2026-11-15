@@ -8,19 +8,16 @@ import { fontVariables } from "~/styles/fonts";
 import { TRPCReactProvider } from "~/trpc/react";
 import { AuthSessionProvider } from "~/providers/session-provider";
 import { isDevelopmentAuthPreviewEnabled } from "~/server/auth";
+import { HOME_DESCRIPTION, HOME_TITLE } from "~/lib/public-copy";
 import { shareImage, SITE_ORIGIN } from "~/lib/site";
-const siteTitle =
-  "ArdaNova — Solutionary Action, Shared Ownership & Social Ecology";
-const siteDescription =
-  "Not an endless feed. ArdaNova brings collaborators, guilds, and community sponsors together to investigate shared problems, build solutions, govern democratically, and share in what they create.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_ORIGIN),
   title: {
-    default: siteTitle,
+    default: HOME_TITLE,
     template: "%s — ArdaNova",
   },
-  description: siteDescription,
+  description: HOME_DESCRIPTION,
   keywords: [
     "solutionary thinking",
     "social ecology",
@@ -46,16 +43,23 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    title: siteTitle,
-    description: siteDescription,
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
     siteName: "ArdaNova",
     images: [shareImage],
   },
   twitter: {
     card: "summary_large_image",
-    title: siteTitle,
-    description: siteDescription,
-    images: [shareImage.url],
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
+    images: [
+      {
+        url: shareImage.url,
+        alt: shareImage.alt,
+        width: shareImage.width,
+        height: shareImage.height,
+      },
+    ],
   },
 };
 

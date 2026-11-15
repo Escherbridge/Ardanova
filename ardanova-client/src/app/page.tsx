@@ -3,12 +3,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { SiteFooter } from "~/components/brand/site-footer";
+import { JsonLd } from "~/components/brand/json-ld";
 import { ArdaNovaWordmark } from "~/components/brand/wordmark";
 import { SignalCanvas } from "~/components/brand/signal-canvas";
 import { HomePrimaryNavMenu } from "~/components/marketing/home-primary-nav";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
+import { HOME_DESCRIPTION, HOME_TITLE } from "~/lib/public-copy";
+import { itemList } from "~/lib/schema";
 import { publicCanonical, shareImage } from "~/lib/site";
 import { authForPage } from "~/server/auth";
 import { HydrateClient } from "~/trpc/server";
@@ -16,11 +19,36 @@ import { HydrateClient } from "~/trpc/server";
 const homeCanonical = "https://ardanova.com/";
 
 export const metadata: Metadata = {
-  openGraph: { images: [shareImage] },
+  title: { absolute: HOME_TITLE },
+  description: HOME_DESCRIPTION,
+  robots: { index: true, follow: true },
   alternates: {
+    canonical: homeCanonical,
     types: {
       "application/rss+xml": publicCanonical("/feed.xml"),
     },
+  },
+  openGraph: {
+    type: "website",
+    url: homeCanonical,
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
+    siteName: "ArdaNova",
+    locale: "en_US",
+    images: [shareImage],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
+    images: [
+      {
+        url: shareImage.url,
+        alt: shareImage.alt,
+        width: shareImage.width,
+        height: shareImage.height,
+      },
+    ],
   },
 };
 
@@ -78,8 +106,15 @@ export default async function Home() {
 
   return (
     <HydrateClient>
-      <link rel="canonical" href={homeCanonical} />
-      <meta content={homeCanonical} property="og:url" />
+      <JsonLd
+        data={itemList("ArdaNova", [
+          publicCanonical("/notes"),
+          publicCanonical("/patterns"),
+          publicCanonical("/terms"),
+          publicCanonical("/privacy"),
+          publicCanonical("/contact"),
+        ])}
+      />
       <div className="public-shell bg-background text-foreground min-h-screen">
         <a className="skip-link" href="#main-content">
           Skip to main content

@@ -6,19 +6,18 @@ import { SimulationNotice } from "~/components/brand/simulation-notice";
 import { WorkspaceFunnelGate } from "~/components/brand/WorkspaceFunnelGate";
 import { breadcrumbList, itemList } from "~/lib/schema";
 import { publicPageMetadata } from "~/lib/page-metadata";
+import { PATTERNS_DESCRIPTION } from "~/lib/public-copy";
 import {
   PATTERN_SHELVES,
   patternCanonical,
+  patternsReviewedAt,
   researchedPatterns,
 } from "~/lib/writing";
-
-const description =
-  "Fifteen practical guides for shared stewardship: separating economic value from democratic voice, preserving community memory, and keeping agreements honest across guilds and coalitions.";
 
 export const metadata = publicPageMetadata({
   path: "/patterns",
   title: "Patterns",
-  description,
+  description: PATTERNS_DESCRIPTION,
 });
 
 export default function PatternsPage() {
@@ -115,7 +114,7 @@ export default function PatternsPage() {
         <SimulationNotice includeAzoa includeLegalAdvice />
 
         <p className="text-muted-foreground text-sm">
-          Author: Escherbridge · Last reviewed: 2026-11-15 ·{" "}
+          Author: Escherbridge · Last reviewed: {patternsReviewedAt} ·{" "}
           <Link className="underline underline-offset-4" href="/notes">
             Essays &amp; notes
           </Link>{" "}
