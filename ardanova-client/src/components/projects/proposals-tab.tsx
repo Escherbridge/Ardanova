@@ -149,7 +149,7 @@ function describeOutcome(proposal: ProjectProposal): string | null {
     case "EXPIRED":
       return "Voting closed without a decision, because too few members took part.";
     case "EXECUTED":
-      return "Members passed this and it has been carried out.";
+      return "The vote is on record as carried out. That record does not move funds, change who is a member, or rewrite the project's terms.";
     case "CANCELLED":
       return "This proposal was withdrawn before anyone voted on it.";
     default:
@@ -1066,19 +1066,27 @@ export default function ProposalsTab({
                             </Button>
                           )}
                           {isOwner && proposal.status === "PASSED" && (
-                            <Button
-                              onClick={() => handleExecuteProposal(proposal.id)}
-                              disabled={executeMutation.isPending}
-                              size="sm"
-                              className="ml-2"
-                              aria-label="Carry out this decision"
-                            >
-                              {executeMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                "Carry out"
-                              )}
-                            </Button>
+                            <div className="ml-2 flex max-w-sm flex-col items-start gap-2">
+                              <p className="text-muted-foreground text-xs">
+                                Recording the decision stores the tally. It does
+                                not move funds, change membership, or rewrite
+                                the project&apos;s terms.
+                              </p>
+                              <Button
+                                onClick={() =>
+                                  handleExecuteProposal(proposal.id)
+                                }
+                                disabled={executeMutation.isPending}
+                                size="sm"
+                                aria-label="Record this decision"
+                              >
+                                {executeMutation.isPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  "Record decision"
+                                )}
+                              </Button>
+                            </div>
                           )}
                         </div>
                       </CardHeader>

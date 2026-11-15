@@ -10,6 +10,8 @@ function homePrimaryLinks(projectsHref: string) {
     { label: "Method", href: "#method" },
     { label: "Rights", href: "#rights" },
     { label: "Projects", href: projectsHref },
+    { label: "Notes", href: "/notes" },
+    { label: "Patterns", href: "/patterns" },
   ];
 }
 

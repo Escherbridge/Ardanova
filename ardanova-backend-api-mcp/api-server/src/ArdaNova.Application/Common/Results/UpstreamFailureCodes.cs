@@ -48,4 +48,10 @@ public static class UpstreamFailureCodes
 
     /// <summary>No transport to the node is configured on this deployment, so nothing was sent.</summary>
     public const string TransportNotConfigured = "ARDANOVA_TRANSPORT_NOT_CONFIGURED";
+
+    /// <summary>
+    /// A unit sale was refused before any node call because the units are held or not sellable.
+    /// Not an account-setup failure, and not proof a later attempt is impossible.
+    /// </summary>
+    public const string UnitsNotSellable = "ARDANOVA_UNITS_NOT_SELLABLE";
 }

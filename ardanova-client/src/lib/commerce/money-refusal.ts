@@ -18,6 +18,8 @@ export const MONEY_REFUSAL_CODES = [
   "needs_review",
   "unconfirmed",
   "unauthenticated",
+  /** Units cannot be sold on this attempt. Not account setup, and not a key release. */
+  "not_sellable",
 ] as const;
 
 export type MoneyRefusalCode = (typeof MONEY_REFUSAL_CODES)[number];
@@ -50,7 +52,9 @@ export function parseMoneyIntentId(value: unknown): string | null {
 function errorData(error: unknown): Record<string, unknown> | null {
   if (typeof error !== "object" || error === null) return null;
   const data = (error as { data?: unknown }).data;
-  return typeof data === "object" && data !== null ? (data as Record<string, unknown>) : null;
+  return typeof data === "object" && data !== null
+    ? (data as Record<string, unknown>)
+    : null;
 }
 
 /** The money code on a thrown tRPC client error (`error.data.moneyCode`), or null for anything else. */

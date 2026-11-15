@@ -3,44 +3,59 @@ import "~/styles/globals.css";
 import { type Metadata } from "next";
 import { Toaster } from "sonner";
 
+import { OrganizationJsonLd } from "~/components/brand/organization-json-ld";
 import { fontVariables } from "~/styles/fonts";
 import { TRPCReactProvider } from "~/trpc/react";
 import { AuthSessionProvider } from "~/providers/session-provider";
 import { isDevelopmentAuthPreviewEnabled } from "~/server/auth";
+import { shareImage, SITE_ORIGIN } from "~/lib/site";
+const siteTitle =
+  "ArdaNova — Solutionary Action, Shared Ownership & Social Ecology";
+const siteDescription =
+  "Not an endless feed. ArdaNova brings collaborators, guilds, and community sponsors together to investigate shared problems, build solutions, govern democratically, and share in what they create.";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_ORIGIN),
   title: {
-    default: "ArdaNova",
+    default: siteTitle,
     template: "%s — ArdaNova",
   },
-  description:
-    "Plan shared work, record decisions, and reconcile contributor rights in one reviewable project workspace.",
+  description: siteDescription,
   keywords: [
-    "shared projects",
-    "project coordination",
-    "contributor rights",
-    "governance",
-    "reconciliation",
-    "problem solving",
+    "solutionary thinking",
+    "social ecology",
+    "shared ownership",
+    "cooperative governance",
+    "community stewardship",
+    "collective action",
   ],
-  authors: [{ name: "ArdaNova Team" }],
-  creator: "ArdaNova",
-  publisher: "ArdaNova",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
+  authors: [{ name: "Escherbridge" }],
+  creator: "Escherbridge",
+  publisher: "Escherbridge",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   openGraph: {
     type: "website",
     locale: "en_US",
-    title: "ArdaNova",
-    description:
-      "Find a problem. Fund it. Build it. Share in what it becomes, on agreed terms.",
+    title: siteTitle,
+    description: siteDescription,
     siteName: "ArdaNova",
+    images: [shareImage],
   },
   twitter: {
-    // No share image ships yet; "summary_large_image" without one renders a broken card.
-    card: "summary",
-    title: "ArdaNova",
-    description:
-      "Find a problem. Fund it. Build it. Share in what it becomes, on agreed terms.",
+    card: "summary_large_image",
+    title: siteTitle,
+    description: siteDescription,
+    images: [shareImage.url],
   },
 };
 
@@ -50,6 +65,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={fontVariables}>
       <body className="bg-background min-h-screen font-sans antialiased">
+        <OrganizationJsonLd />
         <AuthSessionProvider
           refetchOnWindowFocus={!isDevelopmentAuthPreviewEnabled}
         >

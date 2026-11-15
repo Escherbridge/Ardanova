@@ -190,6 +190,7 @@ it) or 200 `revealed` (keep the key, follow the named payment / sponsorship). Bo
 | `Forbidden`, custodial lifecycle, UNCODED                                                                                    | `kyb_required`; coded non-KYB → `payments_not_configured`                  |
 | `Forbidden`, payout destination SETUP (F-H8, POST only)                                                                      | `account_holder_required`                                                  |
 | `Forbidden`, any other cash-out call (incl. withdraw, destination read)                                                      | `setup_required`                                                           |
+| Result code `ARDANOVA_UNITS_NOT_SELLABLE` (a sale refused before any node call: units held, or not sellable)                 | `not_sellable` (not account setup; does not release a payment key)         |
 
 `rail_busy` is ONLY a real 429; nothing that might have been admitted is ever called busy. A
 `Failure` is the platform's fault, never the caller's request, so every money controller answers

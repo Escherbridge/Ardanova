@@ -1,49 +1,68 @@
 import { ArrowRight, Check, FileText, Handshake, Scale } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 
+import { SiteFooter } from "~/components/brand/site-footer";
 import { ArdaNovaWordmark } from "~/components/brand/wordmark";
 import { SignalCanvas } from "~/components/brand/signal-canvas";
 import { HomePrimaryNavMenu } from "~/components/marketing/home-primary-nav";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
+import { publicCanonical, shareImage } from "~/lib/site";
 import { authForPage } from "~/server/auth";
 import { HydrateClient } from "~/trpc/server";
+
+const homeCanonical = "https://ardanova.com/";
+
+export const metadata: Metadata = {
+  openGraph: { images: [shareImage] },
+  alternates: {
+    types: {
+      "application/rss+xml": publicCanonical("/feed.xml"),
+    },
+  },
+};
 
 const operatingSteps = [
   {
     number: "01",
     title: "Discover a problem",
-    description: "Start with the people it affects.",
+    description:
+      "Begin in lived social and ecological context—observing what breaks for the people affected instead of chasing outrage headlines.",
     icon: <FileText aria-hidden="true" className="size-8" strokeWidth={1.5} />,
   },
   {
     number: "02",
     title: "Define a solution",
-    description: "Make a plan others can check.",
+    description:
+      "Shape a root-cause proposal others can test openly: who participates, what downstream harm gets avoided, and on what shared terms.",
     icon: <Scale aria-hidden="true" className="size-8" strokeWidth={1.5} />,
   },
   {
     number: "03",
     title: "Iterate",
-    description: "Build, test, revise. Or stop.",
+    description:
+      "Build, compare results in public with the community, and adjust or stop honestly when evidence calls for it.",
     icon: <Handshake aria-hidden="true" className="size-8" strokeWidth={1.5} />,
   },
 ];
 
 const trustCues = [
   {
-    title: "Context stays scoped",
-    description: "What is used, why, and who can act on it.",
-  },
-  {
-    title: "Rights stay explicit",
+    title: "Ownership without surveillance",
     description:
-      "Ownership and decision authority come from documented terms, never from activity, membership, or a balance alone.",
+      "Only collect and share the project context participants explicitly agree to—never profiling attention or turning contributors into data.",
   },
   {
-    title: "Decisions stay recorded",
-    description: "Proposals, votes, and outcomes stay on the record.",
+    title: "Explicit, documented rights",
+    description:
+      "Shared ownership rests on clear, readable terms: what work or funds contributed, what rights attach, and where those terms live.",
+  },
+  {
+    title: "Accountable community memory",
+    description:
+      "Proposals, dissenting questions, amendments, and outcomes remain legible so stewards joining next year inherit clarity, not guesswork.",
   },
 ];
 
@@ -59,6 +78,8 @@ export default async function Home() {
 
   return (
     <HydrateClient>
+      <link rel="canonical" href={homeCanonical} />
+      <meta content={homeCanonical} property="og:url" />
       <div className="public-shell bg-background text-foreground min-h-screen">
         <a className="skip-link" href="#main-content">
           Skip to main content
@@ -96,6 +117,18 @@ export default async function Home() {
               >
                 Projects
               </Link>
+              <Link
+                className="hover:text-primary inline-flex min-h-11 min-w-11 items-center justify-center"
+                href="/notes"
+              >
+                Notes
+              </Link>
+              <Link
+                className="hover:text-primary inline-flex min-h-11 min-w-11 items-center justify-center"
+                href="/patterns"
+              >
+                Patterns
+              </Link>
             </nav>
 
             <div className="flex items-center gap-2">
@@ -128,10 +161,40 @@ export default async function Home() {
                 </div>
 
                 <div className="grid gap-8 border-t border-black/70 pt-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-                  <p className="max-w-2xl text-lg leading-relaxed md:text-xl">
-                    People who find a problem fund it, build it, and share in
-                    what it becomes, on agreed terms.
-                  </p>
+                  <div className="max-w-2xl">
+                    <p className="text-brand-signal-deep font-mono text-xs font-semibold tracking-[0.16em] uppercase">
+                      Solutionary Action · Shared Ownership · Social Ecology
+                    </p>
+                    <p className="mt-4 text-lg leading-relaxed md:text-xl">
+                      Not an endless feed. ArdaNova is where people who care
+                      about a real-world problem bring together collaborators,
+                      guilds, and community sponsors to fund it, build it,
+                      govern it together, and share in what it becomes.
+                    </p>
+                    <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm leading-relaxed">
+                      <Link
+                        className="underline underline-offset-4"
+                        href="/notes"
+                      >
+                        Read essays on ownership, solutionary thinking &amp;
+                        social ecology
+                      </Link>
+                      <span aria-hidden="true">·</span>
+                      <Link
+                        className="underline underline-offset-4"
+                        href="/patterns"
+                      >
+                        Stewardship &amp; governance patterns
+                      </Link>
+                      <span aria-hidden="true">·</span>
+                      <a
+                        className="underline underline-offset-4"
+                        href="https://primusneo.com"
+                      >
+                        Part of the PrimusNeo stack
+                      </a>
+                    </p>
+                  </div>
                   <div className="flex flex-wrap gap-3">
                     <Button asChild size="lg">
                       <Link href={session ? workspaceHref : signupHref}>
@@ -222,7 +285,7 @@ export default async function Home() {
             <div className="mx-auto max-w-[1440px] px-4 py-20 md:px-8 md:py-28">
               <div className="mb-14 max-w-4xl">
                 <p className="text-brand-signal-deep mb-4 font-mono text-xs font-semibold tracking-[0.16em] uppercase">
-                  02 / Rights
+                  02 / Shared Ownership &amp; Voice
                 </p>
                 <h2 className="text-4xl leading-[0.92] font-black tracking-[-0.055em] break-words uppercase sm:text-5xl md:text-7xl">
                   Two records. One agreement.
@@ -233,15 +296,17 @@ export default async function Home() {
                 <article className="bg-brand-signal text-brand-ink flex min-h-[360px] flex-col justify-between p-7 md:p-10 lg:border-r lg:border-black/70">
                   <div className="flex items-center justify-between border-b border-black/70 pb-4 font-mono text-xs font-semibold tracking-[0.16em] uppercase">
                     <span>Record A</span>
-                    <span>Work + value</span>
+                    <span>Stewardship + shared value</span>
                   </div>
                   <div>
                     <h3 className="mb-5 max-w-lg text-4xl leading-none font-black tracking-[-0.05em] uppercase md:text-5xl">
-                      Contribution and economic interests
+                      Stewardship, Work &amp; Shared Value
                     </h3>
                     <p className="max-w-xl text-lg leading-relaxed">
-                      Keep the work performed, agreed value, allocation logic,
-                      and reconciliation status visible to the people affected.
+                      Track time contributed, material support, and agreed value
+                      shares cleanly so builders and community sponsors can
+                      share honestly in outcomes under explicit, documented
+                      terms.
                     </p>
                   </div>
                 </article>
@@ -249,27 +314,51 @@ export default async function Home() {
                 <article className="bg-brand-ink text-brand-paper flex min-h-[360px] flex-col justify-between p-7 md:p-10">
                   <div className="border-brand-paper/50 flex items-center justify-between border-b pb-4 font-mono text-xs font-semibold tracking-[0.16em] uppercase">
                     <span>Record B</span>
-                    <span className="text-brand-cyan">Voice + permissions</span>
+                    <span className="text-brand-cyan">1 member = 1 voice</span>
                   </div>
                   <div>
                     <h3 className="mb-5 max-w-lg text-4xl leading-none font-black tracking-[-0.05em] uppercase md:text-5xl">
-                      Governance and decision rights
+                      Community Voice &amp; Governance
                     </h3>
                     <p className="text-brand-stone-light max-w-xl text-lg leading-relaxed">
-                      Keep proposals, voting or approval rules, delegated roles,
-                      and recorded outcomes distinct from economic interests.
+                      Keep proposals, delegated stewardship, and democratic
+                      votes independent of money contributed—so deep pockets
+                      never quietly purchase control over a commons.
                     </p>
                   </div>
                 </article>
               </div>
 
               <div className="grid gap-5 border-x border-b border-black/70 p-6 md:grid-cols-[auto_1fr] md:items-center md:p-8">
-                <Badge variant="warning">Important distinction</Badge>
-                <p className="text-muted-foreground max-w-4xl text-sm leading-relaxed">
-                  Platform records do not automatically create legal ownership,
-                  equity, or payment rights. Project agreements, participant
-                  review, and applicable law determine their effect.
-                </p>
+                <Badge variant="warning">Sandbox &amp; legal boundary</Badge>
+                <div className="text-muted-foreground max-w-4xl space-y-3 text-sm leading-relaxed">
+                  <p>
+                    <strong className="text-foreground font-mono">
+                      Sandbox / Demo Environment (ECONOMY: SIMULATED):
+                    </strong>{" "}
+                    Balances, unit counts, and funding records are bookkeeping
+                    inside the workspace, not a payment and not a transfer of
+                    property. Platform records do not automatically create legal
+                    ownership, equity, or payment rights—project agreements,
+                    participant review, and governing Idaho law determine their
+                    effect. A recorded vote does not, by itself, move funds,
+                    change who is a member, or rewrite a project&apos;s terms.
+                  </p>
+                  <p className="flex flex-wrap gap-x-4 gap-y-1">
+                    <Link
+                      className="underline underline-offset-4"
+                      href="/patterns/a-record-is-not-a-right"
+                    >
+                      Pattern: A record is not a right
+                    </Link>
+                    <a
+                      className="underline underline-offset-4"
+                      href="https://azoa.ardanova.com/workflows"
+                    >
+                      Inspect workflow execution on AZOA
+                    </a>
+                  </p>
+                </div>
               </div>
             </div>
           </section>
@@ -317,77 +406,31 @@ export default async function Home() {
               <h2 className="max-w-5xl text-4xl leading-[0.88] font-black tracking-[-0.06em] break-words uppercase sm:text-5xl md:text-8xl">
                 Problems are not in short supply.
               </h2>
-              <Button
-                asChild
-                className="border-brand-ink bg-brand-ink text-brand-paper hover:bg-brand-ink-hover"
-                size="xl"
-              >
-                <Link href={session ? workspaceHref : signupHref}>
-                  {session ? "Continue the work" : "Start with a problem"}
-                  <ArrowRight aria-hidden="true" />
-                </Link>
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  asChild
+                  className="border-brand-ink bg-brand-ink text-brand-paper hover:bg-brand-ink-hover"
+                  size="xl"
+                >
+                  <Link href={session ? workspaceHref : signupHref}>
+                    {session ? "Continue the work" : "Start with a problem"}
+                    <ArrowRight aria-hidden="true" />
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  className="border-brand-ink bg-brand-paper text-brand-ink hover:bg-brand-paper-bright"
+                  size="xl"
+                  variant="outline"
+                >
+                  <Link href="/notes">Read the essays</Link>
+                </Button>
+              </div>
             </div>
           </section>
         </main>
 
-        <footer className="bg-brand-ink text-brand-paper border-t border-black/70">
-          <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-10 md:grid-cols-[1fr_auto] md:px-8">
-            <div>
-              <ArdaNovaWordmark className="text-lg" />
-            </div>
-            <nav
-              aria-label="Footer navigation"
-              className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm md:grid-cols-3"
-            >
-              <Link
-                className="hover:text-brand-cyan inline-flex min-h-11 items-center"
-                href="/projects"
-              >
-                Projects
-              </Link>
-              <Link
-                className="hover:text-brand-cyan inline-flex min-h-11 items-center"
-                href="/opportunities"
-              >
-                Opportunities
-              </Link>
-              <Link
-                className="hover:text-brand-cyan inline-flex min-h-11 items-center"
-                href="/governance"
-              >
-                Governance
-              </Link>
-              <Link
-                className="hover:text-brand-cyan inline-flex min-h-11 items-center"
-                href="#method"
-              >
-                Method
-              </Link>
-              <Link
-                className="hover:text-brand-cyan inline-flex min-h-11 items-center"
-                href={workspaceHref}
-              >
-                Workspace
-              </Link>
-              <Link
-                className="hover:text-brand-cyan inline-flex min-h-11 items-center"
-                href="/terms"
-              >
-                Terms of use
-              </Link>
-              <Link
-                className="hover:text-brand-cyan inline-flex min-h-11 items-center"
-                href="/privacy"
-              >
-                Privacy notice
-              </Link>
-            </nav>
-          </div>
-          <div className="border-brand-paper/25 text-brand-stone border-t px-4 py-4 text-center font-mono text-[10px] tracking-[0.14em] uppercase">
-            © {new Date().getFullYear()} ArdaNova
-          </div>
-        </footer>
+        <SiteFooter workspaceHref={workspaceHref} />
       </div>
     </HydrateClient>
   );

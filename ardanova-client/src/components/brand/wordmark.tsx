@@ -2,27 +2,19 @@ import { cn } from "~/lib/utils";
 
 type WordmarkProps = {
   className?: string;
-  accentClassName?: string;
 };
 
-export function ArdaNovaWordmark({
-  className,
-  accentClassName,
-}: WordmarkProps) {
+/** Square ArdaNova mark used in headers. The file includes its parchment ground. */
+export function ArdaNovaWordmark({ className }: WordmarkProps) {
   return (
-    <span
-      role="img"
-      aria-label="ArdaNova"
-      className={cn(
-        "inline-flex items-center gap-2 text-sm leading-none font-black tracking-[-0.04em] uppercase",
-        className,
-      )}
-    >
-      <span aria-hidden="true">ARDANOVA</span>
-      <span
-        aria-hidden="true"
-        className={cn("bg-brand-signal size-2.5", accentClassName)}
-      />
-    </span>
+    // The mark is a static SVG in /public. next/image does not optimize SVG.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/brand/ardanova-logo.svg"
+      alt="ArdaNova"
+      width={40}
+      height={40}
+      className={cn("h-10 w-10", className)}
+    />
   );
 }

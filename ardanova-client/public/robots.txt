@@ -2,9 +2,24 @@ User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /admin/
-Disallow: /dashboard/
-Disallow: /settings/
+Disallow: /auth/
 Disallow: /chats/
+Disallow: /credentials/
+Disallow: /dashboard/
+Disallow: /events/
+Disallow: /governance/
+Disallow: /guilds/
+Disallow: /login
+Disallow: /opportunities/
+Disallow: /people/
 Disallow: /portfolio/
+Disallow: /projects/
+Disallow: /settings/
+Disallow: /sign-up
+Disallow: /signup
+Disallow: /studio/
 Disallow: /swap/
-Disallow: /auth/error
+Disallow: /tag/
+Disallow: /tasks/
+
+Sitemap: https://ardanova.com/sitemap.xml

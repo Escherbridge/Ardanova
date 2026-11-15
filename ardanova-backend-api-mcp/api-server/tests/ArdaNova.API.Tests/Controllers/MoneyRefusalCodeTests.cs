@@ -24,6 +24,18 @@ using Microsoft.Extensions.Logging.Abstractions;
 /// </summary>
 public sealed class MoneyRefusalCodeTests
 {
+    [Fact]
+    public void A_sale_restriction_is_not_account_setup()
+    {
+        var result = Result<string>.Forbidden("These units are yours, held until 14 March 2027.")
+            .WithCode(UpstreamFailureCodes.UnitsNotSellable);
+
+        var body = MoneyRefusal.From(result);
+
+        body.Code.Should().Be(MoneyRefusalCodes.NotSellable);
+        body.Message.Should().Contain("held until");
+    }
+
     private const string UserId = "user-1";
     private static readonly Guid AvatarId = Guid.Parse("6f27b1a4-6d34-4f6b-9d6c-a3d2f9c9c111");
 

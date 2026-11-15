@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="ArdaNova">
+  <title>ArdaNova</title>
+  <rect width="1024" height="1024" fill="#F4EFEB"/>
+  <path fill="#151513" fill-rule="evenodd" d="M 225.28,256.00 L 512.00,256.00 L 512.00,768.00 L 143.36,768.00 Z M 303.87,348.16 L 419.84,348.16 L 419.84,501.76 L 279.29,501.76 Z"/>
+  <path fill="#151513" d="M 419.84,256.00 L 512.00,256.00 L 747.52,768.00 L 655.36,768.00 Z"/>
+  <rect x="655.36" y="256.00" width="92.16" height="512.00" fill="#151513"/>
+  <rect x="788.48" y="675.84" width="92.16" height="92.16" fill="#EF4638"/>
+</svg>

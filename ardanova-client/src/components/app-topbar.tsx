@@ -11,6 +11,7 @@ import {
 } from "~/components/app-sidebar";
 import { NovaAssistant } from "~/components/ai/nova-assistant";
 import { NotificationBell } from "~/components/notifications";
+import { ArdaNovaWordmark } from "~/components/brand/wordmark";
 import { Button } from "~/components/ui/button";
 import {
   Sheet,
@@ -79,9 +80,10 @@ export function AppTopbar({
                 <Link
                   href="/dashboard"
                   onClick={() => setMobileOpen(false)}
-                  className="font-mono text-xl font-black tracking-[-0.06em] uppercase"
+                  className="inline-flex min-h-11 items-center"
+                  aria-label="ArdaNova home"
                 >
-                  ARDA<span className="text-sidebar-primary">NOVA</span>
+                  <ArdaNovaWordmark />
                 </Link>
               </SheetTitle>
               <SheetDescription className="sr-only">
@@ -98,10 +100,10 @@ export function AppTopbar({
 
         <Link
           href="/dashboard"
-          className="inline-flex min-h-11 items-center font-mono text-lg font-black tracking-[-0.06em] uppercase lg:hidden"
+          className="inline-flex min-h-11 items-center lg:hidden"
           aria-label="ArdaNova home"
         >
-          ARDA<span className="text-primary">NOVA</span>
+          <ArdaNovaWordmark />
         </Link>
 
         <div className="ml-auto flex items-center gap-3">

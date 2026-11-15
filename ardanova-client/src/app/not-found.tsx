@@ -4,7 +4,10 @@ import Link from "next/link";
 import { StatusPage } from "~/components/brand/status-page";
 import { Button } from "~/components/ui/button";
 
-export const metadata: Metadata = { title: "Page not found" };
+export const metadata: Metadata = {
+  title: "Page not found",
+  robots: { index: false, follow: false },
+};
 
 /** Branded 404 for any unmatched route. */
 export default function NotFound() {
@@ -12,9 +15,7 @@ export default function NotFound() {
     <StatusPage
       eyebrow="404"
       title="Page not found."
-      body={
-        <p>Nothing you have saved has changed.</p>
-      }
+      body={<p>Nothing you have saved has changed.</p>}
       actions={
         <>
           <Button asChild>
