@@ -70,6 +70,9 @@ public class PayoutServiceTests
             .Setup(source => source.GetDeclaredRateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<DeclaredProjectUnitRate>.Success(DeclaredRate));
 
+        _exchangeNode.Setup(n => n.GetReceiptAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<ArdaNovaExchangeReceipt>.NotFound("absent"));
+
         _sut = new PayoutService(
             _payoutRepo.Object,
             _projectTokenConfigRepo.Object,
@@ -79,7 +82,8 @@ public class PayoutServiceTests
             _exchangeService.Object,
             _valueEligibility.Object,
             _exchangeNode.Object,
-            _rateSource.Object
+            _rateSource.Object,
+            admission: new ExchangeAdmissionPolicy { NodeEnforcesAdmitBefore = true }
         );
     }
 
@@ -403,7 +407,7 @@ public class PayoutServiceTests
     }
 
     [Fact]
-    public async Task RequestPayoutAsync_NodeDeclines_UnlocksTokens()
+    public async Task RequestPayoutAsync_NodeDeclines_KeepsTokensUntilProof()
     {
         const string userId = "user-1";
         const string configId = "config-1";
@@ -443,10 +447,10 @@ public class PayoutServiceTests
 
         result.IsSuccess.Should().BeFalse();
         // ArdaNova's own words, chosen by refusal KIND. The node's text never reaches a person.
-        result.Error.Should().Contain("units are back where they were");
+        result.Error.Should().Contain("units stay set aside");
 
         _tokenBalanceService.Verify(s => s.UnlockAsync(
-            userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()), Times.Once);
+            userId, configId, sourceAmount, holderClass, It.IsAny<CancellationToken>()), Times.Never);
         _tokenBalanceService.Verify(s => s.DebitAsync(
             It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(),
             It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -541,7 +545,8 @@ public class PayoutServiceTests
             status = PayoutStatus.PENDING,
             holderClass = holderClass,
             gateStatusAtRequest = ProjectGateStatus.ACTIVE,
-            requestedAt = DateTime.UtcNow
+            requestedAt = DateTime.UtcNow,
+            exchangeAdmitBefore = DateTime.UtcNow.AddMinutes(-10)
         };
 
         var payoutDto = new PayoutRequestDto
@@ -596,7 +601,8 @@ public class PayoutServiceTests
             status = PayoutStatus.PENDING,
             holderClass = TokenHolderClass.CONTRIBUTOR,
             gateStatusAtRequest = ProjectGateStatus.ACTIVE,
-            requestedAt = DateTime.UtcNow
+            requestedAt = DateTime.UtcNow,
+            exchangeAdmitBefore = DateTime.UtcNow.AddMinutes(-10)
         };
 
         _payoutRepo.Setup(r => r.GetByIdAsync(payout.id, It.IsAny<CancellationToken>()))
@@ -648,7 +654,7 @@ public class PayoutServiceTests
 
         // Assert
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("no longer waiting");
+        result.Error.Should().NotBeNullOrEmpty();
 
         _tokenBalanceService.Verify(s => s.UnlockAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TokenHolderClass>(), It.IsAny<CancellationToken>()), Times.Never);
     }

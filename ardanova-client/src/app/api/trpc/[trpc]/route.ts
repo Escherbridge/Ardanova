@@ -89,6 +89,32 @@ const runTrpc = (req: NextRequest, parsedReq: Request) =>
 const handleGet = (req: NextRequest) => runTrpc(req, req);
 
 async function handlePost(req: NextRequest): Promise<Response> {
+  const origin = req.headers.get("origin");
+  const configured = env.AUTH_URL ? new URL(env.AUTH_URL).origin : null;
+  const requestUrl = new URL(req.url);
+  const localFallback =
+    env.NODE_ENV === "test" ||
+    ["localhost", "127.0.0.1", "0.0.0.0", "[::1]"].includes(
+      requestUrl.hostname,
+    );
+  const expectedOrigin =
+    configured ??
+    (env.NODE_ENV !== "production" && localFallback ? requestUrl.origin : null);
+  let originAllowed = origin === null;
+  if (origin !== null) {
+    try {
+      originAllowed =
+        origin === new URL(origin).origin && origin === expectedOrigin;
+    } catch {
+      originAllowed = false;
+    }
+  }
+  if (req.headers.get("sec-fetch-site") === "cross-site" || !originAllowed) {
+    return Response.json(
+      { error: { message: "Cross-origin mutations are not allowed." } },
+      { status: 403 },
+    );
+  }
   const declaredLength = req.headers.get("content-length");
   if (declaredLength !== null) {
     const parsed = Number(declaredLength);

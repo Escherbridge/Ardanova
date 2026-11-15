@@ -15,3 +15,10 @@ PostgreSQL can return rows in any order, so consecutive pages could repeat or
 skip rows. Repositories that need a different order (for example
 `ProjectRepository`, newest first) page their own query and should still end
 the order with the key.
+
+## Payout sale locks
+
+PayoutSaleStore runs inside the caller's transaction. The subject advisory lock precedes
+payout row locks. Admission checks a request key before its quote; unique indexes prevent a
+second admission. Terminalization reloads the locked row before touching balances so racing
+reconciliation and cancellation produce one unlock or debit. Node calls stay outside locks.

@@ -48,7 +48,12 @@ public sealed record AzoaCustodialAccountStatus(
     bool WalletReady,
     bool Ready,
     string? UnavailableReason = null,
-    DateTimeOffset? ReviewDueAt = null);
+    DateTimeOffset? ReviewDueAt = null,
+    string Ownership = "custodial",
+    string Consent = "granted",
+    IReadOnlyList<string>? ConsentScopes = null,
+    DateTimeOffset? ConsentExpiresAt = null,
+    bool IsMinimal = false);
 
 public sealed record AzoaCustodialAccountCapabilities(
     bool Enabled,

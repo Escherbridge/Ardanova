@@ -34,10 +34,15 @@ public static class FiatCheckoutVoidOutcomes
 /// <summary>What a void of one request key decided. <see cref="Payment"/> is set exactly when <see cref="Outcome"/> is revealed.</summary>
 public sealed record FiatCheckoutVoid(string Outcome, Guid? IntentId, FiatCheckoutSession? Payment);
 
+public sealed record FiatCheckoutCapabilities(bool Available, string? UnavailableReason);
+
 /// <summary>Starts and reads an add-funds payment on the node's fiat rail.</summary>
 /// <remarks>See <c>src/ArdaNova.Infrastructure/Azoa/AGENTS.md</c> section on-ramp.</remarks>
 public interface IFiatRailGateway
 {
+    Task<Result<FiatCheckoutCapabilities>> GetCapabilitiesAsync(CancellationToken ct = default)
+        => Task.FromResult(Result<FiatCheckoutCapabilities>.Success(new(false, "Adding funds is unavailable.")));
+
     /// <summary>Starts, or resumes on the same request key, one payment that adds funds.</summary>
     Task<Result<FiatCheckoutSession>> BeginAddFundsAsync(
         FiatCheckoutStart request, CancellationToken ct = default);

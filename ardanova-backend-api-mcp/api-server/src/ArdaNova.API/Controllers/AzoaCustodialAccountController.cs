@@ -15,13 +15,16 @@ public sealed class AzoaCustodialAccountController : ControllerBase
 {
     private readonly IAzoaCustodialAccountService _accounts;
     private readonly IAzoaCustodialAccountGateway _custody;
+    private readonly IAzoaAccountHandoffService? _handoff;
 
     public AzoaCustodialAccountController(
         IAzoaCustodialAccountService accounts,
-        IAzoaCustodialAccountGateway custody)
+        IAzoaCustodialAccountGateway custody,
+        IAzoaAccountHandoffService? handoff = null)
     {
         _accounts = accounts;
         _custody = custody;
+        _handoff = handoff;
     }
 
     [HttpGet("capabilities")]
@@ -54,11 +57,33 @@ public sealed class AzoaCustodialAccountController : ControllerBase
                 "We could not reach the operator to hand your permission back. Nothing was changed.")));
         }
 
-        var result = await revocation.RevokeProvisionedConsentAsync(ActorId, ct);
+        if (!revocation.CanRevokeConsent)
+            return ToActionResult(await revocation.RevokeProvisionedConsentAsync(ActorId, ct));
+        var status = await _accounts.GetStatusAsync(ActorId, ct);
+        if (status is null || status.IsFailure || status.Value is null)
+            return Conflict(new { error = "The account permission state could not be confirmed. Nothing was changed." });
+        var result = status.Value.Ownership == "claimed"
+            ? await revocation.RevokeClaimedConsentAsync(ActorId, ct)
+            : await revocation.RevokeProvisionedConsentAsync(ActorId, ct);
         return result.IsSuccess
             ? Ok(new AzoaConsentRevocationResponse(result.Value!.Revoked, result.Value.RevokedAt))
             : ToActionResult(result);
     }
+
+    [HttpPost("handoff")]
+    public async Task<IActionResult> BeginHandoff(CancellationToken ct)
+        => _handoff is null ? Conflict(new { error = "Account handoff is unavailable." })
+            : ToActionResult(await _handoff.BeginAsync(ActorId, null, ct));
+
+    [HttpPost("handoff/{requestId}/resend")]
+    public async Task<IActionResult> ResendHandoff(string requestId, CancellationToken ct)
+        => _handoff is null ? Conflict(new { error = "Account handoff is unavailable." })
+            : ToActionResult(await _handoff.BeginAsync(ActorId, requestId, ct));
+
+    [HttpGet("handoff/{requestId}")]
+    public async Task<IActionResult> ReadHandoff(string requestId, CancellationToken ct)
+        => _handoff is null ? Conflict(new { error = "Account handoff is unavailable." })
+            : ToActionResult(await _handoff.ReadAsync(ActorId, requestId, ct));
 
     private string ActorId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 

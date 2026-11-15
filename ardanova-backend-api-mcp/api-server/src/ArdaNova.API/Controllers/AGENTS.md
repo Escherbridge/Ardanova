@@ -248,3 +248,13 @@ the guild listing returns only the actor's own bids. The bidder's email is never
 (`OpportunityBidService` nulls it), matching the public-user redaction elsewhere. Role hiring
 (apply, accept, seat as member) uses opportunity applications; bids are for paid task work and go
 through task commerce, which needs a positive award.
+
+## Quoted sales and handoff
+
+POST /api/Payouts/sale/quotes persists a subject-bound quote; POST /sale accepts requestKey
+and quoteId only. GET /sale/{id} checks ownership before reconciling the same node key.
+The legacy unquoted POST refuses. New sale amounts use decimal strings and frozen denomination.
+
+Handoff create/resend take no email or return URL from the browser; the server derives both.
+Metadata reads remain actor-scoped. No BFF route impersonates the person to open a bank
+destination. Consent withdrawal reads ownership before selecting the appropriate node route.

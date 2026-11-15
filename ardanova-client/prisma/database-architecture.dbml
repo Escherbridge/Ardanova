@@ -2374,6 +2374,8 @@ Ref: TokenBalance.projectTokenConfigId > ProjectTokenConfig.id
 
 Table PayoutRequest {
   id varchar [not null, pk, default: `cuid()`]
+  currencyCode varchar [not null, default: 'ARDA', note: 'csharp-default: PayoutSaleDenomination.Code']
+  currencyDecimals int [not null, default: 2, note: 'csharp-default: PayoutSaleDenomination.Decimals']
   userId varchar [not null]
   sourceProjectTokenConfigId varchar
   sourceTokenAmount int [not null]
@@ -2391,9 +2393,44 @@ Table PayoutRequest {
   requestedAt datetime [not null, default: `now()`]
   processedAt datetime
   completedAt datetime
+  requestKey varchar
+  quoteId varchar [unique]
+  exchangeAdmitBefore datetime
+  exchangeCommandJson text
+
+  indexes {
+    (userId, requestKey) [unique]
+  }
+
 }
 Ref: PayoutRequest.userId > User.id
 Ref: PayoutRequest.sourceProjectTokenConfigId > ProjectTokenConfig.id
+
+Table PayoutSaleQuote {
+  id varchar [not null, pk]
+  currencyCode varchar [not null, default: 'ARDA', note: 'csharp-default: PayoutSaleDenomination.Code']
+  currencyDecimals int [not null, default: 2, note: 'csharp-default: PayoutSaleDenomination.Decimals']
+  userId varchar [not null]
+  projectTokenConfigId varchar [not null]
+  holderClass TokenHolderClass [not null]
+  sourceUnitAmount int [not null]
+  platformMinorUnits bigint [not null]
+  usdReferenceMinorUnits bigint [not null]
+  commandJson text [not null]
+  createdAt datetime [not null]
+  expiresAt datetime [not null]
+}
+
+Table PayoutSaleVoid {
+  id varchar [not null, pk]
+  userId varchar [not null]
+  requestKey varchar [not null]
+  quoteId varchar [not null]
+  createdAt datetime [not null]
+  indexes {
+    (userId, requestKey) [unique]
+  }
+}
 
 Table PlatformTreasury {
   id varchar [not null, pk, default: `cuid()`]

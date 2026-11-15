@@ -525,6 +525,11 @@ public sealed class EconomicOutboxDispatchService : IEconomicOutboxDispatchServi
                 readiness.Error ?? "The recipient must complete account setup before settlement can be dispatched.");
         }
 
+        if (!AzoaConsentCoverage.Covers(readiness.Value, "units:issue", DateTimeOffset.UtcNow))
+            return AzoaSettlementGatewayResult.Retry(
+                EconomicSettlementReadinessCodes.BeneficiaryNotReady,
+                "Account permission must be renewed before dispatch can continue.");
+
         if (EconomicSettlementKindRules.RequiresProjectOwnerReadiness(renewedLease.SettlementKind))
         {
             var projectOwnerUserId = renewedLease.ProjectOwnerUserId;

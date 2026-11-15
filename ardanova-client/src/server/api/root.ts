@@ -1,3 +1,4 @@
+import { moneyRouter } from "~/server/api/routers/money";
 import { adminRouter } from "~/server/api/routers/admin";
 import { postRouter } from "~/server/api/routers/post";
 import { feedRouter } from "~/server/api/routers/feed";
@@ -50,6 +51,7 @@ import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
  */
 export const appRouter = createTRPCRouter({
   admin: adminRouter,
+  money: moneyRouter,
   post: postRouter,
   feed: feedRouter,
   project: projectRouter,

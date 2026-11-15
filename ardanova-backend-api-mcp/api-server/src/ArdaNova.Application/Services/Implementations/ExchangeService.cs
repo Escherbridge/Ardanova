@@ -158,7 +158,7 @@ namespace ArdaNova.Application.Services.Implementations
     public static class Money
     {
         /// <summary>Digits in the minor unit. ARDA carries two, so a person always thinks in dollars and cents.</summary>
-        public const int MinorUnitDigits = 2;
+        public const int MinorUnitDigits = ArdaNova.Domain.Models.Entities.PayoutSaleDenomination.Decimals;
 
         /// <summary>Minor units in one whole unit.</summary>
         public const decimal MinorUnitsPerWholeUnit = 100m;

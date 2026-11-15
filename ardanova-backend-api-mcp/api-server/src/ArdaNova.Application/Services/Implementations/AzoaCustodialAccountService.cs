@@ -11,7 +11,7 @@ using ArdaNova.Domain.Models.Enums;
 using Microsoft.Extensions.Configuration;
 
 /// <summary>Orchestrates one tenant-bound custodial AZOA account per ArdaNova user.</summary>
-public sealed class AzoaCustodialAccountService : IAzoaCustodialAccountService
+public sealed partial class AzoaCustodialAccountService : IAzoaCustodialAccountService
 {
     private readonly IRepository<User> _users;
     private readonly IUnitOfWork _unitOfWork;
@@ -198,6 +198,15 @@ public sealed class AzoaCustodialAccountService : IAzoaCustodialAccountService
                 "AZOA returned a custodial account bound to a different tenant or user.");
         }
 
+        if (status.IsMinimal)
+            return Result<AzoaCustodialAccountStatusDto>.Success(new()
+            {
+                AvatarId = user.azoaAvatarId, WalletId = user.azoaWalletId, WalletAddress = user.azoaWalletAddress,
+                KycStatus = AzoaKycStatus.Unknown, Ready = false, UnavailableReason = status.UnavailableReason,
+                Ownership = status.Ownership, Consent = status.Consent,
+                ConsentScopes = status.ConsentScopes ?? [], ConsentExpiresAt = status.ConsentExpiresAt,
+            });
+
         if (status.IdentityReady != !string.IsNullOrWhiteSpace(status.AvatarId)
             || status.WalletReady != (!string.IsNullOrWhiteSpace(status.WalletId)
                 && !string.IsNullOrWhiteSpace(status.WalletAddress))
@@ -212,14 +221,16 @@ public sealed class AzoaCustodialAccountService : IAzoaCustodialAccountService
                 "AZOA returned inconsistent custodial account readiness.");
         }
 
+        var claimedWallet = status.Ownership == "claimed" && status.Consent == "granted"
+            && status.ConsentScopes?.Contains("kyc:read", StringComparer.Ordinal) == true;
         var bindingError = StableReferenceError("avatar", user.azoaAvatarId, status.AvatarId)
-            ?? StableReferenceError("wallet", user.azoaWalletId, status.WalletId)
-            ?? StableReferenceError("wallet address", user.azoaWalletAddress, status.WalletAddress);
+            ?? (claimedWallet ? null : StableReferenceError("wallet", user.azoaWalletId, status.WalletId))
+            ?? (claimedWallet ? null : StableReferenceError("wallet address", user.azoaWalletAddress, status.WalletAddress));
         if (bindingError is not null)
             return Result<AzoaCustodialAccountStatusDto>.Conflict(bindingError);
 
         var projectedVerificationLevel = ProjectVerificationLevel(user, status.KycStatus);
-        var hasChanges =
+        var hasChanges = (claimedWallet && (user.azoaWalletId != status.WalletId || user.azoaWalletAddress != status.WalletAddress)) ||
             (string.IsNullOrWhiteSpace(user.azoaAvatarId) && !string.IsNullOrWhiteSpace(status.AvatarId))
             || (string.IsNullOrWhiteSpace(user.azoaWalletId) && !string.IsNullOrWhiteSpace(status.WalletId))
             || (string.IsNullOrWhiteSpace(user.azoaWalletAddress) && !string.IsNullOrWhiteSpace(status.WalletAddress))
@@ -228,8 +239,16 @@ public sealed class AzoaCustodialAccountService : IAzoaCustodialAccountService
         if (hasChanges)
         {
             user.azoaAvatarId ??= status.AvatarId;
-            user.azoaWalletId ??= status.WalletId;
-            user.azoaWalletAddress ??= status.WalletAddress;
+            if (claimedWallet)
+            {
+                user.azoaWalletId = status.WalletId;
+                user.azoaWalletAddress = status.WalletAddress;
+            }
+            else
+            {
+                user.azoaWalletId ??= status.WalletId;
+                user.azoaWalletAddress ??= status.WalletAddress;
+            }
             user.verificationLevel = projectedVerificationLevel;
             user.updatedAt = DateTime.UtcNow;
             await _users.UpdateAsync(user, ct);
@@ -248,6 +267,8 @@ public sealed class AzoaCustodialAccountService : IAzoaCustodialAccountService
             Ready = status.Ready,
             UnavailableReason = status.UnavailableReason,
             ReviewDueAt = status.ReviewDueAt,
+            Ownership = status.Ownership, Consent = status.Consent,
+            ConsentScopes = status.ConsentScopes ?? [], ConsentExpiresAt = status.ConsentExpiresAt,
         });
     }
 

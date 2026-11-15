@@ -199,11 +199,15 @@ public record UserPortfolioDto
 
 public record PayoutRequestDto
 {
+    public string CurrencyCode { get; init; } = "ARDA";
+    public int CurrencyDecimals { get; init; } = ArdaNova.Application.Services.Implementations.Money.MinorUnitDigits;
     public string Id { get; init; } = null!;
     public string UserId { get; init; } = null!;
     public string? SourceProjectTokenConfigId { get; init; }
     public int SourceTokenAmount { get; init; }
     public int? ArdaTokenAmount { get; init; }
+    public long? ArdaMinorUnits { get; init; }
+    public long? UsdReferenceMinorUnits { get; init; }
     public double? UsdAmount { get; init; }
     public PayoutStatus Status { get; init; }
     public TokenHolderClass HolderClass { get; init; }

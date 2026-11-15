@@ -73,24 +73,30 @@ export function readSavedRequest<TWire>(
   storage: Storage,
   flow: RequestFlow<TWire>,
   subjectId: string,
+  strict = false,
 ): SavedRequest<TWire> | null {
   try {
     const raw = storage.getItem(storageKey(flow.scope, subjectId));
-    if (!raw) return null;
+    if (raw === null) return null;
+    if (!raw) throw new Error("Unreadable saved request.");
 
     const envelope = savedEnvelopeSchema.safeParse(JSON.parse(raw));
-    if (!envelope.success) return null;
+    if (!envelope.success) throw new Error("Unreadable saved request.");
     const wire = flow.wire.safeParse(envelope.data.wire);
-    if (!wire.success) return null;
+    if (!wire.success) throw new Error("Unreadable saved request.");
 
     return {
       requestKey: envelope.data.requestKey,
       wire: wire.data,
       displayMinorUnits: envelope.data.displayMinorUnits,
-      ...(envelope.data.admittedId ? { admittedId: envelope.data.admittedId } : {}),
+      ...(envelope.data.admittedId
+        ? { admittedId: envelope.data.admittedId }
+        : {}),
       ...(envelope.data.heldForReview ? { heldForReview: true as const } : {}),
     };
   } catch {
+    if (strict)
+      throw new Error("An earlier payment request could not be read safely.");
     return null;
   }
 }
@@ -192,7 +198,8 @@ export function clearSavedRequest<TWire>(
   requestKey: string,
 ): void {
   try {
-    if (readSavedRequest(storage, flow, subjectId)?.requestKey !== requestKey) return;
+    if (readSavedRequest(storage, flow, subjectId)?.requestKey !== requestKey)
+      return;
     storage.removeItem(storageKey(flow.scope, subjectId));
   } catch {
     // Storage that cannot be written cannot be cleared either; reusing the same key again next
@@ -268,7 +275,11 @@ export async function voidSavedRequest<TWire, TRevealed>(
   try {
     answer = await voidRequest(requestKey);
   } catch (error) {
-    return { kind: "kept", saved: readSavedRequest(storage, flow, subjectId), error };
+    return {
+      kind: "kept",
+      saved: readSavedRequest(storage, flow, subjectId),
+      error,
+    };
   }
 
   if (answer.outcome === "voided") {

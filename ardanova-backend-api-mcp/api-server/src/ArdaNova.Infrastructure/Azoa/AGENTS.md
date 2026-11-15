@@ -86,12 +86,12 @@ creation and returns `FungibleTokenResult.operation` (a `FungibleCreationView`),
 `202 AwaitingConsent`. `AzoaBackedAlgorandService.DriveCreationAsync` walks it to a
 terminal view on `FungibleCreationController` (`api/fungible-creation`):
 
-| View state | Step the adapter posts | Body |
-| --- | --- | --- |
-| `AwaitingConsent`, no `quote` | `{id}/quote` | none |
-| `AwaitingConsent`, `quote` set | `{id}/accept-quote` | `{ version, quoteId }` from that view |
-| `Admitted` / `Preparing` / `Prepared` | `{id}/continue` | `{ requestId, version }` |
-| anything else non-terminal (`Submitted`, `NeedsOperator`, `ProjectionPending`, ...) | `{id}/refresh` after a poll delay | none |
+| View state                                                                          | Step the adapter posts            | Body                                  |
+| ----------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------- |
+| `AwaitingConsent`, no `quote`                                                       | `{id}/quote`                      | none                                  |
+| `AwaitingConsent`, `quote` set                                                      | `{id}/accept-quote`               | `{ version, quoteId }` from that view |
+| `Admitted` / `Preparing` / `Prepared`                                               | `{id}/continue`                   | `{ requestId, version }`              |
+| anything else non-terminal (`Submitted`, `NeedsOperator`, `ProjectionPending`, ...) | `{id}/refresh` after a poll delay | none                                  |
 
 Terminal: `Completed` (asset id read from THAT view, never the mint's top-level field),
 `Cancelled` / `FailedNoEffect` (failure, nothing created). The node answers 200 only for
@@ -130,12 +130,12 @@ those three and 202 otherwise; both are success envelopes to the transport.
 award hold is reserve-funded, so each command is a LOCAL node transition that answers 200
 `Completed` synchronously, with no wallet and no quote.
 
-| Port call | Node calls | Intent |
-| --- | --- | --- |
-| `OpenAsync` | `GET reserve-assets`, then `POST /api/hold-commands` | `Open`, `definition.fundingSource = "Reserve"` |
-| `ReleaseIntoHoldAsync` | `GET reserve-assets`, `GET liabilities/{recordId}`, `POST` | `ReleaseIntoHold` + `next*` |
-| `RefundAsync` | same reads, `POST` | `Refund` + `reason` |
-| `GetAsync` | `GET reserve-assets`, `GET liabilities/{recordId}` | — |
+| Port call              | Node calls                                                 | Intent                                         |
+| ---------------------- | ---------------------------------------------------------- | ---------------------------------------------- |
+| `OpenAsync`            | `GET reserve-assets`, then `POST /api/hold-commands`       | `Open`, `definition.fundingSource = "Reserve"` |
+| `ReleaseIntoHoldAsync` | `GET reserve-assets`, `GET liabilities/{recordId}`, `POST` | `ReleaseIntoHold` + `next*`                    |
+| `RefundAsync`          | same reads, `POST`                                         | `Refund` + `reason`                            |
+| `GetAsync`             | `GET reserve-assets`, `GET liabilities/{recordId}`         | —                                              |
 
 - **Body.** `{ intent: HoldCommandIntent, senderWalletId: null, recipientWalletId: null }`. The
   intent's `actorUserId`/`ownerUserId` are `Azoa:TenantId` (the tenant user the value key belongs
@@ -151,7 +151,7 @@ award hold is reserve-funded, so each command is a LOCAL node transition that an
   `Cancelled`/`FailedNoEffect` map to a decline. Anything else maps to `Pending`.
 - **Addressing.** The node addresses a hold by `holdRecordId` = SHA-256 over canonical JSON of
   `{Domain:"hold-custody-v1", ChainType, Network(ordinal), ProtocolIdentity, CustodyTenantId,
-  OwnerUserId, HoldId}` (node `HoldCommandIdentity.Hold`). `AzoaHoldRecordIdentity` mirrors it, and
+OwnerUserId, HoldId}` (node `HoldCommandIdentity.Hold`). `AzoaHoldRecordIdentity` mirrors it, and
   both repos pin the same literal vectors (`AzoaHoldClientContractTests` here,
   `HoldCommandIdentityContractTests` on the node). Each network the tenant's reserve exposes on
   the rail is one candidate. A 404 moves to the next candidate, and any other failure stops.
@@ -234,3 +234,14 @@ every capability answer (`CanDispatch`, `CanReconcile`, `HasCurrentOperatorAttes
 (`gateway is ISelectedNodeSettlementCapability`), so a disabled gateway that merely
 omitted the interface would pass that gate by accident of typing rather than by declaring
 what it cannot do.
+
+## Claimed status and handoff
+
+Read ownership before validating the full custody shape. Minimal claimed responses lack
+binding, wallet and KYC evidence; associate them only with the request binding and preserve
+local mirrors. Never infer claimed consent. Withdrawal chooses the claimed explicit-grant
+route or custodial provisioning-consent route from authoritative ownership.
+
+Handoff carries verified server email and an application-controlled return address. Responses
+expose metadata and operator-stub state, never tokens or claim URLs. Checkout capabilities
+project availability and safe copy; missing configuration key names remain operator-only.

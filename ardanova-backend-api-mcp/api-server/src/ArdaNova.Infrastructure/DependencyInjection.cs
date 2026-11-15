@@ -88,6 +88,7 @@ public static class DependencyInjection
         services.AddScoped<IProjectDeletionBlockers, ProjectDeletionBlockers>();
         // The self-claim's conditional write; see Services/Implementations/AGENTS.md §Task assignment.
         services.AddScoped<ITaskClaimStore, TaskClaimStore>();
+        services.AddScoped<IPayoutSaleStore, PayoutSaleStore>();
 
         // Unit of Work
         services.AddScoped<IUnitOfWork, UnitOfWork.UnitOfWork>();

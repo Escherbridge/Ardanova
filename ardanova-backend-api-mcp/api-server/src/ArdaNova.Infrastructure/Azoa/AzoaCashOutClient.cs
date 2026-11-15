@@ -111,6 +111,29 @@ public sealed class AzoaCashOutClient : IAzoaCashOutNode
             : ToRecord(wire.Value!);
     }
 
+    public async Task<Result<CashOutRequestResolution>> VoidRequestAsync(Guid avatarId, string requestKey, CancellationToken ct = default)
+    {
+        if (avatarId == Guid.Empty || !IsAcceptableRequestKey(requestKey))
+            return Result<CashOutRequestResolution>.ValidationError("A valid account and saved request key are required.");
+        var suffix = "/requests/" + Uri.EscapeDataString(requestKey.Trim()) + "/void";
+        var path = $"{PayoutsPrefix}{avatarId:D}{suffix}";
+        var wire = await SendAsync<CashOutVoidWire>(new HttpRequestMessage(HttpMethod.Post, path),
+            IsSubjectScopedPath(path, suffix), ct);
+        if (wire.IsFailure)
+            return Result<CashOutRequestResolution>.Conflict("The request outcome could not be confirmed. Keep its saved key.")
+                .WithCode(wire.Code);
+        if (wire.Value is { Outcome: "voided", CashOut: null })
+            return Result<CashOutRequestResolution>.Success(new("voided"));
+        if (wire.Value is { Outcome: "revealed", CashOut: { } found })
+        {
+            var mapped = ToRecord(found);
+            if (mapped.IsSuccess) return Result<CashOutRequestResolution>.Success(new("revealed", mapped.Value));
+        }
+        return Result<CashOutRequestResolution>.Conflict("The request outcome was not recognized. Keep its saved key.");
+    }
+
+    private sealed record CashOutVoidWire(string Outcome, CashOutViewWire? CashOut);
+
     /// <inheritdoc />
     public async Task<Result<IReadOnlyList<CashOutRecord>>> ListAsync(
         Guid avatarId, int limit, CancellationToken ct = default)
