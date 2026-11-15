@@ -154,8 +154,8 @@ export default async function Home() {
               <div className="flex flex-col justify-between gap-14 px-4 py-16 md:px-8 md:py-24 lg:min-h-[calc(100svh-4rem)] lg:border-r lg:border-black/70 lg:py-16">
                 <div className="min-w-0">
                   <h1 className="display-type max-w-5xl uppercase">
-                    Turn attention.
-                    <span className="text-brand-signal-hot block">Into</span>
+                    Turn attention.{" "}
+                    <span className="text-brand-signal-hot block">Into </span>
                     action.
                   </h1>
                 </div>
