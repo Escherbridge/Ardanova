@@ -5,7 +5,7 @@ import { SimulationNotice } from "~/components/brand/simulation-notice";
 import { publicPageMetadata } from "~/lib/page-metadata";
 
 const description =
-  "Release notes and writing dispatches from the ArdaNova engineering workspace.";
+  "Dispatches and writing updates from ArdaNova on solutionary projects, social ecology, and shared ownership.";
 
 export const metadata = publicPageMetadata({
   path: "/news",
@@ -17,7 +17,7 @@ export const metadata = publicPageMetadata({
 export default function NewsPage() {
   return (
     <NotesShell
-      kicker="Updates · ArdaNova Workspace"
+      kicker="Updates · Solutionary Commons"
       title="News"
       trail={[
         { href: "/", label: "Home" },
@@ -25,30 +25,32 @@ export default function NewsPage() {
       ]}
     >
       <p className="text-lg leading-relaxed">
-        Product dispatches, pattern releases, and workspace notes are published
-        directly in the engineering shelves below rather than as separate press
-        releases.
+        Essays on cooperative ownership, solutionary thinking, and social
+        ecology are published directly on the shelves below rather than wrapped
+        in corporate press releases.
       </p>
       <ul className="list-disc space-y-2 pl-5">
         <li>
-          <Link className="underline underline-offset-4" href="/patterns">
-            Architecture patterns (15 guides)
+          <Link className="underline underline-offset-4" href="/notes">
+            Essays &amp; field notes
           </Link>{" "}
-          — Multi-ledger reconciliation, append-only amendments, decision logs,
-          and minutes hygiene.
+          — Long-form writing on why communities stall in outrage feeds, how
+          social ecology informs shared guilds, and why ownership never requires
+          surveillance.
         </li>
         <li>
-          <Link className="underline underline-offset-4" href="/notes">
-            Engineering notes
+          <Link className="underline underline-offset-4" href="/patterns">
+            Stewardship &amp; governance patterns (15 guides)
           </Link>{" "}
-          — Longer essays on why shared work breaks between organizations and
-          how Record A / Record B prevent drift.
+          — Practical guides to keeping shared value (Record A) apart from
+          community voice (Record B), preserving open decisions, and writing
+          honest agreements.
         </li>
         <li>
           <Link className="underline underline-offset-4" href="/feed.xml">
             RSS feed
           </Link>{" "}
-          — Subscribe for new pattern releases and field essays.
+          — Subscribe directly for new essays and pattern updates.
         </li>
       </ul>
       <SimulationNotice includeAzoa includeLegalAdvice />

@@ -2,9 +2,9 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 /**
- * Clean bottom-of-page funnel gate moving builders from engineering patterns
- * or notes into opening an ArdaNova workspace, browsing sibling patterns, or
- * inspecting stateful workflow execution on AZOA.
+ * Clean bottom-of-page funnel gate moving readers from solutionary essays or
+ * stewardship patterns into starting a shared project, reading sibling notes,
+ * or inspecting companion workflow safeguards on AZOA.
  */
 export function WorkspaceFunnelGate({
   surface,
@@ -20,25 +20,26 @@ export function WorkspaceFunnelGate({
 
   return (
     <section
-      aria-label="Next steps for builders"
+      aria-label="Next steps for community stewards"
       className="bg-brand-paper-bright border border-black/70 p-6 md:p-8"
     >
       <p className="text-brand-signal-deep font-mono text-xs font-semibold tracking-[0.14em] uppercase">
-        Shared ledgers in practice
+        Solutionary stewardship
       </p>
       <h2 className="mt-2 text-2xl font-bold tracking-[-0.02em]">
-        Building a shared workspace or multi-party ledger?
+        Care about a problem worth solving together?
       </h2>
       <p className="text-muted-foreground mt-2 max-w-2xl text-base leading-relaxed">
-        Start a shared problem space with split work and decision logs, or trace
-        how automated workflow steps execute safely in AZOA.
+        Bring collaborators, skilled guilds, and community sponsors into a
+        transparent workspace where stewardship shares and democratic voice stay
+        legible—or inspect how workflow safeguards execute on AZOA.
       </p>
       <div className="mt-5 flex flex-wrap gap-3">
         <Link
           className="bg-brand-ink text-brand-paper hover:bg-brand-ink-hover inline-flex min-h-11 items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-colors"
           href="/auth/signin?mode=signup&callbackUrl=%2Fdashboard"
         >
-          Open a shared workspace
+          Start a shared project
           <ArrowRight aria-hidden="true" className="size-4" />
         </Link>
         {showPatternCta ? (
@@ -46,7 +47,7 @@ export function WorkspaceFunnelGate({
             className="bg-brand-paper text-foreground hover:bg-brand-paper-bright inline-flex min-h-11 items-center border border-black/70 px-5 py-2.5 text-sm font-semibold transition-colors"
             href="/patterns"
           >
-            Explore the full pattern library
+            Browse stewardship patterns
           </Link>
         ) : null}
         {showNotesCta ? (
@@ -54,7 +55,7 @@ export function WorkspaceFunnelGate({
             className="bg-brand-paper text-foreground hover:bg-brand-paper-bright inline-flex min-h-11 items-center border border-black/70 px-5 py-2.5 text-sm font-semibold transition-colors"
             href="/notes"
           >
-            Read engineering notes
+            Read the essays
           </Link>
         ) : null}
         <a

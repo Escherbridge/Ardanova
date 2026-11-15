@@ -56,9 +56,7 @@ describe("pattern pages", () => {
       const text = container.textContent ?? "";
       expect(text).toContain("A situation like this");
       expect(text).toContain("Sources");
-      expect(text).toContain(
-        "Building a shared workspace or multi-party ledger?",
-      );
+      expect(text).toContain("Care about a problem worth solving together?");
       expect(text).not.toMatch(
         /Hero figures|Hero points|An illustrative scenario|Every stat on this page is cited/,
       );
@@ -247,10 +245,10 @@ describe("patterns index", () => {
   it("groups patterns by problem, keeps simulation disclosure, and wires funnel gates", () => {
     const { container } = render(<PatternsPage />);
     const text = container.textContent ?? "";
-    expect(text).toContain("The shape of a shared record.");
-    expect(text).toContain("Multi-Ledger Agreements");
-    expect(text).toContain("Record Clarity & Minutes");
-    expect(text).toContain("Membership & Resolutions");
+    expect(text).toContain("Patterns for shared stewardship.");
+    expect(text).toContain("Shared Value & Agreements");
+    expect(text).toContain("Community Memory & Minutes");
+    expect(text).toContain("Voice & Membership");
     expect(text).toContain("ECONOMY: SIMULATED");
     expect(text).toMatch(/do not automatically create legal ownership/i);
     expect(text).toContain("not legal advice");

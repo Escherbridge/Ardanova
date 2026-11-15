@@ -34,7 +34,7 @@ export function buildFeedXml(): string {
   <channel>
     <title>ArdaNova</title>
     <link>${SITE_ORIGIN}/</link>
-    <description>Engineering notes and shared-custody patterns from ArdaNova (sandbox economy environment).</description>
+    <description>Essays and stewardship patterns from ArdaNova on solutionary thinking, social ecology, democratic voice, and shared ownership without surveillance (sandbox economy environment).</description>
     <language>en-us</language>
 ${items}
   </channel>

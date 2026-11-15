@@ -9,7 +9,7 @@ import { breadcrumbList, itemList } from "~/lib/schema";
 import { noteCanonical, notes } from "~/lib/writing";
 
 const description =
-  "Engineering essays on shared custody, multi-org coordination, separating work logs from governance voice, and designing durable decision trails.";
+  "Essays on solutionary thinking, social ecology, democratic governance, and shared ownership without surveillance.";
 
 export const metadata = publicPageMetadata({
   path: "/notes",
@@ -33,18 +33,19 @@ export default function NotesIndexPage() {
         )}
       />
       <NotesShell
-        kicker="Engineering Notes · Systems & Shared Custody"
-        title="Notes"
+        kicker="Essays · Ownership, Solutionary Thinking & Social Ecology"
+        title="Notes on building, owning, and stewarding together."
         trail={[
           { href: "/", label: "Home" },
           { href: "/notes", label: "Notes" },
         ]}
       >
         <p className="text-lg leading-relaxed">
-          Field essays on how collaborative builds hold together across teams:
-          why two ledgers disagree by Tuesday, why work accounting (Record A)
-          and governance voice (Record B) belong apart, and how readable notes
-          beat opaque scoreboards.
+          Essays on what happens when communities stop scrolling past problems
+          and start building shared responses: organizing guilds around social
+          ecology instead of extraction, keeping democratic voice apart from
+          money contributed, and sharing in what a project creates without
+          turning participants into tracked data.
         </p>
 
         <ul className="grid gap-5 pt-2">

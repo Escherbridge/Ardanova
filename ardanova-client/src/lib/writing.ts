@@ -40,43 +40,131 @@ export const PATTERN_SHELVES: readonly {
 }[] = [
   {
     id: "multi-ledger-agreements",
-    title: "Multi-Ledger Agreements",
+    title: "Shared Value & Agreements",
     summary:
-      "Why ledgers break when contribution numbers pretend to grant title or decision weight, and how split logs stay reconciled without a single opaque custodian.",
+      "Why cooperative ventures fracture when contribution shares pretend to grant title or decision weight—and how explicit agreements keep both work equity and democratic voice honest.",
   },
   {
     id: "record-clarity",
-    title: "Record Clarity & Minutes",
+    title: "Community Memory & Minutes",
     summary:
-      "Decision logs, append-only corrections, and capture habits that ensure someone joining six months later can trace what happened and why.",
+      "Open decision logs, forward revisions, and capture habits so neighborhood coalitions and guilds inherit shared memory instead of guesswork across seasons.",
   },
   {
     id: "membership-resolutions",
-    title: "Membership & Resolutions",
+    title: "Voice & Membership",
     summary:
-      "Structural distinctions between governing rules, membership registers, board minutes, and sole-steward decisions—contrasted cleanly with statutory baselines.",
+      "Keeping standing charters, active member rosters, group assemblies, and single-steward calls clear—contrasted cleanly with formal registries so commons protect collective power.",
   },
 ];
 
 export const notes = [
   {
-    slug: "why-shared-work-breaks-between-orgs",
-    title: "Why shared work breaks between organizations",
-    publishedAt: "2026-11-14",
+    slug: "solutionary-thinking-in-practice",
+    title:
+      "What solutionary thinking looks like when a community stops doom-scrolling",
+    publishedAt: "2026-11-15",
     description:
-      "Multi-org builds rarely fail over bad code. They stall when nobody can tell which spreadsheet reflects the real agreement, who approved a scope change, or which chat thread settled a dispute.",
+      "Moving past symptom-chasing and outrage feeds into root-cause inquiry, testable proposals, and learning in public with the people living through the problem.",
     related: [
       {
+        href: "/notes/social-ecology-and-shared-stewardship",
+        label:
+          "Social ecology for builders: why healthy commons start with how people relate",
+      },
+      {
+        href: "/notes/ownership-without-surveillance",
+        label:
+          "Ownership without surveillance: sharing in what we build without turning people into data",
+      },
+      {
+        href: "/patterns/two-records-one-agreement",
+        label: "Pattern: two records, one agreement",
+      },
+    ],
+    citations: [
+      { label: "ArdaNova homepage", href: "https://ardanova.com/" },
+      { label: "ArdaNova terms of use", href: "https://ardanova.com/terms" },
+      { label: "AZOA Workflows", href: "https://azoa.ardanova.com/workflows" },
+    ],
+  },
+  {
+    slug: "social-ecology-and-shared-stewardship",
+    title:
+      "Social ecology for builders: why healthy commons start with how people relate",
+    publishedAt: "2026-11-15",
+    description:
+      "Why durable ecological and civic projects depend less on hero founders than on non-extractive institutions, mutual aid, skilled guilds, and federated commons.",
+    related: [
+      {
+        href: "/notes/solutionary-thinking-in-practice",
+        label:
+          "What solutionary thinking looks like when a community stops doom-scrolling",
+      },
+      {
         href: "/notes/separating-contribution-ledgers-from-governance-votes",
-        label: "Separating contribution logs from governance votes",
+        label: "Separating shared value from democratic voice",
       },
       {
         href: "/patterns/reconciling-two-ledgers-without-a-central-custodian",
-        label: "Pattern: reconciling two ledgers without a central custodian",
+        label: "Pattern: keeping partner commons aligned without a gatekeeper",
+      },
+    ],
+    citations: [
+      { label: "ArdaNova homepage", href: "https://ardanova.com/" },
+      {
+        label: "International Cooperative Alliance Statement (1995)",
+        href: "https://ica.coop/en/cooperatives/cooperative-identity",
+        datePublished: "1995",
+      },
+      { label: "ArdaNova terms of use", href: "https://ardanova.com/terms" },
+    ],
+  },
+  {
+    slug: "ownership-without-surveillance",
+    title:
+      "Ownership without surveillance: sharing in what we build without turning people into data",
+    publishedAt: "2026-11-15",
+    description:
+      "How communities, contributors, and sponsors can share in value and steer decisions together with explicit rights—without behavioral profiling or hollow scoreboards.",
+    related: [
+      {
+        href: "/notes/a-record-is-not-a-right",
+        label: "A record is not a right",
       },
       {
-        href: "/patterns/decision-logs",
-        label: "Pattern: decision logs",
+        href: "/patterns/informal-channels",
+        label: "Pattern: decisions on informal channels without monitoring",
+      },
+      {
+        href: "/patterns/a-record-is-not-a-right",
+        label: "Pattern: a record is not a right",
+      },
+    ],
+    citations: [
+      { label: "ArdaNova homepage", href: "https://ardanova.com/" },
+      { label: "ArdaNova terms of use", href: "https://ardanova.com/terms" },
+      { label: "PrimusNeo", href: "https://primusneo.com" },
+    ],
+  },
+  {
+    slug: "why-shared-work-breaks-between-orgs",
+    title: "Why coalitions and partner guilds drift without shared memory",
+    publishedAt: "2026-11-14",
+    description:
+      "Community builds rarely break from bad intentions. They stall when groups keep separate accounts of what was promised, who joined the decision, and what terms still hold.",
+    related: [
+      {
+        href: "/notes/social-ecology-and-shared-stewardship",
+        label: "Social ecology for builders",
+      },
+      {
+        href: "/notes/separating-contribution-ledgers-from-governance-votes",
+        label: "Separating shared value from democratic voice",
+      },
+      {
+        href: "/patterns/reconciling-two-ledgers-without-a-central-custodian",
+        label: "Pattern: keeping partner commons aligned without a gatekeeper",
       },
     ],
     citations: [
@@ -87,14 +175,14 @@ export const notes = [
   },
   {
     slug: "separating-contribution-ledgers-from-governance-votes",
-    title: "Separating contribution logs from governance votes",
+    title: "Separating shared value from democratic voice",
     publishedAt: "2026-11-14",
     description:
-      "Combining work hours, funds, and governance authority into a single scalar score invites quiet drift. Keeping Record A and Record B independent makes every downstream audit legible.",
+      "Combining money contributed, hours worked, and voting weight into one number lets capital silence a community. Keeping stewardship shares and governance voice independent protects cooperation.",
     related: [
       {
         href: "/notes/why-shared-work-breaks-between-orgs",
-        label: "Why shared work breaks between organizations",
+        label: "Why coalitions and partner guilds drift without shared memory",
       },
       {
         href: "/notes/two-records-one-agreement",
@@ -120,8 +208,12 @@ export const notes = [
     title: "A record is not a right",
     publishedAt: "2026-11-09",
     description:
-      "Keeping a clean ledger of work, agreed value, and votes is essential for coordination—and useless unless you separate bookkeeping rows from legal title and payment promises.",
+      "Shared ownership means naming the real agreement behind what a group builds—never pretending an activity count or screen badge grants legal title on its own.",
     related: [
+      {
+        href: "/notes/ownership-without-surveillance",
+        label: "Ownership without surveillance",
+      },
       {
         href: "/notes/two-records-one-agreement",
         label: "Two records. One agreement.",
@@ -135,6 +227,7 @@ export const notes = [
       { label: "ArdaNova homepage", href: "https://ardanova.com/" },
       { label: "ArdaNova terms of use", href: "https://ardanova.com/terms" },
       { label: "PrimusNeo", href: "https://primusneo.com" },
+      { label: "AZOA", href: "https://azoa.ardanova.com" },
       { label: "AZOA Workflows", href: "https://azoa.ardanova.com/workflows" },
     ],
   },
@@ -143,7 +236,7 @@ export const notes = [
     title: "Two records. One agreement.",
     publishedAt: "2026-11-09",
     description:
-      "Work logs and governance authority collapse when mashed into a single leaderboard score. Splitting Record A and Record B lets teams bind them explicitly inside readable project terms.",
+      "Healthy commons track two distinct realities under one clear covenant: stewardship work and shared value on one hand, democratic community voice on the other.",
     related: [
       {
         href: "/notes/a-record-is-not-a-right",
@@ -198,29 +291,30 @@ export const patterns = [
   {
     slug: "a-record-is-not-a-right",
     title: "A record is not a right",
-    headline: "A register is evidence. It is not, by itself, the right.",
-    eyebrow: "Multi-Ledger Agreements",
+    headline:
+      "Written stewardship memory supports trust. The real agreement creates the right.",
+    eyebrow: "Shared Value & Agreements",
     shelf: "multi-ledger-agreements",
     indexBlurb:
-      "Even a statutory register is prima facie evidence of what happened—never unchallengeable title. Keep workspace entries honest by pointing rights back to readable agreements.",
+      "Even formal statutory registers are only prima facie evidence—never unchallengeable title by themselves. Keep shared ownership honest by grounding every project share in readable agreements.",
     publishedAt: "2026-11-10",
     description:
-      "Why ledger entries and registers provide audit evidence rather than creating automatic legal ownership, equity, or payment rights.",
+      "Why stewardship logs and registers serve as transparent evidence rather than creating automatic legal ownership, equity, or payment rights on their own.",
     related: [
       {
         href: "/patterns/two-records-one-agreement",
         label:
-          "Two records, one agreement — splitting work logs from decision voice.",
+          "Two records, one agreement — keeping shared value apart from democratic voice.",
       },
       {
         href: "/patterns/reconciling-two-ledgers-without-a-central-custodian",
         label:
-          "Reconciling two ledgers without a central custodian — spotting silent drift early.",
+          "Keeping partner commons aligned without a gatekeeper — noticing quiet drift early.",
       },
       {
         href: "/patterns/company-registers",
         label:
-          "What is a company register of members — distinguishing membership lists from title.",
+          "What is a member register — distinguishing participant rosters from ownership claims.",
       },
     ],
     citations: [
@@ -272,29 +366,29 @@ export const patterns = [
     slug: "two-records-one-agreement",
     title: "Two records, one agreement",
     headline:
-      "Work is one record. Voice is another. The agreement is what binds them.",
-    eyebrow: "Multi-Ledger Agreements",
+      "Stewardship value is one record. Community voice is another. The agreement binds them.",
+    eyebrow: "Shared Value & Agreements",
     shelf: "multi-ledger-agreements",
     indexBlurb:
-      "When hours logged and voting influence collapse into a single point score, contributors lose track of both fairness and authority. Keep work logs and governance voice independent.",
+      "When capital contributed and democratic authority share one tally, funders silently outvote the community doing the work. Keep stewardship shares and collective voice independent.",
     publishedAt: "2026-11-10",
     description:
-      "Separating contribution accounting (Record A) from governance authority (Record B) so work performed never quietly overrides agreed decision rules.",
+      "Separating stewardship value (Record A) from democratic governance authority (Record B) so money never quietly overrides one-member, one-voice commons rules.",
     related: [
       {
         href: "/patterns/a-record-is-not-a-right",
         label:
-          "A record is not a right — evidence inside a database vs. rights under an agreement.",
+          "A record is not a right — transparent memory vs. rights rooted in an agreement.",
       },
       {
         href: "/patterns/reconciling-two-ledgers-without-a-central-custodian",
         label:
-          "Reconciling two ledgers without a central custodian — cross-org checkpoints.",
+          "Keeping partner commons aligned without a gatekeeper — shared checkpoints across guilds.",
       },
       {
         href: "/patterns/articles-of-incorporation",
         label:
-          "What are articles of association — rules separated from daily minutes.",
+          "Standing charters vs. daily proceedings — keeping community constitutions readable.",
       },
     ],
     citations: [
@@ -339,31 +433,31 @@ export const patterns = [
   },
   {
     slug: "reconciling-two-ledgers-without-a-central-custodian",
-    title: "Reconciling two ledgers without a central custodian",
+    title: "Keeping partner commons aligned without a central gatekeeper",
     headline:
-      "When two partner organizations keep their own books, quiet drift starts on day two.",
-    eyebrow: "Multi-Ledger Agreements",
+      "Independent guilds can share real accountability without surrendering autonomy to one boss.",
+    eyebrow: "Shared Value & Agreements",
     shelf: "multi-ledger-agreements",
     indexBlurb:
-      "Exported CSVs go stale the hour they leave someone's laptop. Pair immutable entry IDs, agreement references, and scheduled reconciliation checkpoints so neither side edits history silently.",
+      "Federated projects shouldn't force every workshop or watershed group onto one single landlord server. Pair shared agreement anchors with periodic checkpoints so nobody edits history behind closed doors.",
     publishedAt: "2026-11-14",
     description:
-      "Practical architecture for keeping two independent partner records aligned via agreement anchors, sequence numbers, and exception trails without handing single custody to one vendor.",
+      "How autonomous guilds and cooperative coalitions keep independent stewardship accounts aligned via agreement anchors and open discrepancy checks without centralizing control.",
     related: [
       {
         href: "/patterns/two-records-one-agreement",
         label:
-          "Two records, one agreement — why work logs and decision logs stay distinct.",
+          "Two records, one agreement — why stewardship value and community voice stay distinct.",
       },
       {
         href: "/patterns/append-only-amendments-and-retractions",
         label:
-          "Why append-only amendments beat quiet edits — leaving visible correction trails.",
+          "Open revisions beat silent edits — preserving trust across course changes.",
       },
       {
         href: "/patterns/decision-logs",
         label:
-          "Decision logs — recording who approved reconciliation exceptions and when.",
+          "Decision logs — resolving genuine disagreements out in the open.",
       },
     ],
     citations: [
@@ -374,7 +468,8 @@ export const patterns = [
         datePublished: "2026-05-19",
       },
       {
-        label: "ArdaNova, Why shared work breaks between organizations",
+        label:
+          "ArdaNova, Why coalitions and partner guilds drift without shared memory",
         href: "https://ardanova.com/notes/why-shared-work-breaks-between-orgs",
         datePublished: "2026-11-14",
       },
@@ -393,34 +488,34 @@ export const patterns = [
     slug: "decision-logs",
     title: "Decision logs",
     headline:
-      "If it cannot be found later, it was not decided. It was only said.",
-    eyebrow: "Record Clarity & Minutes",
+      "When community choices live only in memory, the loudest voice wins next month.",
+    eyebrow: "Community Memory & Minutes",
     shelf: "record-clarity",
     indexBlurb:
-      "A sprint call ended three weeks ago and two leads remember different scope cutoffs. Capture date, timestamp, actor, decision, reasoning, and explicit inaction in one durable feed.",
+      "A neighborhood coalition finished a gathering weeks ago and neighbors recall opposite commitments. Capturing date, participants, reasoning, and deliberate pauses builds trust everyone can inspect.",
     publishedAt: "2026-11-10",
     description:
-      "Contemporaneous decision logging: what was decided, why, by whom, and when—including explicit decisions not to act and documented reversals.",
+      "Shared community decision logging: capturing what was agreed, why, by whom, and when—including conscious decisions to pause and open course corrections.",
     related: [
       {
         href: "/patterns/append-only-amendments-and-retractions",
         label:
-          "Why append-only amendments beat quiet edits — recording reversals cleanly.",
+          "Open revisions beat silent edits — documenting course changes honestly.",
       },
       {
         href: "/patterns/what-happened-what-was-decided",
         label:
-          "What a record is for — separating facts, decisions, and runbooks.",
+          "What shared memory is for — grounding action in evidence, agreements, and next moves.",
       },
       {
         href: "/patterns/readable-record",
         label:
-          "Write a record someone else can read — passing the six-month newcomer test.",
+          "Write memory anyone can follow — welcoming new stewards without tribal gatekeeping.",
       },
       {
         href: "/patterns/tna-section-46",
         label:
-          "Public-authority record frameworks — FOIA section 46 as external contrast.",
+          "Public records stewardship — value, integrity, and accountability in practice.",
       },
     ],
     citations: [
@@ -471,31 +566,31 @@ export const patterns = [
   },
   {
     slug: "append-only-amendments-and-retractions",
-    title: "Why append-only amendments beat quiet edits",
+    title: "Open revisions beat silent edits",
     headline:
-      "Overwriting a settled note erases why a team changed course halfway through.",
-    eyebrow: "Record Clarity & Minutes",
+      "Erasing yesterday's charter edit hides why the community adapted along the way.",
+    eyebrow: "Community Memory & Minutes",
     shelf: "record-clarity",
     indexBlurb:
-      "Editing an old milestone note in place saves thirty seconds now and destroys trust during an audit. Append dated superseding entries linked to the original ID instead.",
+      "Quietly overwriting an old shared agreement makes current text tidy while erasing the story of how consensus changed. Append dated revisions linked to prior commitments so learning stays visible.",
     publishedAt: "2026-11-14",
     description:
-      "Why immutable revision chains and dated retraction entries preserve system history better than silent in-place document updates.",
+      "Why open append-only revisions and explicit change notes protect community trust better than silent document rewrites.",
     related: [
       {
         href: "/patterns/decision-logs",
         label:
-          "Decision logs — capturing changes and inaction contemporaneously.",
+          "Decision logs — honoring pauses, reconsiderations, and reasoned shifts.",
       },
       {
         href: "/patterns/reconciling-two-ledgers-without-a-central-custodian",
         label:
-          "Reconciling two ledgers without a central custodian — catching divergence.",
+          "Keeping partner commons aligned without a gatekeeper — shared revision anchors.",
       },
       {
         href: "/patterns/readable-record",
         label:
-          "Write a record someone else can read — clarity for future stewards.",
+          "Write memory anyone can follow — letting newcomers trace why rules evolved.",
       },
     ],
     citations: [
@@ -519,10 +614,10 @@ export const patterns = [
     slug: "problem-intake",
     title: "Problem intake",
     headline: "Problem intake",
-    eyebrow: "Shared Workspace Pattern",
+    eyebrow: "Solutionary Loop Pattern",
     publishedAt: "2026-11-10",
     description:
-      "Start with a crisp statement of the problem and who it affects before inventing metrics, milestones, or funding scopes.",
+      "Begin with lived reality and the community living with the problem before proposing remedies, roles, or funding structures.",
     related: [
       {
         href: "/patterns/decision-logs",
@@ -537,35 +632,36 @@ export const patterns = [
   },
   {
     slug: "directors-minutes",
-    title: "Directors' meeting minutes",
-    headline: "Board and director meeting minutes belong in one durable file",
-    eyebrow: "Membership & Resolutions",
+    title: "Stewardship circle and board minutes",
+    headline:
+      "Minutes protect communities from quiet drift between elected stewards",
+    eyebrow: "Voice & Membership",
     shelf: "membership-resolutions",
     indexBlurb:
-      "When directors sign off in conversation and forget the minute book, there is no institutional trace years later. See how long statutory standards expect boards to retain minutes.",
+      "When elected stewards settle major choices verbally and forget to record them, accountability dissolves within a year. Statutory minute standards reveal why clear retention discipline matters.",
     publishedAt: "2026-11-10",
     description:
-      "Why boards record proceedings and preserve meeting minutes across a ten-year baseline, and how shared workspaces mirror that discipline without impersonating statutory filings.",
+      "Why stewardship circles record proceedings and keep memory across seasons, contrasted cleanly with formal UK statutory company baselines.",
     related: [
       {
         href: "/patterns/records-of-resolutions",
         label:
-          "Records of resolutions and general meetings — member votes kept separately from board proceedings.",
+          "Community assemblies & written resolutions — preserving broader member voice cleanly.",
       },
       {
         href: "/patterns/what-belongs-in-the-minutes",
         label:
-          "What belongs in the minutes — date, time, attendees, and exact outcome.",
+          "What belongs in the minutes — date, participants, channel, and actual commitments.",
       },
       {
         href: "/patterns/decision-logs",
         label:
-          "Decision logs — day-to-day operational traceability between board meetings.",
+          "Decision logs — day-to-day shared accountability between assemblies.",
       },
       {
         href: "/patterns/articles-of-incorporation",
         label:
-          "What are articles of association — rules prescribing authority vs. individual meeting notes.",
+          "Standing charters vs. daily proceedings — keeping community rules readable.",
       },
     ],
     citations: [
@@ -578,35 +674,35 @@ export const patterns = [
   },
   {
     slug: "records-of-resolutions",
-    title: "Records of resolutions and general meetings",
-    headline: "Written resolutions and member votes leave a three-part trail",
-    eyebrow: "Membership & Resolutions",
+    title: "Records of resolutions and general assemblies",
+    headline: "Written consent and live community votes belong side by side",
+    eyebrow: "Voice & Membership",
     shelf: "membership-resolutions",
     indexBlurb:
-      "Async member sign-offs scattered in email threads vanish quickly. Group written resolutions, general meeting minutes, and sole-member decisions into one addressable archive.",
+      "Not everyone can make Tuesday's town hall. Keeping async written resolutions beside live assembly votes ensures working members aren't erased when memory gets checked next year.",
     publishedAt: "2026-11-10",
     description:
-      "Keeping written resolutions, general meeting minutes, and sole-member decisions distinct from board chatter and ephemeral notifications.",
+      "Keeping async written consent, assembly votes, and single-steward calls clear and accessible so participation stays fair across schedules.",
     related: [
       {
         href: "/patterns/directors-minutes",
         label:
-          "Directors' meeting minutes — board-level proceedings tracked alongside member votes.",
+          "Stewardship circle minutes — tracking delegated group choices clearly.",
       },
       {
         href: "/patterns/what-belongs-in-the-minutes",
         label:
-          "What belongs in the minutes — minimum fields for reproducible notes.",
+          "What belongs in the minutes — simple fields that survive seasonal turnover.",
       },
       {
         href: "/patterns/two-records-one-agreement",
         label:
-          "Two records. One agreement. — separating voice logs from economic units.",
+          "Two records. One agreement. — keeping member voice separate from financial shares.",
       },
       {
         href: "/patterns/sole-member-decisions",
         label:
-          "Records of decisions by a sole member — why single stewards still log decisions.",
+          "Single-steward decisions — documenting early founder calls before neighbors join.",
       },
     ],
     citations: [
@@ -621,34 +717,34 @@ export const patterns = [
     slug: "what-belongs-in-the-minutes",
     title: "What belongs in the minutes: date, time, who, and what was decided",
     headline:
-      "Four fields every meeting note needs before anyone forgets the call",
-    eyebrow: "Record Clarity & Minutes",
+      "Four simple fields keep a gathering useful long after the chairs are stacked",
+    eyebrow: "Community Memory & Minutes",
     shelf: "record-clarity",
     indexBlurb:
-      "A doc that reads 'aligned on next steps' is worthless three sprints later. Capture date, timestamp, attendees, format, and the literal decision made.",
+      "A summary reading 'good talk, aligned on next steps' leaves everyone confused a season later. Capture when, where, who took part, and the plain commitment made.",
     publishedAt: "2026-11-10",
     description:
-      "A minimal checklist for meeting notes—date, time, participants, medium, and outcome—drawn from real operational records practice.",
+      "A humane minimal habit for community notes—date, time, participants, medium, and explicit outcome—drawn from durable institutional records practice.",
     related: [
       {
         href: "/patterns/informal-channels",
         label:
-          "Decisions on informal channels — moving chat sign-offs into the permanent log.",
+          "Decisions on informal channels — honoring privacy while saving agreed outcomes.",
       },
       {
         href: "/patterns/readable-record",
         label:
-          "Write a record someone else can read — writing for future maintainers.",
+          "Write memory anyone can follow — welcoming new contributors cleanly.",
       },
       {
         href: "/patterns/decision-logs",
         label:
-          "Decision logs — tracking scope choices and explicit inaction together.",
+          "Decision logs — honoring reversals and conscious pauses transparently.",
       },
       {
         href: "/patterns/what-happened-what-was-decided",
         label:
-          "What a record is for — facts, outcomes, and actionable procedures.",
+          "What shared memory is for — context, commitments, and how-to practice.",
       },
     ],
     citations: [
@@ -668,35 +764,35 @@ export const patterns = [
   },
   {
     slug: "readable-record",
-    title: "Write a record someone else can read",
+    title: "Write memory anyone new can follow",
     headline:
-      "Write every decision record for the engineer joining six months after you ship",
-    eyebrow: "Record Clarity & Minutes",
+      "Insider shorthand turns a community commons into a closed clique",
+    eyebrow: "Community Memory & Minutes",
     shelf: "record-clarity",
     indexBlurb:
-      "Cryptic notes like 'same as Tuesday, JD to handle' make sense only to two people in one timezone. Record explicit reasoning, timing, and decisions not to act.",
+      "Cryptic notes like 'same as last Thursday, Sam handling' shut out anyone who wasn't in the room. Explaining why an option was set aside keeps shared power genuinely open.",
     publishedAt: "2026-11-10",
     description:
-      "Designing decision records that stay self-contained, timestamped, reasoned, and understandable to operators who were never in the room.",
+      "Writing decision memory clearly enough that neighbors joining months later can understand choices and participate on equal footing.",
     related: [
       {
         href: "/patterns/what-belongs-in-the-minutes",
         label:
-          "What belongs in the minutes — capturing essential date and attendance metadata.",
+          "What belongs in the minutes — capturing essential time and attendance context.",
       },
       {
         href: "/patterns/informal-channels",
         label:
-          "Decisions on informal channels — pulling side-channel outcomes back into main logs.",
+          "Decisions on informal channels — welcoming side-channel choices into shared space.",
       },
       {
         href: "/patterns/decision-logs",
-        label: "Decision logs — building a single searchable trail.",
+        label: "Decision logs — keeping community reasoning searchable.",
       },
       {
         href: "/patterns/append-only-amendments-and-retractions",
         label:
-          "Why append-only amendments beat quiet edits — recording reversals cleanly.",
+          "Open revisions beat silent edits — showing how perspectives shifted over time.",
       },
     ],
     citations: [
@@ -708,15 +804,16 @@ export const patterns = [
   },
   {
     slug: "informal-channels",
-    title: "Decisions on informal channels still need a record",
-    headline: "A thumbs-up in chat does not stay recoverable six months later",
-    eyebrow: "Record Clarity & Minutes",
+    title: "Decisions in informal chats still belong to the commons",
+    headline:
+      "A side conversation shouldn't lock agreements away from the whole group",
+    eyebrow: "Community Memory & Minutes",
     shelf: "record-clarity",
     indexBlurb:
-      "Real product and governance decisions routinely happen in DMs, voice huddles, and Slack threads. Move the outcome into the project log right away without turning chat into surveillance.",
+      "Real mutual aid and project pivots happen on porches, voice calls, and group texts. Mirroring the agreed commitment into the commons preserves trust—without ever turning messaging into surveillance.",
     publishedAt: "2026-11-10",
     description:
-      "How engineering and co-op teams mirror outcomes from ephemeral messaging apps into permanent decision logs cleanly.",
+      "How cooperative groups bring agreements reached in casual chats back into open shared memory while respecting human privacy and refusing workplace monitoring.",
     related: [
       {
         href: "/patterns/what-belongs-in-the-minutes",
@@ -726,12 +823,12 @@ export const patterns = [
       {
         href: "/patterns/directors-minutes",
         label:
-          "Directors' meeting minutes — why informal tools never excuse missing board notes.",
+          "Stewardship circle minutes — ensuring informal venues never hide authority.",
       },
       {
         href: "/patterns/readable-record",
         label:
-          "Write a record someone else can read — giving future readers the missing context.",
+          "Write memory anyone new can follow — keeping shared context accessible.",
       },
     ],
     citations: [
@@ -755,35 +852,35 @@ export const patterns = [
   },
   {
     slug: "what-happened-what-was-decided",
-    title: "What a record is for: what happened, what was decided",
+    title: "What shared memory is for: what happened, what was decided",
     headline:
-      "A noisy chat dump is not a record unless it answers three plain questions",
-    eyebrow: "Record Clarity & Minutes",
+      "Hoarding raw chat transcripts isn't transparency unless people can find answers",
+    eyebrow: "Community Memory & Minutes",
     shelf: "record-clarity",
     indexBlurb:
-      "Storing raw logs without structure confuses volume with accountability. A working record captures what happened, what was decided, and how to execute next.",
+      "Dumping every group message into a shared archive overwhelms volunteers. A humane commons separates what actually happened, what the group decided, and how people work together next.",
     publishedAt: "2026-11-10",
     description:
-      "Separating noise from evidence: structuring workspace records around events, decisions, and repeatable operational runbooks.",
+      "Separating noisy message dumps from living community memory centered on events, shared decisions, and repeatable stewardship habits.",
     related: [
       {
         href: "/patterns/what-belongs-in-the-minutes",
         label:
-          "What belongs in the minutes — capturing actors, time, and decisions cleanly.",
+          "What belongs in the minutes — capturing participants, time, and choices cleanly.",
       },
       {
         href: "/patterns/decision-logs",
-        label: "Decision logs — making project choices auditable.",
+        label: "Decision logs — making group choices clear to everyone.",
       },
       {
         href: "/patterns/tna-section-46",
         label:
-          "Public-authority record frameworks — value, integrity, and accountability in practice.",
+          "Public records stewardship — keeping what holds value and letting clutter go.",
       },
       {
         href: "/patterns/readable-record",
         label:
-          "Write a record someone else can read — clarity across handoffs.",
+          "Write memory anyone new can follow — welcoming fresh contributors.",
       },
     ],
     citations: [
@@ -797,21 +894,21 @@ export const patterns = [
   },
   {
     slug: "tna-section-46",
-    title: "The National Archives Code of Practice on managing records",
+    title: "Keeping what matters and letting clutter retire",
     headline:
-      "What public-sector record standards teach teams about keeping only what counts",
-    eyebrow: "Membership & Resolutions",
+      "Public stewardship standards teach collectives not to hoard everything forever",
+    eyebrow: "Voice & Membership",
     shelf: "membership-resolutions",
     indexBlurb:
-      "Not every file or chat ping belongs in long-term storage. Examines how FOIA section 46 guidance anchors retention around value, integrity, and accountability.",
+      "Communities don't need surveillance archives that preserve every stray message indefinitely. FOIA section 46 principles frame a lighter alternative rooted in value, integrity, and accountability.",
     publishedAt: "2026-11-10",
     description:
-      "Lessons for builders from The National Archives Code of Practice: distinguishing actionable records from ephemeral messages via value, integrity, and accountability.",
+      "What community guilds can borrow from The National Archives s.46 Code: valuing clear stewardship memory over endless data hoarding.",
     related: [
       {
         href: "/patterns/what-happened-what-was-decided",
         label:
-          "What a record is for — structuring evidence around events and choices.",
+          "What shared memory is for — separating facts and choices from raw noise.",
       },
       {
         href: "/patterns/decision-logs",
@@ -820,7 +917,7 @@ export const patterns = [
       {
         href: "/patterns/readable-record",
         label:
-          "Write a record someone else can read — clarity for future stewards.",
+          "Write memory anyone new can follow — clarity for future stewards.",
       },
     ],
     citations: [
@@ -839,35 +936,36 @@ export const patterns = [
   },
   {
     slug: "articles-of-incorporation",
-    title: "What are articles of association",
+    title: "Standing charters vs. daily agreements",
     headline:
-      "Standing rules, daily minutes, and membership lists do not belong in the same bucket",
-    eyebrow: "Membership & Resolutions",
+      "Constitutional rules, seasonal decisions, and member rosters stay clearest apart",
+    eyebrow: "Voice & Membership",
     shelf: "membership-resolutions",
     indexBlurb:
-      "Constitutional rules govern how an organization can act; minutes record what happened Tuesday; registers list who joined. Keep these three artifacts clearly separated.",
+      "Standing community charters set how decisions are fairly made; minutes capture what happened Tuesday; rosters track active voices. Keep those three drawers visibly separate.",
     publishedAt: "2026-11-10",
     description:
-      "Distinguishing standing governance articles from daily meeting minutes and membership registers in shared-work architectures.",
+      "Distinguishing standing governance charters and cooperative bylaws from daily meeting notes and member rosters.",
     related: [
       {
         href: "/patterns/company-registers",
         label:
-          "What is a company register of members — separating participant rosters from bylaws.",
+          "What is a member register — tracking active voices clearly across seasons.",
       },
       {
         href: "/patterns/directors-minutes",
         label:
-          "Directors' meeting minutes — tracking board-level operations over time.",
+          "Stewardship circle minutes — recording delegated coordination over time.",
       },
       {
         href: "/patterns/records-of-resolutions",
         label:
-          "Records of resolutions and general meetings — member-level approvals.",
+          "Records of resolutions and assemblies — member-wide decisions kept open.",
       },
       {
         href: "/patterns/two-records-one-agreement",
-        label: "Two records, one agreement — binding execution terms cleanly.",
+        label:
+          "Two records, one agreement — keeping voice separate from economic shares.",
       },
     ],
     citations: [
@@ -895,36 +993,36 @@ export const patterns = [
   },
   {
     slug: "company-registers",
-    title: "What is a company register of members",
+    title: "Keeping an honest member roster",
     headline:
-      "A participant roster and a decision minute book solve completely different bugs",
-    eyebrow: "Membership & Resolutions",
+      "Knowing who currently holds a voice shouldn't require archaeology",
+    eyebrow: "Voice & Membership",
     shelf: "membership-resolutions",
     indexBlurb:
-      "Trying to extract who joined, who left, and who voted from a giant chronological thread always fails under pressure. Maintain an explicit member register alongside the minute log.",
+      "Trying to reconstruct who joined, who stepped back, and who votes cleanly from months of old discussion threads inevitably disenfranchises quiet members. Keep an open roster distinct from minutes.",
     publishedAt: "2026-11-10",
     description:
-      "Why membership rosters track start/end dates separately from meeting minutes and economic balances.",
+      "Why explicit participant rosters with clear join and step-back dates protect fairness compared to digging through old chat or meeting threads.",
     related: [
       {
         href: "/patterns/articles-of-incorporation",
         label:
-          "What are articles of association — rules separated from member lists.",
+          "Standing charters vs. daily agreements — keeping bylaws and rosters apart.",
       },
       {
         href: "/patterns/directors-minutes",
         label:
-          "Directors' meeting minutes — tracking leadership decisions separately.",
+          "Stewardship circle minutes — tracking leadership proceedings separately.",
       },
       {
         href: "/patterns/records-of-resolutions",
         label:
-          "Records of resolutions and general meetings — preserving formal approvals.",
+          "Records of resolutions and assemblies — keeping community votes clear.",
       },
       {
         href: "/patterns/a-record-is-not-a-right",
         label:
-          "A record is not a right — evidence of membership vs. enforceable title.",
+          "A record is not a right — membership lists vs. documented participation terms.",
       },
     ],
     citations: [
@@ -942,30 +1040,31 @@ export const patterns = [
   },
   {
     slug: "sole-member-decisions",
-    title: "Records of decisions by a sole member",
+    title: "Documenting early calls before neighbors join",
     headline:
-      "Working alone does not remove the need to write down key project decisions",
-    eyebrow: "Membership & Resolutions",
+      "Starting solo does not excuse hiding the assumptions your project rests on",
+    eyebrow: "Voice & Membership",
     shelf: "membership-resolutions",
     indexBlurb:
-      "Solo maintainers skip notes because nobody disagreed—until six months later when a partner joins or a dispute arrives. Capture single-steward calls explicitly in the record.",
+      "Projects often begin with one person sketching an ecological or civic response alone—until collaborators arrive months later wondering why key commitments exist. Writing early decisions down welcomes new co-stewards honestly.",
     publishedAt: "2026-11-10",
     description:
-      "Why decisions taken by a single steward or sole member still belong in the written project record, backed by statutory contrast.",
+      "Why early initiators still leave clear written notes of founding commitments so incoming community members step into shared clarity rather than founder myth.",
     related: [
       {
         href: "/patterns/records-of-resolutions",
         label:
-          "Records of resolutions and general meetings — full approval trails.",
+          "Records of resolutions and assemblies — opening decisions to wider consent.",
       },
       {
         href: "/patterns/directors-minutes",
-        label: "Directors' meeting minutes — multi-party meeting records.",
+        label:
+          "Stewardship circle minutes — scaling cleanly as more stewards join.",
       },
       {
         href: "/patterns/company-registers",
         label:
-          "What is a company register of members — tracking active stewards over time.",
+          "Keeping an honest member roster — onboarding new members fairly.",
       },
     ],
     citations: [

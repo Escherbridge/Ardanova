@@ -14,6 +14,15 @@ describe("public sitemap URLs", () => {
     expect(urls).toContain("https://ardanova.com/privacy");
     expect(urls).toContain("https://ardanova.com/notes");
     expect(urls).toContain(
+      "https://ardanova.com/notes/solutionary-thinking-in-practice",
+    );
+    expect(urls).toContain(
+      "https://ardanova.com/notes/social-ecology-and-shared-stewardship",
+    );
+    expect(urls).toContain(
+      "https://ardanova.com/notes/ownership-without-surveillance",
+    );
+    expect(urls).toContain(
       "https://ardanova.com/notes/why-shared-work-breaks-between-orgs",
     );
     expect(urls).toContain(

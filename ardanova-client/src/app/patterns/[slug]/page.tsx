@@ -80,7 +80,7 @@ export default async function PatternPage({
             className="inline-flex min-h-11 items-center font-mono text-xs font-semibold tracking-[0.12em] uppercase underline underline-offset-4"
             href="/patterns"
           >
-            ← All pattern guides
+            ← Stewardship &amp; governance patterns
           </Link>
         </p>
         <PatternBody slug={slug} />

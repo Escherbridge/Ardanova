@@ -13,7 +13,7 @@ import {
 } from "~/lib/writing";
 
 const description =
-  "Fifteen engineering pattern guides for shared workspaces: multi-ledger agreements, append-only decision logs, readable minutes, and durable membership records.";
+  "Fifteen practical guides for shared stewardship: separating economic value from democratic voice, preserving community memory, and keeping agreements honest across guilds and coalitions.";
 
 export const metadata = publicPageMetadata({
   path: "/patterns",
@@ -37,26 +37,25 @@ export default function PatternsPage() {
         )}
       />
       <NotesShell
-        kicker="Architecture Patterns · Shared Custody & Records"
-        title="The shape of a shared record."
+        kicker="Stewardship Library · Cooperative Agreements & Commons Memory"
+        title="Patterns for shared stewardship."
         trail={[
           { href: "/", label: "Home" },
           { href: "/patterns", label: "Patterns" },
         ]}
       >
         <p className="text-lg leading-relaxed">
-          Shared work breaks down less often over bad intentions than over
-          sloppy records: a scope change buried in chat, two partner
-          spreadsheets that disagree on who approved a milestone, or meeting
-          minutes written so vaguely a new steward cannot tell what was actually
-          decided.
+          When a neighborhood land project, watershed coalition, or worker guild
+          relies on half-remembered calls and scattered group chats, newcomers
+          inherit guesswork and distrust instead of shared memory. Good
+          intentions alone rarely hold a commons together across seasons.
         </p>
         <p>
-          These fifteen pattern notes break down durable shapes for keeping
-          shared records clear, auditable, and inspectable across
-          organizations—from separating work logs (Record A) from governance
-          voice (Record B) to reconciling ledgers without handing sole control
-          to an opaque middleman.
+          These fifteen guides explore how durable projects keep power and value
+          transparent: separating stewardship contributions (Record A) from
+          one-member, one-voice governance (Record B), preserving open
+          amendments, and pointing every claim back to explicit human
+          agreements.
         </p>
 
         {PATTERN_SHELVES.map((shelf) => {
@@ -116,9 +115,9 @@ export default function PatternsPage() {
         <SimulationNotice includeAzoa includeLegalAdvice />
 
         <p className="text-muted-foreground text-sm">
-          Author: Escherbridge · Last reviewed: 2026-11-14 ·{" "}
+          Author: Escherbridge · Last reviewed: 2026-11-15 ·{" "}
           <Link className="underline underline-offset-4" href="/notes">
-            Engineering notes
+            Essays &amp; notes
           </Link>{" "}
           ·{" "}
           <Link className="underline underline-offset-4" href="/terms">

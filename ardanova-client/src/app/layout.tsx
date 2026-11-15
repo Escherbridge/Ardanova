@@ -9,9 +9,10 @@ import { TRPCReactProvider } from "~/trpc/react";
 import { AuthSessionProvider } from "~/providers/session-provider";
 import { isDevelopmentAuthPreviewEnabled } from "~/server/auth";
 import { shareImage, SITE_ORIGIN } from "~/lib/site";
-const siteTitle = "ArdaNova — Shared Records & Coordinated Builds";
+const siteTitle =
+  "ArdaNova — Solutionary Action, Shared Ownership & Social Ecology";
 const siteDescription =
-  "A workspace for describing a problem, separating contribution records (Record A) from decision logs (Record B), and inspecting explicit agreements across organizations.";
+  "Not an endless feed. ArdaNova brings collaborators, guilds, and community sponsors together to investigate shared problems, build solutions, govern democratically, and share in what they create.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_ORIGIN),
@@ -21,12 +22,12 @@ export const metadata: Metadata = {
   },
   description: siteDescription,
   keywords: [
-    "shared projects",
-    "project coordination",
-    "contributor rights",
-    "governance",
-    "reconciliation",
-    "problem solving",
+    "solutionary thinking",
+    "social ecology",
+    "shared ownership",
+    "cooperative governance",
+    "community stewardship",
+    "collective action",
   ],
   authors: [{ name: "Escherbridge" }],
   creator: "Escherbridge",
