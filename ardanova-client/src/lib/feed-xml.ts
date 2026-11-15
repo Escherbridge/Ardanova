@@ -34,7 +34,7 @@ export function buildFeedXml(): string {
   <channel>
     <title>ArdaNova</title>
     <link>${SITE_ORIGIN}/</link>
-    <description>Notes and patterns from the ArdaNova workspace. The economy is simulated.</description>
+    <description>Engineering notes and shared-custody patterns from ArdaNova (sandbox economy environment).</description>
     <language>en-us</language>
 ${items}
   </channel>

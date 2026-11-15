@@ -2,12 +2,18 @@ import Link from "next/link";
 
 import { JsonLd } from "~/components/brand/json-ld";
 import { NotesShell } from "~/components/brand/notes-shell";
-import { itemList, breadcrumbList } from "~/lib/schema";
+import { SimulationNotice } from "~/components/brand/simulation-notice";
+import { WorkspaceFunnelGate } from "~/components/brand/WorkspaceFunnelGate";
+import { breadcrumbList, itemList } from "~/lib/schema";
 import { publicPageMetadata } from "~/lib/page-metadata";
-import { patternCanonical, researchedPatterns } from "~/lib/writing";
+import {
+  PATTERN_SHELVES,
+  patternCanonical,
+  researchedPatterns,
+} from "~/lib/writing";
 
 const description =
-  "Patterns of shared work: a record is not a right; two records, one agreement; decision logs; and the records a meeting has to keep. The economy is simulated.";
+  "Fifteen engineering pattern guides for shared workspaces: multi-ledger agreements, append-only decision logs, readable minutes, and durable membership records.";
 
 export const metadata = publicPageMetadata({
   path: "/patterns",
@@ -31,125 +37,96 @@ export default function PatternsPage() {
         )}
       />
       <NotesShell
-        kicker="Thirteen patterns · the economy is simulated"
+        kicker="Architecture Patterns · Shared Custody & Records"
         title="The shape of a shared record."
         trail={[
           { href: "/", label: "Home" },
           { href: "/patterns", label: "Patterns" },
         ]}
       >
-        <p>
-          These pages are about recurring shapes of shared work: a register as
-          evidence rather than title, two ledgers bound by an agreement, and a
-          decision log that a later person can actually find. Five field notes
-          sit with them, on the record itself: directors&apos; minutes, records
-          of resolutions and general meetings, what belongs in the minutes, a
-          record someone else can read, and a decision taken on an informal
-          channel. Five more stay with the opened wording: what a record is for,
-          the National Archives Code under section 46, articles of association,
-          a register of members, and a sole member&apos;s decision. The figures
-          and legal sentences are other people&apos;s, with the links left on,
-          and they are used as public contrast, not as a claim that ArdaNova is
-          a UK company, a cooperative, or a cap-table product. The field notes
-          are not legal advice.
+        <p className="text-lg leading-relaxed">
+          Shared work breaks down less often over bad intentions than over
+          sloppy records: a scope change buried in chat, two partner
+          spreadsheets that disagree on who approved a milestone, or meeting
+          minutes written so vaguely a new steward cannot tell what was actually
+          decided.
         </p>
         <p>
-          <strong className="font-mono">ECONOMY: SIMULATED.</strong> Platform
-          records do not automatically create legal ownership, equity, or
-          payment rights. That sentence belongs on this index and on every
-          child, not only in the footer.
+          These fifteen pattern notes break down durable shapes for keeping
+          shared records clear, auditable, and inspectable across
+          organizations—from separating work logs (Record A) from governance
+          voice (Record B) to reconciling ledgers without handing sole control
+          to an opaque middleman.
         </p>
-        <section className="space-y-6">
-          <h2 className="text-xl">The patterns</h2>
-          <ul className="grid gap-6">
-            {researchedPatterns.map((pattern) => (
-              <li className="border border-black/70 p-6" key={pattern.slug}>
-                <h3 className="text-2xl">
-                  <Link
-                    className="underline-offset-4 hover:underline"
-                    href={`/patterns/${pattern.slug}`}
-                  >
-                    {pattern.title}
-                  </Link>
-                </h3>
-                {"indexBlurb" in pattern && pattern.indexBlurb ? (
-                  <p className="mt-3">{pattern.indexBlurb}</p>
-                ) : null}
-                <p className="mt-4">
-                  <Link
-                    className="inline-flex min-h-11 items-center font-semibold underline-offset-4 hover:underline"
-                    href={`/patterns/${pattern.slug}`}
-                  >
-                    View
-                  </Link>
+
+        {PATTERN_SHELVES.map((shelf) => {
+          const items = researchedPatterns.filter(
+            (pattern) => "shelf" in pattern && pattern.shelf === shelf.id,
+          );
+          if (items.length === 0) return null;
+          return (
+            <section className="space-y-5 pt-4" key={shelf.id}>
+              <div className="border-b border-black/70 pb-3">
+                <h2 className="text-2xl font-bold tracking-[-0.02em]">
+                  {shelf.title}
+                </h2>
+                <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
+                  {shelf.summary}
                 </p>
-              </li>
-            ))}
-          </ul>
-        </section>
-        <section className="space-y-3">
-          <h2 className="text-xl">What ArdaNova is doing here</h2>
-          <p>
-            ArdaNova is a project-and-work workspace with a simulated economy.
-            Related house notes are{" "}
-            <Link
-              className="underline underline-offset-4"
-              href="/notes/a-record-is-not-a-right"
-            >
-              A record is not a right
-            </Link>{" "}
-            and{" "}
-            <Link
-              className="underline underline-offset-4"
-              href="/notes/two-records-one-agreement"
-            >
-              Two records. One agreement.
-            </Link>
-            .{" "}
-            <a
-              className="underline underline-offset-4"
-              href="https://azoa.ardanova.com"
-            >
-              AZOA
-            </a>
-            , the planned workflow engine, is also still a simulation. This
-            workspace belongs to the stack at{" "}
-            <a
-              className="underline underline-offset-4"
-              href="https://primusneo.com"
-            >
-              PrimusNeo
-            </a>
-            . Start from the{" "}
-            <a
-              className="underline underline-offset-4"
-              href="https://ardanova.com/"
-            >
-              homepage
-            </a>{" "}
-            and the{" "}
-            <Link className="underline underline-offset-4" href="/terms">
-              Terms
-            </Link>
-            . Site notes, when there is something true to announce, live in{" "}
-            <Link className="underline underline-offset-4" href="/news">
-              News
-            </Link>
-            .
-          </p>
-        </section>
-        <p>Author: Escherbridge. Last reviewed: 2026-11-10, America/Denver.</p>
-        <p>
+              </div>
+              <ul className="grid gap-5">
+                {items.map((pattern) => (
+                  <li
+                    className="bg-brand-paper-bright border border-black/70 p-6"
+                    key={pattern.slug}
+                  >
+                    <p className="text-brand-signal-deep font-mono text-[11px] font-semibold tracking-[0.14em] uppercase">
+                      {pattern.publishedAt}
+                    </p>
+                    <h3 className="mt-1.5 text-2xl font-bold tracking-[-0.02em]">
+                      <Link
+                        className="underline-offset-4 hover:underline"
+                        href={`/patterns/${pattern.slug}`}
+                      >
+                        {pattern.title}
+                      </Link>
+                    </h3>
+                    {"indexBlurb" in pattern && pattern.indexBlurb ? (
+                      <p className="text-muted-foreground mt-3 leading-relaxed">
+                        {pattern.indexBlurb}
+                      </p>
+                    ) : null}
+                    <p className="mt-4">
+                      <Link
+                        className="inline-flex min-h-11 items-center font-semibold underline underline-offset-4 hover:underline"
+                        href={`/patterns/${pattern.slug}`}
+                      >
+                        Read pattern
+                      </Link>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        })}
+
+        <WorkspaceFunnelGate surface="patterns-index" />
+
+        <SimulationNotice includeAzoa includeLegalAdvice />
+
+        <p className="text-muted-foreground text-sm">
+          Author: Escherbridge · Last reviewed: 2026-11-14 ·{" "}
           <Link className="underline underline-offset-4" href="/notes">
-            Notes
-          </Link>
-          {" · "}
-          <Link className="underline underline-offset-4" href="/news">
-            News
-          </Link>
-          {" · "}
+            Engineering notes
+          </Link>{" "}
+          ·{" "}
+          <Link className="underline underline-offset-4" href="/terms">
+            Terms
+          </Link>{" "}
+          ·{" "}
           <Link className="underline underline-offset-4" href="/feed.xml">
-            Feed
+            RSS feed
           </Link>
         </p>
       </NotesShell>

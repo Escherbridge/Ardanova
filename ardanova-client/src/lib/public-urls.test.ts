@@ -14,12 +14,24 @@ describe("public sitemap URLs", () => {
     expect(urls).toContain("https://ardanova.com/privacy");
     expect(urls).toContain("https://ardanova.com/notes");
     expect(urls).toContain(
+      "https://ardanova.com/notes/why-shared-work-breaks-between-orgs",
+    );
+    expect(urls).toContain(
+      "https://ardanova.com/notes/separating-contribution-ledgers-from-governance-votes",
+    );
+    expect(urls).toContain(
       "https://ardanova.com/notes/a-record-is-not-a-right",
     );
     expect(urls).toContain(
       "https://ardanova.com/notes/two-records-one-agreement",
     );
     expect(urls).toContain("https://ardanova.com/patterns");
+    expect(urls).toContain(
+      "https://ardanova.com/patterns/reconciling-two-ledgers-without-a-central-custodian",
+    );
+    expect(urls).toContain(
+      "https://ardanova.com/patterns/append-only-amendments-and-retractions",
+    );
     expect(urls).toContain(
       "https://ardanova.com/patterns/a-record-is-not-a-right",
     );

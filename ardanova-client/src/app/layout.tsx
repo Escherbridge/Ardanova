@@ -9,9 +9,9 @@ import { TRPCReactProvider } from "~/trpc/react";
 import { AuthSessionProvider } from "~/providers/session-provider";
 import { isDevelopmentAuthPreviewEnabled } from "~/server/auth";
 import { shareImage, SITE_ORIGIN } from "~/lib/site";
-const siteTitle = "ArdaNova — Find it. Fund it. Build it.";
+const siteTitle = "ArdaNova — Shared Records & Coordinated Builds";
 const siteDescription =
-  "A workspace for describing a problem, coordinating the work, and keeping two records — work and voice — on agreed terms. The economy is simulated. Platform records do not automatically create legal ownership, equity, or payment rights.";
+  "A workspace for describing a problem, separating contribution records (Record A) from decision logs (Record B), and inspecting explicit agreements across organizations.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_ORIGIN),

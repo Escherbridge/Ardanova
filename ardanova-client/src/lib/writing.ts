@@ -12,6 +12,11 @@ export type Citation = {
   datePublished?: string;
 };
 
+export type PatternShelfId =
+  | "multi-ledger-agreements"
+  | "record-clarity"
+  | "membership-resolutions";
+
 type WritingEntry = {
   slug: string;
   title: string;
@@ -21,19 +26,101 @@ type WritingEntry = {
   eyebrow?: string;
   /** Index-card continuation, after the short title. */
   indexBlurb?: string;
+  shelf?: PatternShelfId;
   publishedAt: string;
   description: string;
   related: readonly WritingLink[];
   citations: readonly Citation[];
 };
 
+export const PATTERN_SHELVES: readonly {
+  id: PatternShelfId;
+  title: string;
+  summary: string;
+}[] = [
+  {
+    id: "multi-ledger-agreements",
+    title: "Multi-Ledger Agreements",
+    summary:
+      "Why ledgers break when contribution numbers pretend to grant title or decision weight, and how split logs stay reconciled without a single opaque custodian.",
+  },
+  {
+    id: "record-clarity",
+    title: "Record Clarity & Minutes",
+    summary:
+      "Decision logs, append-only corrections, and capture habits that ensure someone joining six months later can trace what happened and why.",
+  },
+  {
+    id: "membership-resolutions",
+    title: "Membership & Resolutions",
+    summary:
+      "Structural distinctions between governing rules, membership registers, board minutes, and sole-steward decisions—contrasted cleanly with statutory baselines.",
+  },
+];
+
 export const notes = [
+  {
+    slug: "why-shared-work-breaks-between-orgs",
+    title: "Why shared work breaks between organizations",
+    publishedAt: "2026-11-14",
+    description:
+      "Multi-org builds rarely fail over bad code. They stall when nobody can tell which spreadsheet reflects the real agreement, who approved a scope change, or which chat thread settled a dispute.",
+    related: [
+      {
+        href: "/notes/separating-contribution-ledgers-from-governance-votes",
+        label: "Separating contribution logs from governance votes",
+      },
+      {
+        href: "/patterns/reconciling-two-ledgers-without-a-central-custodian",
+        label: "Pattern: reconciling two ledgers without a central custodian",
+      },
+      {
+        href: "/patterns/decision-logs",
+        label: "Pattern: decision logs",
+      },
+    ],
+    citations: [
+      { label: "ArdaNova homepage", href: "https://ardanova.com/" },
+      { label: "ArdaNova terms of use", href: "https://ardanova.com/terms" },
+      { label: "AZOA Workflows", href: "https://azoa.ardanova.com/workflows" },
+    ],
+  },
+  {
+    slug: "separating-contribution-ledgers-from-governance-votes",
+    title: "Separating contribution logs from governance votes",
+    publishedAt: "2026-11-14",
+    description:
+      "Combining work hours, funds, and governance authority into a single scalar score invites quiet drift. Keeping Record A and Record B independent makes every downstream audit legible.",
+    related: [
+      {
+        href: "/notes/why-shared-work-breaks-between-orgs",
+        label: "Why shared work breaks between organizations",
+      },
+      {
+        href: "/notes/two-records-one-agreement",
+        label: "Two records. One agreement.",
+      },
+      {
+        href: "/patterns/two-records-one-agreement",
+        label: "Pattern: two records, one agreement",
+      },
+    ],
+    citations: [
+      { label: "ArdaNova homepage", href: "https://ardanova.com/" },
+      { label: "ArdaNova terms of use", href: "https://ardanova.com/terms" },
+      {
+        label: "International Cooperative Alliance Statement (1995)",
+        href: "https://ica.coop/en/cooperatives/cooperative-identity",
+        datePublished: "1995",
+      },
+    ],
+  },
   {
     slug: "a-record-is-not-a-right",
     title: "A record is not a right",
     publishedAt: "2026-11-09",
     description:
-      "ArdaNova will keep a record of work, of agreed value, and of decisions. That record is useful. It is not, by itself, ownership, equity, or a promise that anyone will pay you. The economy in the workspace is simulated, and the terms already say so.",
+      "Keeping a clean ledger of work, agreed value, and votes is essential for coordination—and useless unless you separate bookkeeping rows from legal title and payment promises.",
     related: [
       {
         href: "/notes/two-records-one-agreement",
@@ -48,7 +135,7 @@ export const notes = [
       { label: "ArdaNova homepage", href: "https://ardanova.com/" },
       { label: "ArdaNova terms of use", href: "https://ardanova.com/terms" },
       { label: "PrimusNeo", href: "https://primusneo.com" },
-      { label: "AZOA", href: "https://azoa.ardanova.com" },
+      { label: "AZOA Workflows", href: "https://azoa.ardanova.com/workflows" },
     ],
   },
   {
@@ -56,7 +143,7 @@ export const notes = [
     title: "Two records. One agreement.",
     publishedAt: "2026-11-09",
     description:
-      "Work and voice are easy to mash into a single score. ArdaNova keeps them as two records on purpose: what was done and how value was agreed, on one side; who was allowed to decide, and what they decided, on the other. The agreement is what binds them, not a balance.",
+      "Work logs and governance authority collapse when mashed into a single leaderboard score. Splitting Record A and Record B lets teams bind them explicitly inside readable project terms.",
     related: [
       {
         href: "/notes/a-record-is-not-a-right",
@@ -112,27 +199,28 @@ export const patterns = [
     slug: "a-record-is-not-a-right",
     title: "A record is not a right",
     headline: "A register is evidence. It is not, by itself, the right.",
-    eyebrow: "A record is not a right",
+    eyebrow: "Multi-Ledger Agreements",
+    shelf: "multi-ledger-agreements",
     indexBlurb:
-      "The Companies Act's rule on the register as evidence: a members' register is prima facie evidence of what was entered, not an unchallengeable right. A register can be evidence without, by itself, being the right.",
+      "Even a statutory register is prima facie evidence of what happened—never unchallengeable title. Keep workspace entries honest by pointing rights back to readable agreements.",
     publishedAt: "2026-11-10",
     description:
-      "A members' register is evidence of what was entered, not ownership or a payment right. A record here is not a promise to pay; the economy is simulated.",
+      "Why ledger entries and registers provide audit evidence rather than creating automatic legal ownership, equity, or payment rights.",
     related: [
       {
         href: "/patterns/two-records-one-agreement",
         label:
-          "Two records, one agreement — work is one record, voice is another, and the agreement is what binds them.",
+          "Two records, one agreement — splitting work logs from decision voice.",
       },
       {
-        href: "/patterns/decision-logs",
+        href: "/patterns/reconciling-two-ledgers-without-a-central-custodian",
         label:
-          "Decision logs — if it cannot be found later, it was not decided. It was only said.",
+          "Reconciling two ledgers without a central custodian — spotting silent drift early.",
       },
       {
         href: "/patterns/company-registers",
         label:
-          "What is a company register of members — a register is not, by itself, legal title.",
+          "What is a company register of members — distinguishing membership lists from title.",
       },
     ],
     citations: [
@@ -165,14 +253,12 @@ export const patterns = [
         datePublished: "2026-05-19",
       },
       {
-        label:
-          "ArdaNova, A record is not a right, 9 November 2026 (sibling essay, not a source of law)",
+        label: "ArdaNova, A record is not a right, 9 November 2026",
         href: "https://ardanova.com/notes/a-record-is-not-a-right",
         datePublished: "2026-11-09",
       },
       {
-        label:
-          "ArdaNova homepage (ECONOMY: SIMULATED; platform records do not automatically create legal ownership, equity, or payment rights)",
+        label: "ArdaNova homepage",
         href: "https://ardanova.com/",
       },
       {
@@ -187,27 +273,28 @@ export const patterns = [
     title: "Two records, one agreement",
     headline:
       "Work is one record. Voice is another. The agreement is what binds them.",
-    eyebrow: "Two records, one agreement",
+    eyebrow: "Multi-Ledger Agreements",
+    shelf: "multi-ledger-agreements",
     indexBlurb:
-      "ICA Principle 2: in primary cooperatives, one member, one vote; Principle 3 describes economic participation on different terms. ArdaNova is not a cooperative, so work is one record and voice is another.",
+      "When hours logged and voting influence collapse into a single point score, contributors lose track of both fairness and authority. Keep work logs and governance voice independent.",
     publishedAt: "2026-11-10",
     description:
-      "Public cooperative identity separates one-member-one-vote from economic participation. A balance is not a vote or a share. The workspace economy is simulated.",
+      "Separating contribution accounting (Record A) from governance authority (Record B) so work performed never quietly overrides agreed decision rules.",
     related: [
       {
         href: "/patterns/a-record-is-not-a-right",
         label:
-          "A record is not a right — a register is evidence, not, by itself, the right.",
+          "A record is not a right — evidence inside a database vs. rights under an agreement.",
       },
       {
-        href: "/patterns/decision-logs",
+        href: "/patterns/reconciling-two-ledgers-without-a-central-custodian",
         label:
-          "Decision logs — if it cannot be found later, it was not decided. It was only said.",
+          "Reconciling two ledgers without a central custodian — cross-org checkpoints.",
       },
       {
         href: "/patterns/articles-of-incorporation",
         label:
-          "What are articles of association — the regulations, kept distinct from the minutes and the register.",
+          "What are articles of association — rules separated from daily minutes.",
       },
     ],
     citations: [
@@ -235,15 +322,65 @@ export const patterns = [
         datePublished: "1995",
       },
       {
-        label:
-          "ArdaNova, Two records. One agreement., 9 November 2026 (sibling essay)",
+        label: "ArdaNova, Two records. One agreement., 9 November 2026",
         href: "https://ardanova.com/notes/two-records-one-agreement",
         datePublished: "2026-11-09",
       },
       {
-        label:
-          "ArdaNova homepage (Record A / Record B jacket lines; ECONOMY: SIMULATED)",
+        label: "ArdaNova homepage",
         href: "https://ardanova.com/",
+      },
+      {
+        label: "ArdaNova Terms of use, effective 10 November 2026",
+        href: termsUrl,
+        datePublished: "2026-11-10",
+      },
+    ],
+  },
+  {
+    slug: "reconciling-two-ledgers-without-a-central-custodian",
+    title: "Reconciling two ledgers without a central custodian",
+    headline:
+      "When two partner organizations keep their own books, quiet drift starts on day two.",
+    eyebrow: "Multi-Ledger Agreements",
+    shelf: "multi-ledger-agreements",
+    indexBlurb:
+      "Exported CSVs go stale the hour they leave someone's laptop. Pair immutable entry IDs, agreement references, and scheduled reconciliation checkpoints so neither side edits history silently.",
+    publishedAt: "2026-11-14",
+    description:
+      "Practical architecture for keeping two independent partner records aligned via agreement anchors, sequence numbers, and exception trails without handing single custody to one vendor.",
+    related: [
+      {
+        href: "/patterns/two-records-one-agreement",
+        label:
+          "Two records, one agreement — why work logs and decision logs stay distinct.",
+      },
+      {
+        href: "/patterns/append-only-amendments-and-retractions",
+        label:
+          "Why append-only amendments beat quiet edits — leaving visible correction trails.",
+      },
+      {
+        href: "/patterns/decision-logs",
+        label:
+          "Decision logs — recording who approved reconciliation exceptions and when.",
+      },
+    ],
+    citations: [
+      {
+        label:
+          "HM Revenue & Customs, HMRC Records and Information Collection Policy, 19 May 2026, quoting ISO 15489-1:2016",
+        href: hmrcRecordsUrl,
+        datePublished: "2026-05-19",
+      },
+      {
+        label: "ArdaNova, Why shared work breaks between organizations",
+        href: "https://ardanova.com/notes/why-shared-work-breaks-between-orgs",
+        datePublished: "2026-11-14",
+      },
+      {
+        label: "AZOA Workflow Specifications",
+        href: "https://azoa.ardanova.com/workflows",
       },
       {
         label: "ArdaNova Terms of use, effective 10 November 2026",
@@ -257,32 +394,33 @@ export const patterns = [
     title: "Decision logs",
     headline:
       "If it cannot be found later, it was not decided. It was only said.",
-    eyebrow: "Decision logs",
+    eyebrow: "Record Clarity & Minutes",
+    shelf: "record-clarity",
     indexBlurb:
-      "Official guidance already names the fields: what was decided, why, by whom, and when, including inaction and retractions. If a later person cannot find those fields, the group only said something; they did not leave a decision.",
+      "A sprint call ended three weeks ago and two leads remember different scope cutoffs. Capture date, timestamp, actor, decision, reasoning, and explicit inaction in one durable feed.",
     publishedAt: "2026-11-10",
     description:
-      "A usable decision log is contemporaneous: what was decided, why, by whom, and when, including inaction. A recorded decision here still does not move funds.",
+      "Contemporaneous decision logging: what was decided, why, by whom, and when—including explicit decisions not to act and documented reversals.",
     related: [
       {
-        href: "/patterns/a-record-is-not-a-right",
+        href: "/patterns/append-only-amendments-and-retractions",
         label:
-          "A record is not a right — a register is evidence, not, by itself, the right.",
-      },
-      {
-        href: "/patterns/two-records-one-agreement",
-        label:
-          "Two records, one agreement — work is one record, voice is another, and the agreement is what binds them.",
+          "Why append-only amendments beat quiet edits — recording reversals cleanly.",
       },
       {
         href: "/patterns/what-happened-what-was-decided",
         label:
-          "What a record is for — what happened, what was decided, and how to do things.",
+          "What a record is for — separating facts, decisions, and runbooks.",
+      },
+      {
+        href: "/patterns/readable-record",
+        label:
+          "Write a record someone else can read — passing the six-month newcomer test.",
       },
       {
         href: "/patterns/tna-section-46",
         label:
-          "The National Archives Code of Practice — guidance to public authorities, not a badge this site holds.",
+          "Public-authority record frameworks — FOIA section 46 as external contrast.",
       },
     ],
     citations: [
@@ -321,8 +459,7 @@ export const patterns = [
         datePublished: companiesActYear,
       },
       {
-        label:
-          "ArdaNova homepage (decisions stay recorded; a recorded vote does not, by itself, move funds or rewrite terms; ECONOMY: SIMULATED)",
+        label: "ArdaNova homepage",
         href: "https://ardanova.com/",
       },
       {
@@ -333,13 +470,59 @@ export const patterns = [
     ],
   },
   {
+    slug: "append-only-amendments-and-retractions",
+    title: "Why append-only amendments beat quiet edits",
+    headline:
+      "Overwriting a settled note erases why a team changed course halfway through.",
+    eyebrow: "Record Clarity & Minutes",
+    shelf: "record-clarity",
+    indexBlurb:
+      "Editing an old milestone note in place saves thirty seconds now and destroys trust during an audit. Append dated superseding entries linked to the original ID instead.",
+    publishedAt: "2026-11-14",
+    description:
+      "Why immutable revision chains and dated retraction entries preserve system history better than silent in-place document updates.",
+    related: [
+      {
+        href: "/patterns/decision-logs",
+        label:
+          "Decision logs — capturing changes and inaction contemporaneously.",
+      },
+      {
+        href: "/patterns/reconciling-two-ledgers-without-a-central-custodian",
+        label:
+          "Reconciling two ledgers without a central custodian — catching divergence.",
+      },
+      {
+        href: "/patterns/readable-record",
+        label:
+          "Write a record someone else can read — clarity for future stewards.",
+      },
+    ],
+    citations: [
+      {
+        label: "UK Health and Safety Executive, key decision log",
+        href: hseKeyDecisionLogUrl,
+      },
+      {
+        label:
+          "HMRC Records and Information Collection Policy, published 19 May 2026",
+        href: hmrcRecordsUrl,
+        datePublished: "2026-05-19",
+      },
+      {
+        label: "AZOA Workflow Specifications",
+        href: "https://azoa.ardanova.com/workflows",
+      },
+    ],
+  },
+  {
     slug: "problem-intake",
     title: "Problem intake",
     headline: "Problem intake",
-    eyebrow: "2026-11-10 · Escherbridge",
+    eyebrow: "Shared Workspace Pattern",
     publishedAt: "2026-11-10",
     description:
-      "A problem is described before a plan is made. Describing it is not a payment. The economy in this workspace is simulated.",
+      "Start with a crisp statement of the problem and who it affects before inventing metrics, milestones, or funding scopes.",
     related: [
       {
         href: "/patterns/decision-logs",
@@ -355,43 +538,34 @@ export const patterns = [
   {
     slug: "directors-minutes",
     title: "Directors' meeting minutes",
-    headline: "Directors' meeting minutes",
-    eyebrow: "Directors' minutes",
+    headline: "Board and director meeting minutes belong in one durable file",
+    eyebrow: "Membership & Resolutions",
+    shelf: "membership-resolutions",
     indexBlurb:
-      "Companies Act 2006, s.248: minutes of all proceedings at directors' meetings, kept for at least ten years from the date of the meeting. If no minute was recorded, the official record of that meeting does not yet exist.",
+      "When directors sign off in conversation and forget the minute book, there is no institutional trace years later. See how long statutory standards expect boards to retain minutes.",
     publishedAt: "2026-11-10",
     description:
-      "The Companies Act 2006 requires minutes of all directors' meetings, kept for at least ten years. This guide covers that official duty. Not legal advice.",
+      "Why boards record proceedings and preserve meeting minutes across a ten-year baseline, and how shared workspaces mirror that discipline without impersonating statutory filings.",
     related: [
       {
         href: "/patterns/records-of-resolutions",
         label:
-          "Records of resolutions and general meetings — the members' and general-meeting record, kept for at least ten years.",
+          "Records of resolutions and general meetings — member votes kept separately from board proceedings.",
       },
       {
         href: "/patterns/what-belongs-in-the-minutes",
         label:
-          "What belongs in the minutes — date, time, who was there, and what was decided.",
+          "What belongs in the minutes — date, time, attendees, and exact outcome.",
       },
       {
         href: "/patterns/decision-logs",
         label:
-          "Decision logs — a contemporaneous record of what was decided, why, by whom, and when.",
+          "Decision logs — day-to-day operational traceability between board meetings.",
       },
       {
         href: "/patterns/articles-of-incorporation",
         label:
-          "What are articles of association — the document that prescribes how the company is run.",
-      },
-      {
-        href: "/patterns/company-registers",
-        label:
-          "What is a company register of members — the register is not the minutes.",
-      },
-      {
-        href: "/patterns/sole-member-decisions",
-        label:
-          "Records of decisions by a sole member — details still have to be given to the company.",
+          "What are articles of association — rules prescribing authority vs. individual meeting notes.",
       },
     ],
     citations: [
@@ -405,38 +579,34 @@ export const patterns = [
   {
     slug: "records-of-resolutions",
     title: "Records of resolutions and general meetings",
-    headline: "Records of resolutions and general meetings",
-    eyebrow: "Records of resolutions",
+    headline: "Written resolutions and member votes leave a three-part trail",
+    eyebrow: "Membership & Resolutions",
+    shelf: "membership-resolutions",
     indexBlurb:
-      "Companies Act 2006, s.355: copies of members' written resolutions, minutes of general meetings, and sole-member decisions, kept for at least ten years from the relevant date.",
+      "Async member sign-offs scattered in email threads vanish quickly. Group written resolutions, general meeting minutes, and sole-member decisions into one addressable archive.",
     publishedAt: "2026-11-10",
     description:
-      "The Companies Act 2006 requires records of written resolutions, general-meeting minutes, and sole-member decisions, kept at least ten years. Not legal advice.",
+      "Keeping written resolutions, general meeting minutes, and sole-member decisions distinct from board chatter and ephemeral notifications.",
     related: [
       {
         href: "/patterns/directors-minutes",
         label:
-          "Directors' meeting minutes — minutes of all directors' proceedings, kept for at least ten years.",
+          "Directors' meeting minutes — board-level proceedings tracked alongside member votes.",
       },
       {
         href: "/patterns/what-belongs-in-the-minutes",
         label:
-          "What belongs in the minutes — date, time, who, and what was decided.",
+          "What belongs in the minutes — minimum fields for reproducible notes.",
       },
       {
         href: "/patterns/two-records-one-agreement",
         label:
-          "Two records. One agreement. — a recorded interest is still not, by itself, a right.",
+          "Two records. One agreement. — separating voice logs from economic units.",
       },
       {
         href: "/patterns/sole-member-decisions",
         label:
-          "Records of decisions by a sole member — the companion when there is only one member.",
-      },
-      {
-        href: "/patterns/articles-of-incorporation",
-        label:
-          "What are articles of association — not the minutes and not the register.",
+          "Records of decisions by a sole member — why single stewards still log decisions.",
       },
     ],
     citations: [
@@ -451,33 +621,34 @@ export const patterns = [
     slug: "what-belongs-in-the-minutes",
     title: "What belongs in the minutes: date, time, who, and what was decided",
     headline:
-      "What belongs in the minutes: date, time, who, and what was decided",
-    eyebrow: "What belongs in the minutes",
+      "Four fields every meeting note needs before anyone forgets the call",
+    eyebrow: "Record Clarity & Minutes",
+    shelf: "record-clarity",
     indexBlurb:
-      "UK Private Office guidance, published 29 December 2023: record the date, the time, who took part, and the decisions, including when the exchange happened on a non-corporate channel.",
+      "A doc that reads 'aligned on next steps' is worthless three sprints later. Capture date, timestamp, attendees, format, and the literal decision made.",
     publishedAt: "2026-11-10",
     description:
-      "UK Private Office guidance says a meeting record should capture the date, time, who was there, and the decisions. This guide covers that official list.",
+      "A minimal checklist for meeting notes—date, time, participants, medium, and outcome—drawn from real operational records practice.",
     related: [
       {
         href: "/patterns/informal-channels",
         label:
-          "Decisions on informal channels — if it happened in the chat, the record still has to say so.",
+          "Decisions on informal channels — moving chat sign-offs into the permanent log.",
       },
       {
         href: "/patterns/readable-record",
         label:
-          "Write a record someone else can read — contemporaneous, reasoned, dated, and readable later.",
+          "Write a record someone else can read — writing for future maintainers.",
       },
       {
         href: "/patterns/decision-logs",
         label:
-          "Decision logs — the pattern sibling this practice page complements, and does not rewrite.",
+          "Decision logs — tracking scope choices and explicit inaction together.",
       },
       {
         href: "/patterns/what-happened-what-was-decided",
         label:
-          "What a record is for — what happened, what was decided, and how to do things.",
+          "What a record is for — facts, outcomes, and actionable procedures.",
       },
     ],
     citations: [
@@ -498,37 +669,34 @@ export const patterns = [
   {
     slug: "readable-record",
     title: "Write a record someone else can read",
-    headline: "Write a record someone else can read",
-    eyebrow: "A readable record",
+    headline:
+      "Write every decision record for the engineer joining six months after you ship",
+    eyebrow: "Record Clarity & Minutes",
+    shelf: "record-clarity",
     indexBlurb:
-      "UK HSE key-decision-log practice: contemporaneous, with reasons, dated and timed, including inaction and retractions, and readable by someone who was not in the room.",
+      "Cryptic notes like 'same as Tuesday, JD to handle' make sense only to two people in one timezone. Record explicit reasoning, timing, and decisions not to act.",
     publishedAt: "2026-11-10",
     description:
-      "UK HSE key-decision-log practice is contemporaneous, reasoned, dated, and readable by someone who was not in the room. This guide covers that habit.",
+      "Designing decision records that stay self-contained, timestamped, reasoned, and understandable to operators who were never in the room.",
     related: [
       {
         href: "/patterns/what-belongs-in-the-minutes",
         label:
-          "What belongs in the minutes — date, time, who was there, and what was decided.",
+          "What belongs in the minutes — capturing essential date and attendance metadata.",
       },
       {
         href: "/patterns/informal-channels",
         label:
-          "Decisions on informal channels — the channel does not retire the duty to have a record.",
+          "Decisions on informal channels — pulling side-channel outcomes back into main logs.",
       },
       {
         href: "/patterns/decision-logs",
-        label: "Decision logs — the pattern sibling.",
+        label: "Decision logs — building a single searchable trail.",
       },
       {
-        href: "/patterns/what-happened-what-was-decided",
+        href: "/patterns/append-only-amendments-and-retractions",
         label:
-          "What a record is for — what happened, what was decided, and how to do things.",
-      },
-      {
-        href: "/patterns/tna-section-46",
-        label:
-          "The National Archives Code of Practice — official guidance to public authorities, not a product badge.",
+          "Why append-only amendments beat quiet edits — recording reversals cleanly.",
       },
     ],
     citations: [
@@ -541,28 +709,29 @@ export const patterns = [
   {
     slug: "informal-channels",
     title: "Decisions on informal channels still need a record",
-    headline: "Decisions on informal channels still need a record",
-    eyebrow: "Informal channels",
+    headline: "A thumbs-up in chat does not stay recoverable six months later",
+    eyebrow: "Record Clarity & Minutes",
+    shelf: "record-clarity",
     indexBlurb:
-      "Private Office guidance, published 29 December 2023, does not treat a non-corporate channel as a place official business can happen without a record. If the decision was taken there, write it down.",
+      "Real product and governance decisions routinely happen in DMs, voice huddles, and Slack threads. Move the outcome into the project log right away without turning chat into surveillance.",
     publishedAt: "2026-11-10",
     description:
-      "Private Office guidance does not treat a non-corporate channel as a place official business can happen without a record. If it happened there, write it down.",
+      "How engineering and co-op teams mirror outcomes from ephemeral messaging apps into permanent decision logs cleanly.",
     related: [
       {
         href: "/patterns/what-belongs-in-the-minutes",
         label:
-          "What belongs in the minutes — date, time, who, and what was decided.",
+          "What belongs in the minutes — recording channel, date, participants, and outcome.",
       },
       {
         href: "/patterns/directors-minutes",
         label:
-          "Directors' meeting minutes — the directors' statutory record, with no informal-tool exception invented here.",
+          "Directors' meeting minutes — why informal tools never excuse missing board notes.",
       },
       {
         href: "/patterns/readable-record",
         label:
-          "Write a record someone else can read — contemporaneous, reasoned, and readable later.",
+          "Write a record someone else can read — giving future readers the missing context.",
       },
     ],
     citations: [
@@ -587,32 +756,34 @@ export const patterns = [
   {
     slug: "what-happened-what-was-decided",
     title: "What a record is for: what happened, what was decided",
-    headline: "What a record is for: what happened, what was decided",
-    eyebrow: "What a record is for",
+    headline:
+      "A noisy chat dump is not a record unless it answers three plain questions",
+    eyebrow: "Record Clarity & Minutes",
+    shelf: "record-clarity",
     indexBlurb:
-      "HMRC, quoting ISO 15489-1:2016 on 19 May 2026, says it creates records to provide information about what happened, what was decided, and how to do things. The word on that page is “systemic.”",
+      "Storing raw logs without structure confuses volume with accountability. A working record captures what happened, what was decided, and how to execute next.",
     publishedAt: "2026-11-10",
     description:
-      "HMRC, quoting ISO 15489-1:2016, defines a record as evidence in the transaction of business: what happened, what was decided, and how to do things.",
+      "Separating noise from evidence: structuring workspace records around events, decisions, and repeatable operational runbooks.",
     related: [
       {
         href: "/patterns/what-belongs-in-the-minutes",
         label:
-          "What belongs in the minutes — date, time, who was there, and what was decided.",
+          "What belongs in the minutes — capturing actors, time, and decisions cleanly.",
       },
       {
         href: "/patterns/decision-logs",
-        label: "Decision logs — the pattern sibling.",
+        label: "Decision logs — making project choices auditable.",
       },
       {
         href: "/patterns/tna-section-46",
         label:
-          "The National Archives Code of Practice on managing records — official guidance to public authorities, not a product badge.",
+          "Public-authority record frameworks — value, integrity, and accountability in practice.",
       },
       {
         href: "/patterns/readable-record",
         label:
-          "Write a record someone else can read — a later reader who was not in the room.",
+          "Write a record someone else can read — clarity across handoffs.",
       },
     ],
     citations: [
@@ -627,27 +798,29 @@ export const patterns = [
   {
     slug: "tna-section-46",
     title: "The National Archives Code of Practice on managing records",
-    headline: "The National Archives Code of Practice on managing records",
-    eyebrow: "The National Archives Code of Practice",
+    headline:
+      "What public-sector record standards teach teams about keeping only what counts",
+    eyebrow: "Membership & Resolutions",
+    shelf: "membership-resolutions",
     indexBlurb:
-      "The National Archives' July 2021 Code, issued under FOIA section 46, guides relevant authorities on keeping, managing and destroying records. ISBN 978-1-5286-2517-3. It is not a badge this site holds.",
+      "Not every file or chat ping belongs in long-term storage. Examines how FOIA section 46 guidance anchors retention around value, integrity, and accountability.",
     publishedAt: "2026-11-10",
     description:
-      "The National Archives' 2021 Code under FOIA section 46 guides public authorities on keeping, managing and destroying records. It is not a badge this site holds.",
+      "Lessons for builders from The National Archives Code of Practice: distinguishing actionable records from ephemeral messages via value, integrity, and accountability.",
     related: [
       {
         href: "/patterns/what-happened-what-was-decided",
         label:
-          "What a record is for — what happened, what was decided, and how to do things.",
+          "What a record is for — structuring evidence around events and choices.",
       },
       {
         href: "/patterns/decision-logs",
-        label: "Decision logs — the pattern sibling.",
+        label: "Decision logs — keeping reasoning reachable.",
       },
       {
         href: "/patterns/readable-record",
         label:
-          "Write a record someone else can read — a later reader who was not in the room.",
+          "Write a record someone else can read — clarity for future stewards.",
       },
     ],
     citations: [
@@ -667,33 +840,34 @@ export const patterns = [
   {
     slug: "articles-of-incorporation",
     title: "What are articles of association",
-    headline: "What are articles of association",
-    eyebrow: "Articles of association",
+    headline:
+      "Standing rules, daily minutes, and membership lists do not belong in the same bucket",
+    eyebrow: "Membership & Resolutions",
+    shelf: "membership-resolutions",
     indexBlurb:
-      "Companies Act 2006, s.18: a company must have articles of association prescribing regulations for the company. They are not the minutes, and they are not a register of members.",
+      "Constitutional rules govern how an organization can act; minutes record what happened Tuesday; registers list who joined. Keep these three artifacts clearly separated.",
     publishedAt: "2026-11-10",
     description:
-      "Under the Companies Act 2006, a company must have articles of association. They prescribe how the company is run. They are not minutes or a register of members.",
+      "Distinguishing standing governance articles from daily meeting minutes and membership registers in shared-work architectures.",
     related: [
       {
         href: "/patterns/company-registers",
         label:
-          "What is a company register of members — the register is not the minute book.",
+          "What is a company register of members — separating participant rosters from bylaws.",
       },
       {
         href: "/patterns/directors-minutes",
         label:
-          "Directors' meeting minutes — minutes of all directors' meetings, kept for at least ten years.",
+          "Directors' meeting minutes — tracking board-level operations over time.",
       },
       {
         href: "/patterns/records-of-resolutions",
         label:
-          "Records of resolutions and general meetings — the record of resolutions is a separate duty.",
+          "Records of resolutions and general meetings — member-level approvals.",
       },
       {
         href: "/patterns/two-records-one-agreement",
-        label:
-          "Two records, one agreement — two records that have to stay aligned.",
+        label: "Two records, one agreement — binding execution terms cleanly.",
       },
     ],
     citations: [
@@ -722,33 +896,35 @@ export const patterns = [
   {
     slug: "company-registers",
     title: "What is a company register of members",
-    headline: "What is a company register of members",
-    eyebrow: "Register of members",
+    headline:
+      "A participant roster and a decision minute book solve completely different bugs",
+    eyebrow: "Membership & Resolutions",
+    shelf: "membership-resolutions",
     indexBlurb:
-      "Companies Act 2006, s.113: every company must keep a register of its members. That register is not the minutes of directors' meetings, and it is not the record of resolutions.",
+      "Trying to extract who joined, who left, and who voted from a giant chronological thread always fails under pressure. Maintain an explicit member register alongside the minute log.",
     publishedAt: "2026-11-10",
     description:
-      "Every company must keep a register of its members. That register is not the minutes of directors' meetings, and it is not the record of resolutions.",
+      "Why membership rosters track start/end dates separately from meeting minutes and economic balances.",
     related: [
       {
         href: "/patterns/articles-of-incorporation",
         label:
-          "What are articles of association — the document that prescribes how the company is run.",
+          "What are articles of association — rules separated from member lists.",
       },
       {
         href: "/patterns/directors-minutes",
         label:
-          "Directors' meeting minutes — minutes of all directors' meetings.",
+          "Directors' meeting minutes — tracking leadership decisions separately.",
       },
       {
         href: "/patterns/records-of-resolutions",
         label:
-          "Records of resolutions and general meetings — the record of resolutions is a separate duty.",
+          "Records of resolutions and general meetings — preserving formal approvals.",
       },
       {
         href: "/patterns/a-record-is-not-a-right",
         label:
-          "A record is not a right — a platform record is not, by itself, legal title.",
+          "A record is not a right — evidence of membership vs. enforceable title.",
       },
     ],
     citations: [
@@ -767,28 +943,29 @@ export const patterns = [
   {
     slug: "sole-member-decisions",
     title: "Records of decisions by a sole member",
-    headline: "Records of decisions by a sole member",
-    eyebrow: "Sole-member decisions",
+    headline:
+      "Working alone does not remove the need to write down key project decisions",
+    eyebrow: "Membership & Resolutions",
+    shelf: "membership-resolutions",
     indexBlurb:
-      "Companies Act 2006, s.357: a sole member must give the company details of a decision that has effect as if agreed in general meeting, unless it was a written resolution. The summary fine on the opened page is level 2 on the standard scale.",
+      "Solo maintainers skip notes because nobody disagreed—until six months later when a partner joins or a dispute arrives. Capture single-steward calls explicitly in the record.",
     publishedAt: "2026-11-10",
     description:
-      "A sole member must still give the company details of a decision that has effect as if agreed in general meeting, unless it was a written resolution.",
+      "Why decisions taken by a single steward or sole member still belong in the written project record, backed by statutory contrast.",
     related: [
       {
         href: "/patterns/records-of-resolutions",
         label:
-          "Records of resolutions and general meetings — the broader duty to keep records of resolutions.",
+          "Records of resolutions and general meetings — full approval trails.",
       },
       {
         href: "/patterns/directors-minutes",
-        label:
-          "Directors' meeting minutes — minutes of all directors' meetings.",
+        label: "Directors' meeting minutes — multi-party meeting records.",
       },
       {
         href: "/patterns/company-registers",
         label:
-          "What is a company register of members — the register is not the minute book.",
+          "What is a company register of members — tracking active stewards over time.",
       },
     ],
     citations: [

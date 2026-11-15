@@ -157,24 +157,28 @@ export default async function Home() {
 
                 <div className="grid gap-8 border-t border-black/70 pt-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
                   <div className="max-w-2xl">
-                    <p className="text-brand-signal-deep font-mono text-xs font-semibold tracking-[0.16em]">
-                      ECONOMY: SIMULATED
+                    <p className="text-brand-signal-deep font-mono text-xs font-semibold tracking-[0.16em] uppercase">
+                      Shared Ledgers · Record A / Record B
                     </p>
                     <p className="mt-4 text-lg leading-relaxed md:text-xl">
-                      People who find a problem fund it, build it, and share in
-                      what it becomes, on agreed terms. The economy in this
-                      workspace is simulated. Platform records do not
-                      automatically create legal ownership, equity, or payment
-                      rights.
+                      Define a shared problem, keep work logs separate from
+                      governance decisions, and bind both to explicit terms
+                      teams can inspect six months later.
                     </p>
-                    <p className="mt-4 text-sm leading-relaxed">
+                    <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm leading-relaxed">
+                      <Link
+                        className="underline underline-offset-4"
+                        href="/patterns"
+                      >
+                        Read the fifteen architecture patterns
+                      </Link>
+                      <span aria-hidden="true">·</span>
                       <a
                         className="underline underline-offset-4"
                         href="https://primusneo.com"
                       >
-                        PrimusNeo, the lab whose stack this workspace belongs to
+                        Part of the PrimusNeo engineering stack
                       </a>
-                      .
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-3">
@@ -186,6 +190,9 @@ export default async function Home() {
                     </Button>
                     <Button asChild size="lg" variant="outline">
                       <Link href={projectsHref}>Discover projects</Link>
+                    </Button>
+                    <Button asChild size="lg" variant="outline">
+                      <Link href="/patterns">Pattern library</Link>
                     </Button>
                   </div>
                 </div>
@@ -309,26 +316,33 @@ export default async function Home() {
               </div>
 
               <div className="grid gap-5 border-x border-b border-black/70 p-6 md:grid-cols-[auto_1fr] md:items-center md:p-8">
-                <Badge variant="warning">Important distinction</Badge>
+                <Badge variant="warning">Sandbox &amp; legal boundary</Badge>
                 <div className="text-muted-foreground max-w-4xl space-y-3 text-sm leading-relaxed">
                   <p>
-                    The economy on this workspace is simulated. Balances, unit
-                    counts, and funding records are bookkeeping inside the
-                    workspace, not a payment and not a transfer of property.
-                    Platform records do not automatically create legal
-                    ownership, equity, or payment rights. Project agreements,
-                    participant review, and applicable law determine their
+                    <strong className="text-foreground font-mono">
+                      Sandbox / Demo Environment (ECONOMY: SIMULATED):
+                    </strong>{" "}
+                    Balances, unit counts, and funding records are bookkeeping
+                    inside the workspace, not a payment and not a transfer of
+                    property. Platform records do not automatically create legal
+                    ownership, equity, or payment rights—project agreements,
+                    participant review, and governing Idaho law determine their
                     effect. A recorded vote does not, by itself, move funds,
                     change who is a member, or rewrite a project&apos;s terms.
                   </p>
-                  <p>
+                  <p className="flex flex-wrap gap-x-4 gap-y-1">
+                    <Link
+                      className="underline underline-offset-4"
+                      href="/patterns/a-record-is-not-a-right"
+                    >
+                      Pattern: A record is not a right
+                    </Link>
                     <a
                       className="underline underline-offset-4"
-                      href="https://azoa.ardanova.com"
+                      href="https://azoa.ardanova.com/workflows"
                     >
-                      AZOA, the planned workflow engine, also still a simulation
+                      Inspect workflow execution on AZOA
                     </a>
-                    .
                   </p>
                 </div>
               </div>
@@ -378,16 +392,26 @@ export default async function Home() {
               <h2 className="max-w-5xl text-4xl leading-[0.88] font-black tracking-[-0.06em] break-words uppercase sm:text-5xl md:text-8xl">
                 Problems are not in short supply.
               </h2>
-              <Button
-                asChild
-                className="border-brand-ink bg-brand-ink text-brand-paper hover:bg-brand-ink-hover"
-                size="xl"
-              >
-                <Link href={session ? workspaceHref : signupHref}>
-                  {session ? "Continue the work" : "Start with a problem"}
-                  <ArrowRight aria-hidden="true" />
-                </Link>
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  asChild
+                  className="border-brand-ink bg-brand-ink text-brand-paper hover:bg-brand-ink-hover"
+                  size="xl"
+                >
+                  <Link href={session ? workspaceHref : signupHref}>
+                    {session ? "Continue the work" : "Start with a problem"}
+                    <ArrowRight aria-hidden="true" />
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  className="border-brand-ink bg-brand-paper text-brand-ink hover:bg-brand-paper-bright"
+                  size="xl"
+                  variant="outline"
+                >
+                  <Link href="/patterns">Explore patterns</Link>
+                </Button>
+              </div>
             </div>
           </section>
         </main>

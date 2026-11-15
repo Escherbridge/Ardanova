@@ -75,10 +75,21 @@ export default async function PatternPage({
           { href: `/patterns/${pattern.slug}`, label: pattern.title },
         ]}
       >
+        <p className="mb-2">
+          <Link
+            className="inline-flex min-h-11 items-center font-mono text-xs font-semibold tracking-[0.12em] uppercase underline underline-offset-4"
+            href="/patterns"
+          >
+            ← All pattern guides
+          </Link>
+        </p>
         <PatternBody slug={slug} />
         <p>
-          <Link className="underline underline-offset-4" href="/patterns">
-            Back to patterns
+          <Link
+            className="inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
+            href="/patterns"
+          >
+            ← Back to pattern library
           </Link>
         </p>
       </NotesShell>

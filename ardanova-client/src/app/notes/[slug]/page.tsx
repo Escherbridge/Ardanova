@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { JsonLd } from "~/components/brand/json-ld";
 import { NotesShell } from "~/components/brand/notes-shell";
 import { RelatedLinks } from "~/components/brand/related-links";
 import { SimulationNotice } from "~/components/brand/simulation-notice";
+import { WorkspaceFunnelGate } from "~/components/brand/WorkspaceFunnelGate";
 import { publicPageMetadata } from "~/lib/page-metadata";
 import { articleSchema, breadcrumbList } from "~/lib/schema";
 import { noteBySlug, noteCanonical, notes } from "~/lib/writing";
@@ -68,9 +70,18 @@ export default async function NotePage({
           { href: `/notes/${note.slug}`, label: note.title },
         ]}
       >
-        <SimulationNotice />
+        <p className="mb-2">
+          <Link
+            className="inline-flex min-h-11 items-center font-mono text-xs font-semibold tracking-[0.12em] uppercase underline underline-offset-4"
+            href="/notes"
+          >
+            ← All engineering notes
+          </Link>
+        </p>
         <NoteBody slug={note.slug} />
-        <RelatedLinks items={note.related} />
+        <RelatedLinks heading="Also worth reading" items={note.related} />
+        <WorkspaceFunnelGate surface="note-detail" />
+        <SimulationNotice includeAzoa includeLegalAdvice />
       </NotesShell>
     </>
   );

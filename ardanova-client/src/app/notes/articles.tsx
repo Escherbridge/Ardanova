@@ -1,10 +1,18 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 import { type NoteSlug } from "~/lib/writing";
 
 export { noteBySlug, noteCanonical, notes } from "~/lib/writing";
 
 function FollowLink({ href, children }: { href: string; children: string }) {
+  if (href.startsWith("/")) {
+    return (
+      <Link className="underline underline-offset-4" href={href}>
+        {children}
+      </Link>
+    );
+  }
   return (
     <a className="underline underline-offset-4" href={href}>
       {children}
@@ -18,9 +26,9 @@ function Sources({
   items: readonly { label: string; href: string }[];
 }) {
   return (
-    <section className="space-y-2">
-      <h2 className="text-xl">Sources</h2>
-      <ul className="space-y-1">
+    <section className="space-y-2 border-t border-black/30 pt-5">
+      <h2 className="text-xl font-bold tracking-[-0.015em]">Sources</h2>
+      <ul className="text-muted-foreground space-y-1 text-sm">
         {items.map((item) => (
           <li key={item.href}>
             <FollowLink href={item.href}>{item.label}</FollowLink>
@@ -31,15 +39,38 @@ function Sources({
   );
 }
 
+const sharedBreakSources = [
+  { label: "ArdaNova pattern library", href: "https://ardanova.com/patterns" },
+  {
+    label: "Reconciling two ledgers without a central custodian",
+    href: "https://ardanova.com/patterns/reconciling-two-ledgers-without-a-central-custodian",
+  },
+  {
+    label: "AZOA workflow specifications",
+    href: "https://azoa.ardanova.com/workflows",
+  },
+  { label: "ArdaNova terms of use", href: "https://ardanova.com/terms" },
+] as const;
+
+const governanceSplitSources = [
+  { label: "ArdaNova homepage", href: "https://ardanova.com" },
+  {
+    label: "Pattern: two records, one agreement",
+    href: "https://ardanova.com/patterns/two-records-one-agreement",
+  },
+  {
+    label: "ICA Statement on the Cooperative Identity (1995)",
+    href: "https://ica.coop/en/cooperatives/cooperative-identity",
+  },
+  { label: "ArdaNova terms of use", href: "https://ardanova.com/terms" },
+] as const;
+
 const recordSources = [
   { label: "ArdaNova homepage", href: "https://ardanova.com" },
   { label: "ArdaNova terms of use", href: "https://ardanova.com/terms" },
-  {
-    label: "ArdaNova BFF health (economy: simulated)",
-    href: "https://ardanova-bff-production.up.railway.app/health",
-  },
   { label: "PrimusNeo", href: "https://primusneo.com" },
   { label: "AZOA", href: "https://azoa.ardanova.com" },
+  { label: "AZOA Workflows", href: "https://azoa.ardanova.com/workflows" },
 ] as const;
 
 const agreementSources = [
@@ -49,139 +80,191 @@ const agreementSources = [
 ] as const;
 
 const bodies: Record<NoteSlug, () => ReactNode> = {
+  "why-shared-work-breaks-between-orgs": () => (
+    <>
+      <p className="text-lg leading-relaxed">
+        When two organizations team up on a joint build, nobody starts expecting
+        a dispute over spreadsheets. Week one opens cleanly with shared repos, a
+        Slack channel, and a friendly milestone estimate. Yet by week six, half
+        of every sync disappears into reconciling different copies of who
+        approved a change, why a deliverable split in two, and which doc
+        actually holds the agreed baseline.
+      </p>
+      <p>
+        Multi-org projects break less often from malice than from a structural
+        missing piece: nobody owns a single place where work logs, decisions,
+        and governing terms refer to the same immutable identifiers.
+      </p>
+      <h2 className="pt-2 text-xl font-bold tracking-[-0.015em]">
+        Three silent failure modes across organizational boundaries
+      </h2>
+      <p>
+        First, <strong>decisions get stranded inside chat channels</strong>. A
+        team lead agrees to shift acceptance tests in a Friday DM, updates a
+        ticket label, and forgets that the partner&apos;s project manager
+        wasn&apos;t tagged. Three weeks later, each organization operates from
+        opposite definitions of done.
+      </p>
+      <p>
+        Second, <strong>milestones get edited in place</strong>. Trying to keep
+        a spec clean by overwriting old bullet points destroys why a rule
+        changed mid-flight. Newcomers see today&apos;s wording with zero trace
+        of the compromises underneath it.
+      </p>
+      <p>
+        Third, <strong>work accounting bleeds into decision power</strong>.
+        Without separating effort tracked (Record A) from formal sign-offs
+        (Record B), whoever holds the loudest status spreadsheet begins acting
+        as though their tally decides governance outcomes too.
+      </p>
+      <h2 className="pt-2 text-xl font-bold tracking-[-0.015em]">
+        Designing clean handoffs between partner ledgers
+      </h2>
+      <p>
+        Keeping independent teams aligned starts with small habits baked into
+        shared workspace records: attach every deliverable log to an explicit
+        agreement ID, treat amendments as appended superseding entries rather
+        than quiet overwrites, and pair agreement records with idempotent
+        handoff steps like those explored in{" "}
+        <FollowLink href="https://azoa.ardanova.com/workflows">
+          AZOA workflows
+        </FollowLink>
+        . See our detailed walkthrough in{" "}
+        <FollowLink href="/patterns/reconciling-two-ledgers-without-a-central-custodian">
+          reconciling two ledgers without a central custodian
+        </FollowLink>{" "}
+        and{" "}
+        <FollowLink href="/patterns/append-only-amendments-and-retractions">
+          append-only amendments
+        </FollowLink>
+        .
+      </p>
+      <Sources items={sharedBreakSources} />
+    </>
+  ),
+  "separating-contribution-ledgers-from-governance-votes": () => (
+    <>
+      <p className="text-lg leading-relaxed">
+        Every time a community tool tries inventing a single universal score for
+        participation, the same quiet drift sets in. A team starts counting pull
+        requests, support hours, or contributed funds into one weighted balance,
+        and before long uses that single score for everything from quarterly
+        allocations to voting weight.
+      </p>
+      <p>
+        Merging economic tracking and governance voice feels sleek in a product
+        demo, but breaks trust under real pressure. If logging extra hours
+        multiplies governance say, big time-banks squeeze out cautious
+        reviewers. Conversely, if a quick simple majority vote directly rewrites
+        historical effort ledgers, contributors stop logging work openly.
+      </p>
+      <h2 className="pt-2 text-xl font-bold tracking-[-0.015em]">
+        Two orthogonal planes, one readable contract
+      </h2>
+      <p>
+        ArdaNova models collaboration as two independent ledgers tied cleanly to
+        shared problem agreements:
+      </p>
+      <ul className="list-disc space-y-2 pl-5">
+        <li>
+          <strong>Record A (Work &amp; value):</strong> Keeps task outcomes,
+          agreed unit allocations, and reconciliation checkpoints visible across
+          participants.
+        </li>
+        <li>
+          <strong>Record B (Voice &amp; permissions):</strong> Keeps proposals,
+          quorum rules, delegated roles, and recorded approvals distinct from
+          unit balances.
+        </li>
+      </ul>
+      <p>
+        Cooperative governance principles nailed this distinction long before
+        distributed software existed: primary cooperatives protect equal member
+        voice independently of capital contributions so external funding never
+        silently captures governance. Our{" "}
+        <FollowLink href="/patterns/two-records-one-agreement">
+          two records, one agreement
+        </FollowLink>{" "}
+        and{" "}
+        <FollowLink href="/patterns/decision-logs">decision logs</FollowLink>{" "}
+        patterns break down how to structure both data models cleanly while
+        keeping legal rights anchored strictly in signed agreements.
+      </p>
+      <Sources items={governanceSplitSources} />
+    </>
+  ),
   "a-record-is-not-a-right": () => (
     <>
-      <p>
-        People who do work together often want the same sentence at the end of
-        the week: that the work will count, and that what it counted for will
-        still be there when the week is forgotten. Software is very good at
-        offering a costume of that sentence. A balance appears. A unit is
-        allocated. A profile shows a share. The costume is comforting, and it is
-        the beginning of a lot of confusion, because a row in a database is not
-        a right unless something outside the database says it is.
+      <p className="text-lg leading-relaxed">
+        Teams working together across org boundaries usually want one simple
+        promise at the end of a sprint: that logged work actually counts, and
+        the agreement behind it will still hold six months after details fade
+        from memory. Software makes that desire dangerously easy to fake—put a
+        balance on a screen, assign a unit tally, display a percentage badge,
+        and everyone feels covered until a real dispute lands.
       </p>
       <p>
-        ArdaNova is a workspace for describing a problem, coordinating work on
-        it, and keeping records of decisions and activity. It belongs to the{" "}
-        <FollowLink href="https://primusneo.com">PrimusNeo</FollowLink> stack,
-        and it is offered here as its own product. The marketing line is already
-        on the homepage: find a problem, fund it, build it, share in what it
-        becomes, on agreed terms. That line is doing a lot of work, and it is
-        only safe if the next line travels with it. Platform records do not
-        automatically create legal ownership, equity, or payment rights. Project
-        agreements, participant review, and applicable law determine their
-        effect. The terms of use, published by Escherbridge, LLC and effective
-        10 November 2026, repeat the same idea in a slightly drier voice: a
-        record here is not a promise that anyone will pay you, and it does not
-        transfer property.
+        Yet a database row is never a right on its own unless an external
+        enforceable contract or applicable law backs it up. ArdaNova separates
+        coordination from legal overreach right at the architecture layer: it
+        gives builders a clean problem space for recording deliverables, agreed
+        allocations, and decision trails while stating explicitly where records
+        stop and formal agreements begin.
       </p>
       <p>
-        The deployed service is also, today, a simulation. So is{" "}
-        <FollowLink href="https://azoa.ardanova.com">AZOA</FollowLink>, the
-        planned workflow engine in the same stack; this workspace does not treat
-        it as live settlement. The API health check reports{" "}
-        <code>economy: simulated</code>. The terms are explicit about what that
-        means. Balances, unit counts, and funding records are bookkeeping inside
-        the workspace. Selling units and sending money to a bank stay
-        unavailable unless a deployment offers those steps. Ending a holding
-        period on a record does not pay anyone. A recorded vote does not, by
-        itself, move funds, change who is a member, or rewrite a project&apos;s
-        terms. Those sentences should not live only on the terms page. They
-        should sit next to &quot;Fund it,&quot; because &quot;Fund it&quot; is
-        the phrase a hurried reader will remember.
+        Even inside the{" "}
+        <FollowLink href="https://primusneo.com">PrimusNeo</FollowLink> stack
+        alongside companion workflow engine{" "}
+        <FollowLink href="https://azoa.ardanova.com/workflows">AZOA</FollowLink>
+        , hosted platform tallies stay strictly inside workspace
+        bookkeeping—they never claim to move bank funds automatically or
+        substitute for executed agreements governed by Idaho law and reviewed
+        directly by the participants involved.
       </p>
       <p>
-        This is not a refusal to take records seriously. It is the condition
-        under which they are worth keeping. A record of work performed, of
-        agreed value, of allocation logic, of a proposal and its outcome, is
-        useful when a group later disagrees, or when someone new arrives and
-        asks what was already decided. It is more useful if it has not been
-        asked to masquerade as a share certificate. Rights stay explicit:
-        ownership and decision authority come from documented terms, never from
-        activity, membership, or a balance alone. That line is already in the
-        Trust section. It should remain harder to delete than a slogan about
-        owning what you build.
-      </p>
-      <p>
-        &quot;Own what you build&quot; is a desire, and it is a fine desire. It
-        is not a transactional claim this workspace can honour by writing a
-        number on a profile. Using it as a headline, a button, or a share image
-        would be a shortcut, and the shortcut would be at the expense of the
-        people the workspace is supposed to protect — the same people who are
-        asked to start with the problem, make a plan others can check, and, if
-        the plan fails, stop.
-      </p>
-      <p>
-        ArdaNova is operated by Escherbridge, LLC in Boise, Idaho. The terms are
-        governed by Idaho law, with disputes in Ada County courts. That is the
-        legal frame. The product frame is smaller and, for the moment, more
-        important: a simulated economy, two kinds of record, and a refusal to
-        let the first pretend to be a right. When the economy is no longer
-        simulated, the sentence about records and rights does not get to retire.
-        It gets harder, and it still has to be true.
+        Honest boundaries make software records more valuable, not less. When
+        Record A cleanly logs agreed work and reconciliation state without
+        pretending to be a legal title certificate, participants stay
+        protected—and newcomers reading{" "}
+        <FollowLink href="/patterns/a-record-is-not-a-right">
+          the full record-vs-right pattern
+        </FollowLink>{" "}
+        can verify how every claim holds up under scrutiny.
       </p>
       <Sources items={recordSources} />
     </>
   ),
   "two-records-one-agreement": () => (
     <>
-      <p>
-        A group that is trying to solve a problem usually has two kinds of fact
-        to keep, and it usually tries to keep them in one place. Someone did the
-        work. Someone was supposed to have a say. Mash those together and you
-        get a score: a balance that looks like influence, or a vote that looks
-        like a payment, or a membership that looks like a share. The mash is
-        convenient. It is also how a project wakes up one morning unable to say
-        whether a number on a screen is money, permission, or a souvenir.
+      <p className="text-lg leading-relaxed">
+        Every multi-party build generates two completely different kinds of
+        facts: what work got shipped (and at what agreed value), and who held
+        authority to steer decisions along the way. Mash both into a single
+        score and you quickly wake up unable to tell whether a number on screen
+        represents money, permission, or a participation trophy.
       </p>
       <p>
-        ArdaNova, part of the{" "}
-        <FollowLink href="https://primusneo.com">PrimusNeo</FollowLink> stack,
-        splits the facts on purpose. The homepage already names the split as a
-        jacket line: two records, one agreement. Record A is work and value —
-        the work performed, the agreed value, the allocation logic, the
-        reconciliation status, kept visible to the people affected. Record B is
-        voice and permissions — proposals, voting or approval rules, delegated
-        roles, and recorded outcomes, kept distinct from economic interests. The
-        agreement is what binds them. The software does not get to bind them by
-        accident, and a balance does not get to stand in for a signature.
+        ArdaNova, built within the{" "}
+        <FollowLink href="https://primusneo.com">PrimusNeo</FollowLink> tooling
+        stack, refuses that shortcut deliberately. <strong>Record A</strong>{" "}
+        tracks work performed, agreed valuations, allocation logic, and
+        reconciliation status. <strong>Record B</strong> captures proposals,
+        voting or approval rules, delegated roles, and recorded outcomes—kept
+        wholly apart from unit balances.
       </p>
       <p>
-        This sounds like bookkeeping, which is the point. Bookkeeping is what
-        you want when a later disagreement arrives, or when a person who was not
-        in the room asks what was already decided. A single score cannot answer
-        that question. It can only offer a feeling of fairness, which is a
-        feeling that tends to evaporate under review.
-      </p>
-      <p>
-        The method above the records is deliberately short. Start with the
-        people the problem affects. Make a plan others can check. Build, test,
-        revise — or stop. &quot;Or stop&quot; is not a tone. It is the only way
-        the loop is a method rather than a slogan. A workspace that cannot
-        record a stop will eventually invent a reason to keep going, and the
-        records will be asked to support the invention.
-      </p>
-      <p>
-        What the records cannot do is still the most important sentence on the
-        site. They do not automatically create legal ownership, equity, or
-        payment rights. In the current deployment they are also, in the economic
-        column, simulated: bookkeeping inside the workspace, not a payment and
-        not a transfer of property. A recorded vote does not, by itself, move
-        funds, change who is a member, or rewrite a project&apos;s terms. If a
-        particular project wants those effects, it will have to get them from an
-        agreement people can actually read, under law that actually applies — in
-        this operator&apos;s case, from terms published by Escherbridge, LLC,
-        governed by the laws of Idaho, with disputes in Ada County courts, plus
-        whatever project-level terms the participants review.
-      </p>
-      <p>
-        There is a temptation to close the split later, once the product feels
-        friendlier, by introducing a single &quot;contribution score&quot; that
-        drives both pay and voice. That would be a different product, and a
-        worse one for the problem this one set out to hold. Work can be visible
-        without being a vote. A vote can be recorded without being a payout. The
-        agreement is the place those two facts are allowed to meet. Everything
-        else is a mash with a nicer name.
+        Neither ledger tries replacing readable agreements under real law (in
+        our hosted workspace, under terms published by Escherbridge, LLC in
+        Boise, Idaho). Instead, putting work evidence and governance voice into
+        cleanly separated structures makes the shared agreement unambiguous when
+        reviewers, auditors, or future maintainers inspect what happened—and
+        lets teams record a deliberate <em>stop</em> when an experiment should
+        halt rather than inventing numbers to keep going. Explore the
+        architecture in{" "}
+        <FollowLink href="/patterns/two-records-one-agreement">
+          Two records, one agreement
+        </FollowLink>
+        .
       </p>
       <Sources items={agreementSources} />
     </>

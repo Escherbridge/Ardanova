@@ -3,12 +3,13 @@ import Link from "next/link";
 import { JsonLd } from "~/components/brand/json-ld";
 import { NotesShell } from "~/components/brand/notes-shell";
 import { SimulationNotice } from "~/components/brand/simulation-notice";
+import { WorkspaceFunnelGate } from "~/components/brand/WorkspaceFunnelGate";
 import { publicPageMetadata } from "~/lib/page-metadata";
 import { breadcrumbList, itemList } from "~/lib/schema";
 import { noteCanonical, notes } from "~/lib/writing";
 
 const description =
-  "Two notes on records of work and of decisions. The economy in this workspace is simulated. A record is not, by itself, a promise that anyone will pay you.";
+  "Engineering essays on shared custody, multi-org coordination, separating work logs from governance voice, and designing durable decision trails.";
 
 export const metadata = publicPageMetadata({
   path: "/notes",
@@ -32,20 +33,30 @@ export default function NotesIndexPage() {
         )}
       />
       <NotesShell
+        kicker="Engineering Notes · Systems & Shared Custody"
         title="Notes"
         trail={[
           { href: "/", label: "Home" },
           { href: "/notes", label: "Notes" },
         ]}
       >
-        <SimulationNotice />
-        <ul className="space-y-8">
+        <p className="text-lg leading-relaxed">
+          Field essays on how collaborative builds hold together across teams:
+          why two ledgers disagree by Tuesday, why work accounting (Record A)
+          and governance voice (Record B) belong apart, and how readable notes
+          beat opaque scoreboards.
+        </p>
+
+        <ul className="grid gap-5 pt-2">
           {notes.map((note) => (
-            <li key={note.slug}>
-              <p className="text-muted-foreground font-mono text-xs tracking-[0.14em] uppercase">
+            <li
+              className="bg-brand-paper-bright border border-black/70 p-6"
+              key={note.slug}
+            >
+              <p className="text-brand-signal-deep font-mono text-xs font-semibold tracking-[0.14em] uppercase">
                 {note.publishedAt} · Escherbridge
               </p>
-              <h2 className="mt-2 text-2xl">
+              <h2 className="mt-2 text-2xl font-bold tracking-[-0.02em]">
                 <Link
                   className="underline-offset-4 hover:underline"
                   href={`/notes/${note.slug}`}
@@ -53,13 +64,28 @@ export default function NotesIndexPage() {
                   {note.title}
                 </Link>
               </h2>
-              <p className="text-muted-foreground mt-3">{note.description}</p>
+              <p className="text-muted-foreground mt-3 leading-relaxed">
+                {note.description}
+              </p>
+              <p className="mt-4">
+                <Link
+                  className="inline-flex min-h-11 items-center font-semibold underline underline-offset-4"
+                  href={`/notes/${note.slug}`}
+                >
+                  Read note
+                </Link>
+              </p>
             </li>
           ))}
         </ul>
-        <p>
+
+        <WorkspaceFunnelGate surface="notes-index" />
+
+        <SimulationNotice includeAzoa includeLegalAdvice />
+
+        <p className="text-muted-foreground text-sm">
           <Link className="underline underline-offset-4" href="/patterns">
-            Patterns
+            Pattern library
           </Link>
           {" · "}
           <Link className="underline underline-offset-4" href="/news">
@@ -67,7 +93,7 @@ export default function NotesIndexPage() {
           </Link>
           {" · "}
           <Link className="underline underline-offset-4" href="/feed.xml">
-            Feed
+            RSS feed
           </Link>
         </p>
       </NotesShell>

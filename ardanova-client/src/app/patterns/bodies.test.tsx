@@ -25,7 +25,9 @@ const fieldGuideSlugs = [
 const withAzoa = new Set([
   "a-record-is-not-a-right",
   "two-records-one-agreement",
+  "reconciling-two-ledgers-without-a-central-custodian",
   "decision-logs",
+  "append-only-amendments-and-retractions",
   "directors-minutes",
   "records-of-resolutions",
 ]);
@@ -42,23 +44,28 @@ describe("pattern pages", () => {
       expect(text).toMatch(/do not automatically create legal ownership/i);
       expect(text).toContain("Sources");
       expect(text).not.toMatch(/\b(investment|token|tokens|returns?)\b/i);
+      expect(text).not.toContain("The bill for a split system");
       unmount();
     }
   });
 
-  it("publishes an illustrative scenario on each researched child", () => {
+  it("publishes an illustrative scenario and funnel gate on each researched child", () => {
     for (const slug of researchedSlugs) {
       const { container, unmount } = render(<PatternBody slug={slug} />);
       const text = container.textContent ?? "";
       expect(text).toContain("A situation like this");
       expect(text).toContain("Sources");
+      expect(text).toContain(
+        "Building a shared workspace or multi-party ledger?",
+      );
       expect(text).not.toMatch(
         /Hero figures|Hero points|An illustrative scenario|Every stat on this page is cited/,
       );
       if (withAzoa.has(slug)) {
-        expect(container.innerHTML).toContain("https://azoa.ardanova.com");
+        expect(container.innerHTML).toContain(
+          "https://azoa.ardanova.com/workflows",
+        );
       }
-      expect(container.innerHTML).not.toContain("azoa.ardanova.com/workflows");
       unmount();
     }
   });
@@ -236,21 +243,34 @@ describe("pattern pages", () => {
 });
 
 describe("patterns index", () => {
-  it("names the research children and the simulation sentence", () => {
+  it("groups patterns by problem, keeps simulation disclosure, and wires funnel gates", () => {
     const { container } = render(<PatternsPage />);
     const text = container.textContent ?? "";
     expect(text).toContain("The shape of a shared record.");
-    expect(text).toContain("Thirteen patterns");
+    expect(text).toContain("Multi-Ledger Agreements");
+    expect(text).toContain("Record Clarity & Minutes");
+    expect(text).toContain("Membership & Resolutions");
     expect(text).toContain("ECONOMY: SIMULATED");
     expect(text).toMatch(/do not automatically create legal ownership/i);
     expect(text).toContain("not legal advice");
     expect(text).not.toMatch(/\b(investment|token|tokens|returns?)\b/i);
+    expect(text).not.toContain("Thirteen patterns");
+    expect(text).not.toContain("opened wording");
     for (const slug of researchedSlugs) {
       expect(container.innerHTML).toContain(`/patterns/${slug}`);
     }
     for (const slug of fieldGuideSlugs) {
       expect(container.innerHTML).toContain(`/patterns/${slug}`);
     }
+    expect(container.innerHTML).toContain(
+      "/patterns/reconciling-two-ledgers-without-a-central-custodian",
+    );
+    expect(container.innerHTML).toContain(
+      "/patterns/append-only-amendments-and-retractions",
+    );
+    expect(container.innerHTML).toContain(
+      "https://azoa.ardanova.com/workflows",
+    );
     expect(container.innerHTML).not.toContain("/patterns/problem-intake");
   });
 });
