@@ -9,7 +9,7 @@ import { SimulationNotice } from "~/components/brand/simulation-notice";
 import { WorkspaceFunnelGate } from "~/components/brand/WorkspaceFunnelGate";
 import { publicPageMetadata } from "~/lib/page-metadata";
 import { articleSchema, breadcrumbList } from "~/lib/schema";
-import { noteBySlug, noteCanonical, notes } from "~/lib/writing";
+import { entryTitle, noteBySlug, noteCanonical, notes } from "~/lib/writing";
 
 import { NoteBody } from "../articles";
 
@@ -27,7 +27,7 @@ export async function generateMetadata({
   if (!note) return { title: "Notes" };
   return publicPageMetadata({
     path: `/notes/${note.slug}`,
-    title: note.title,
+    title: entryTitle(note),
     description: note.description,
     kind: "article",
     publishedAt: note.publishedAt,

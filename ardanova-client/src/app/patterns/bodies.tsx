@@ -4,7 +4,11 @@ import Link from "next/link";
 import { RelatedLinks } from "~/components/brand/related-links";
 import { SimulationNotice } from "~/components/brand/simulation-notice";
 import { WorkspaceFunnelGate } from "~/components/brand/WorkspaceFunnelGate";
-import { patternBySlug, type PatternSlug } from "~/lib/writing";
+import {
+  patternBySlug,
+  patternsReviewedAt,
+  type PatternSlug,
+} from "~/lib/writing";
 
 function TextLink({ href, children }: { href: string; children: ReactNode }) {
   const className = "underline underline-offset-4";
@@ -58,7 +62,8 @@ function CitedSources({ slug }: { slug: PatternSlug }) {
 function ReviewedLine() {
   return (
     <p className="text-muted-foreground text-sm">
-      Author: Escherbridge · Last reviewed: 2026-11-15, America/Denver.
+      Author: Escherbridge · Last reviewed: {patternsReviewedAt},
+      America/Denver.
     </p>
   );
 }

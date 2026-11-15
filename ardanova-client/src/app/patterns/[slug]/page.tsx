@@ -7,10 +7,12 @@ import { NotesShell } from "~/components/brand/notes-shell";
 import { articleSchema, breadcrumbList } from "~/lib/schema";
 import { publicPageMetadata } from "~/lib/page-metadata";
 import {
+  entryTitle,
   isPatternSlug,
   patternBySlug,
   patternCanonical,
   patterns,
+  patternsReviewedAt,
 } from "~/lib/writing";
 
 import { PatternBody } from "../bodies";
@@ -29,10 +31,11 @@ export async function generateMetadata({
   if (!pattern) return { title: "Patterns" };
   return publicPageMetadata({
     path: `/patterns/${pattern.slug}`,
-    title: pattern.title,
+    title: entryTitle(pattern),
     description: pattern.description,
     kind: "article",
     publishedAt: pattern.publishedAt,
+    modifiedAt: patternsReviewedAt,
   });
 }
 
@@ -61,7 +64,7 @@ export default async function PatternPage({
           headline,
           description: pattern.description,
           publishedAt: pattern.publishedAt,
-          dateModified: pattern.publishedAt,
+          dateModified: patternsReviewedAt,
           canonical,
           citations: pattern.citations,
         })}

@@ -5,16 +5,14 @@ import { NotesShell } from "~/components/brand/notes-shell";
 import { SimulationNotice } from "~/components/brand/simulation-notice";
 import { WorkspaceFunnelGate } from "~/components/brand/WorkspaceFunnelGate";
 import { publicPageMetadata } from "~/lib/page-metadata";
+import { NOTES_DESCRIPTION } from "~/lib/public-copy";
 import { breadcrumbList, itemList } from "~/lib/schema";
 import { noteCanonical, notes } from "~/lib/writing";
-
-const description =
-  "Essays on solutionary thinking, social ecology, democratic governance, and shared ownership without surveillance.";
 
 export const metadata = publicPageMetadata({
   path: "/notes",
   title: "Notes",
-  description,
+  description: NOTES_DESCRIPTION,
 });
 
 export default function NotesIndexPage() {

@@ -29,9 +29,21 @@ type WritingEntry = {
   shelf?: PatternShelfId;
   publishedAt: string;
   description: string;
+  /** Document title when the visible title plus the brand would pass 60 characters. */
+  seoTitle?: string;
   related: readonly WritingLink[];
   citations: readonly Citation[];
 };
+
+/** Visible on every pattern page. Schema uses it only when it differs from publication. */
+export const patternsReviewedAt = "2026-11-15";
+
+export function entryTitle(entry: {
+  title: string;
+  seoTitle?: string;
+}): string {
+  return entry.seoTitle ?? entry.title;
+}
 
 export const PATTERN_SHELVES: readonly {
   id: PatternShelfId;
@@ -63,6 +75,7 @@ export const notes = [
     slug: "solutionary-thinking-in-practice",
     title:
       "What solutionary thinking looks like when a community stops doom-scrolling",
+    seoTitle: "Solutionary thinking past doom-scrolling",
     publishedAt: "2026-11-15",
     description:
       "Moving past symptom-chasing and outrage feeds into root-cause inquiry, testable proposals, and learning in public with the people living through the problem.",
@@ -92,6 +105,7 @@ export const notes = [
     slug: "social-ecology-and-shared-stewardship",
     title:
       "Social ecology for builders: why healthy commons start with how people relate",
+    seoTitle: "Social ecology for builders",
     publishedAt: "2026-11-15",
     description:
       "Why durable ecological and civic projects depend less on hero founders than on non-extractive institutions, mutual aid, skilled guilds, and federated commons.",
@@ -124,6 +138,7 @@ export const notes = [
     slug: "ownership-without-surveillance",
     title:
       "Ownership without surveillance: sharing in what we build without turning people into data",
+    seoTitle: "Ownership without surveillance",
     publishedAt: "2026-11-15",
     description:
       "How communities, contributors, and sponsors can share in value and steer decisions together with explicit rights—without behavioral profiling or hollow scoreboards.",
@@ -150,9 +165,10 @@ export const notes = [
   {
     slug: "why-shared-work-breaks-between-orgs",
     title: "Why coalitions and partner guilds drift without shared memory",
+    seoTitle: "Why coalitions drift without shared memory",
     publishedAt: "2026-11-14",
     description:
-      "Community builds rarely break from bad intentions. They stall when groups keep separate accounts of what was promised, who joined the decision, and what terms still hold.",
+      "Community builds rarely break from bad intentions. They stall when groups keep separate accounts of promises, decisions, and terms. Author: Escherbridge.",
     related: [
       {
         href: "/notes/social-ecology-and-shared-stewardship",
@@ -178,7 +194,7 @@ export const notes = [
     title: "Separating shared value from democratic voice",
     publishedAt: "2026-11-14",
     description:
-      "Combining money contributed, hours worked, and voting weight into one number lets capital silence a community. Keeping stewardship shares and governance voice independent protects cooperation.",
+      "Combining money, hours, and voting weight into one number lets capital silence a community. Stewardship shares and governance voice stay independent here.",
     related: [
       {
         href: "/notes/why-shared-work-breaks-between-orgs",
@@ -291,6 +307,7 @@ export const patterns = [
   {
     slug: "a-record-is-not-a-right",
     title: "A record is not a right",
+    seoTitle: "Pattern: a record is not a right",
     headline:
       "Written stewardship memory supports trust. The real agreement creates the right.",
     eyebrow: "Shared Value & Agreements",
@@ -434,6 +451,7 @@ export const patterns = [
   {
     slug: "reconciling-two-ledgers-without-a-central-custodian",
     title: "Keeping partner commons aligned without a central gatekeeper",
+    seoTitle: "Keeping partner commons aligned",
     headline:
       "Independent guilds can share real accountability without surrendering autonomy to one boss.",
     eyebrow: "Shared Value & Agreements",
@@ -442,7 +460,7 @@ export const patterns = [
       "Federated projects shouldn't force every workshop or watershed group onto one single landlord server. Pair shared agreement anchors with periodic checkpoints so nobody edits history behind closed doors.",
     publishedAt: "2026-11-14",
     description:
-      "How autonomous guilds and cooperative coalitions keep independent stewardship accounts aligned via agreement anchors and open discrepancy checks without centralizing control.",
+      "How guilds and coalitions keep independent stewardship accounts aligned without handing the record to one central gatekeeper. The economy is simulated.",
     related: [
       {
         href: "/patterns/two-records-one-agreement",
@@ -575,7 +593,7 @@ export const patterns = [
       "Quietly overwriting an old shared agreement makes current text tidy while erasing the story of how consensus changed. Append dated revisions linked to prior commitments so learning stays visible.",
     publishedAt: "2026-11-14",
     description:
-      "Why open append-only revisions and explicit change notes protect community trust better than silent document rewrites.",
+      "Why open append-only revisions and explicit change notes protect community trust better than rewriting a shared agreement. The prior text stays visible.",
     related: [
       {
         href: "/patterns/decision-logs",
@@ -617,7 +635,7 @@ export const patterns = [
     eyebrow: "Solutionary Loop Pattern",
     publishedAt: "2026-11-10",
     description:
-      "Begin with lived reality and the community living with the problem before proposing remedies, roles, or funding structures.",
+      "Begin with lived reality and the community living with the problem before proposing remedies, roles, or a funding structure. The deployed economy is simulated.",
     related: [
       {
         href: "/patterns/decision-logs",
@@ -641,7 +659,7 @@ export const patterns = [
       "When elected stewards settle major choices verbally and forget to record them, accountability dissolves within a year. Statutory minute standards reveal why clear retention discipline matters.",
     publishedAt: "2026-11-10",
     description:
-      "Why stewardship circles record proceedings and keep memory across seasons, contrasted cleanly with formal UK statutory company baselines.",
+      "Why stewardship circles record proceedings and keep memory across seasons, set beside formal UK statutory company minute baselines. This is not legal advice.",
     related: [
       {
         href: "/patterns/records-of-resolutions",
@@ -682,7 +700,7 @@ export const patterns = [
       "Not everyone can make Tuesday's town hall. Keeping async written resolutions beside live assembly votes ensures working members aren't erased when memory gets checked next year.",
     publishedAt: "2026-11-10",
     description:
-      "Keeping async written consent, assembly votes, and single-steward calls clear and accessible so participation stays fair across schedules.",
+      "Keeping async written consent, assembly votes, and single-steward calls clear so participation stays fair across schedules. The economy stays simulated.",
     related: [
       {
         href: "/patterns/directors-minutes",
@@ -716,6 +734,7 @@ export const patterns = [
   {
     slug: "what-belongs-in-the-minutes",
     title: "What belongs in the minutes: date, time, who, and what was decided",
+    seoTitle: "What belongs in the minutes",
     headline:
       "Four simple fields keep a gathering useful long after the chairs are stacked",
     eyebrow: "Community Memory & Minutes",
@@ -724,7 +743,7 @@ export const patterns = [
       "A summary reading 'good talk, aligned on next steps' leaves everyone confused a season later. Capture when, where, who took part, and the plain commitment made.",
     publishedAt: "2026-11-10",
     description:
-      "A humane minimal habit for community notes—date, time, participants, medium, and explicit outcome—drawn from durable institutional records practice.",
+      "A humane minimal habit for community notes—date, time, participants, medium, and explicit outcome—drawn from durable institutional records practice. Cited.",
     related: [
       {
         href: "/patterns/informal-channels",
@@ -773,7 +792,7 @@ export const patterns = [
       "Cryptic notes like 'same as last Thursday, Sam handling' shut out anyone who wasn't in the room. Explaining why an option was set aside keeps shared power genuinely open.",
     publishedAt: "2026-11-10",
     description:
-      "Writing decision memory clearly enough that neighbors joining months later can understand choices and participate on equal footing.",
+      "Writing decision memory clearly enough that neighbors joining months later can understand the choice and take part equally. Cryptic shorthand shuts people out.",
     related: [
       {
         href: "/patterns/what-belongs-in-the-minutes",
@@ -805,6 +824,7 @@ export const patterns = [
   {
     slug: "informal-channels",
     title: "Decisions in informal chats still belong to the commons",
+    seoTitle: "Decisions made in informal chats",
     headline:
       "A side conversation shouldn't lock agreements away from the whole group",
     eyebrow: "Community Memory & Minutes",
@@ -853,6 +873,7 @@ export const patterns = [
   {
     slug: "what-happened-what-was-decided",
     title: "What shared memory is for: what happened, what was decided",
+    seoTitle: "What shared memory is for",
     headline:
       "Hoarding raw chat transcripts isn't transparency unless people can find answers",
     eyebrow: "Community Memory & Minutes",
@@ -861,7 +882,7 @@ export const patterns = [
       "Dumping every group message into a shared archive overwhelms volunteers. A humane commons separates what actually happened, what the group decided, and how people work together next.",
     publishedAt: "2026-11-10",
     description:
-      "Separating noisy message dumps from living community memory centered on events, shared decisions, and repeatable stewardship habits.",
+      "Separating noisy message dumps from community memory centered on what happened, what was decided, and how to repeat it. A full message dump is not the record.",
     related: [
       {
         href: "/patterns/what-belongs-in-the-minutes",
@@ -903,7 +924,7 @@ export const patterns = [
       "Communities don't need surveillance archives that preserve every stray message indefinitely. FOIA section 46 principles frame a lighter alternative rooted in value, integrity, and accountability.",
     publishedAt: "2026-11-10",
     description:
-      "What community guilds can borrow from The National Archives s.46 Code: valuing clear stewardship memory over endless data hoarding.",
+      "What community guilds can borrow from The National Archives section 46 Code: value stewardship memory over endless hoarding. Keep what still has value.",
     related: [
       {
         href: "/patterns/what-happened-what-was-decided",
@@ -945,7 +966,7 @@ export const patterns = [
       "Standing community charters set how decisions are fairly made; minutes capture what happened Tuesday; rosters track active voices. Keep those three drawers visibly separate.",
     publishedAt: "2026-11-10",
     description:
-      "Distinguishing standing governance charters and cooperative bylaws from daily meeting notes and member rosters.",
+      "Distinguishing standing governance charters and cooperative bylaws from daily meeting notes and from the member roster. Keep charters, notes, and rosters apart.",
     related: [
       {
         href: "/patterns/company-registers",
@@ -1002,7 +1023,7 @@ export const patterns = [
       "Trying to reconstruct who joined, who stepped back, and who votes cleanly from months of old discussion threads inevitably disenfranchises quiet members. Keep an open roster distinct from minutes.",
     publishedAt: "2026-11-10",
     description:
-      "Why explicit participant rosters with clear join and step-back dates protect fairness compared to digging through old chat or meeting threads.",
+      "Why explicit participant rosters with join and step-back dates protect fairness better than reconstructing old chat threads. A roster is not a minute book.",
     related: [
       {
         href: "/patterns/articles-of-incorporation",

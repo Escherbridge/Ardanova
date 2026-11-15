@@ -13,6 +13,8 @@ export function publicPageMetadata(options: {
   description: string;
   kind?: "website" | "article";
   publishedAt?: string;
+  /** Set only when the page states a real review date that differs from publication. */
+  modifiedAt?: string;
   noindex?: boolean;
 }): Metadata {
   const canonical = publicCanonical(options.path);
@@ -20,6 +22,12 @@ export function publicPageMetadata(options: {
   const robots = options.noindex
     ? { index: false, follow: true }
     : { index: true, follow: true };
+  const image = {
+    url: shareImage.url,
+    alt: shareImage.alt,
+    width: shareImage.width,
+    height: shareImage.height,
+  };
   const shared = {
     title: options.title,
     description: options.description,
@@ -30,7 +38,7 @@ export function publicPageMetadata(options: {
       card: "summary_large_image" as const,
       title: socialTitle,
       description: options.description,
-      images: [shareImage.url],
+      images: [image],
     },
   };
 
@@ -44,6 +52,7 @@ export function publicPageMetadata(options: {
         description: options.description,
         images: [shareImage],
         publishedTime: options.publishedAt,
+        ...(options.modifiedAt ? { modifiedTime: options.modifiedAt } : {}),
       },
     };
   }

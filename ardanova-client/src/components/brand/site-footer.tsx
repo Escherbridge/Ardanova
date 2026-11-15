@@ -59,6 +59,12 @@ export function SiteFooter({ workspaceHref }: { workspaceHref: string }) {
           </Link>
           <Link
             className="hover:text-brand-cyan inline-flex min-h-11 items-center"
+            href="/contact"
+          >
+            Contact
+          </Link>
+          <Link
+            className="hover:text-brand-cyan inline-flex min-h-11 items-center"
             href="/notes"
           >
             Notes

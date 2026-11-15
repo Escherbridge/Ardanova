@@ -19,6 +19,7 @@ const { default: NotePage } = await import("~/app/notes/[slug]/page");
 const { default: PatternsPage } = await import("~/app/patterns/page");
 const { default: PatternPage } = await import("~/app/patterns/[slug]/page");
 const { default: NewsPage } = await import("~/app/news/page");
+const { default: ContactPage } = await import("~/app/contact/page");
 const { siteGraph } = await import("~/lib/schema");
 const { notes, patterns } = await import("~/lib/writing");
 
@@ -57,6 +58,7 @@ describe("public pages", () => {
       { name: "/notes", text: visibleText(render(<NotesPage />)) },
       { name: "/patterns", text: visibleText(render(<PatternsPage />)) },
       { name: "/news", text: visibleText(render(<NewsPage />)) },
+      { name: "/contact", text: visibleText(render(<ContactPage />)) },
       { name: "json-ld", text: JSON.stringify(siteGraph()) },
     ];
 
@@ -93,5 +95,16 @@ describe("public pages", () => {
     });
 
     expect(hits).toEqual([]);
+  });
+
+  it("publishes the operator email and city on the contact page", () => {
+    const view = render(<ContactPage />);
+    const mail = view.container.querySelector("a[href^='mailto:']");
+    expect(view.container.textContent).toContain(
+      "Escherbridge, LLC, Boise, Idaho",
+    );
+    expect(mail?.textContent).toBe("contact@escherbridge.com");
+    expect(mail?.getAttribute("href")).toBe("mailto:contact@escherbridge.com");
+    expect(view.container.querySelector("form")).toBeNull();
   });
 });
