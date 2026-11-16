@@ -1085,7 +1085,7 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
           <li>
             <strong>Not every message deserves permanence:</strong> Published 15
             July 2021 (ISBN 978-1-5286-2517-3, 32-page PDF covering England,
-            Northern Ireland, and Wales), the Code opens simply:{" "}
+            Northern Ireland, and Wales), §1.1.5 of the Code says:{" "}
             <em>&quot;not all information is a record&quot;</em> across paper or
             digital space—protecting commons from noise hoarding.
           </li>
@@ -1096,9 +1096,12 @@ const bodies: Record<PatternSlug, () => ReactNode> = {
               &quot;as long as they can show it has value and dispose of it when
               it no longer has value,&quot;
             </em>{" "}
-            safeguard integrity so members{" "}
-            <em>&quot;can rely upon and trust the information,&quot;</em> and
-            honor real accountability toward neighbors affected.
+            safeguard integrity:{" "}
+            <em>
+              &quot;The authority and all its stakeholders must be able to rely
+              upon and trust the information that it holds.&quot;
+            </em>{" "}
+            and honor real accountability toward neighbors affected.
           </li>
           <li>
             <strong>Scope honesty:</strong> While its editorial glossary notes
