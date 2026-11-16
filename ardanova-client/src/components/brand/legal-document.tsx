@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { PublicEmailLine } from "~/components/brand/public-email";
 import { SiteFooter } from "~/components/brand/site-footer";
 import { ArdaNovaWordmark } from "~/components/brand/wordmark";
 
@@ -63,11 +64,7 @@ export function OperatorContact() {
     <address className="text-muted-foreground space-y-1 not-italic">
       <p>Escherbridge, LLC</p>
       <p>Ahmed Zaher</p>
-      <p>
-        <a className="underline" href="mailto:contact@escherbridge.com">
-          contact@escherbridge.com
-        </a>
-      </p>
+      <PublicEmailLine />
       <p>
         <a className="underline" href="tel:+15095784603">
           (509) 578-4603
