@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { JsonLd } from "~/components/brand/json-ld";
 import { NotesShell } from "~/components/brand/notes-shell";
+import { PublicEmailLine } from "~/components/brand/public-email";
 import { CONTACT_DESCRIPTION } from "~/lib/public-copy";
 import { publicPageMetadata } from "~/lib/page-metadata";
 import { breadcrumbList } from "~/lib/schema";
@@ -34,11 +35,7 @@ export default function ContactPage() {
         </p>
         <address className="space-y-1 not-italic">
           <p>Escherbridge, LLC, Boise, Idaho</p>
-          <p>
-            <a className="underline" href="mailto:contact@escherbridge.com">
-              contact@escherbridge.com
-            </a>
-          </p>
+          <PublicEmailLine />
         </address>
         <p>
           There is no form on this page.{" "}

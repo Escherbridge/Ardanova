@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, type RenderResult } from "@testing-library/react";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -106,5 +107,25 @@ describe("public pages", () => {
     expect(mail?.textContent).toBe("contact@escherbridge.com");
     expect(mail?.getAttribute("href")).toBe("mailto:contact@escherbridge.com");
     expect(view.container.querySelector("form")).toBeNull();
+  });
+
+  it("emits the operator address as literal HTML between Cloudflare markers", () => {
+    const pages: { name: string; element: ReactElement }[] = [
+      { name: "/contact", element: <ContactPage /> },
+      { name: "/terms", element: <TermsPage /> },
+      { name: "/privacy", element: <PrivacyPage /> },
+    ];
+    const literal =
+      '<!--email_off--><a class="underline" href="mailto:contact@escherbridge.com">contact@escherbridge.com</a><!--email_on--><!--/email_off-->';
+
+    for (const page of pages) {
+      const html = renderToStaticMarkup(page.element);
+      const clientHtml = render(page.element).container.innerHTML;
+      expect(html, page.name).toContain(literal);
+      expect(clientHtml, page.name).toContain(literal);
+      expect(html, page.name).toContain("contact@escherbridge.com");
+      expect(html, page.name).not.toContain("/cdn-cgi/l/email-protection");
+      expect(html, page.name).not.toContain("__cf_email__");
+    }
   });
 });

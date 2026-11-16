@@ -192,6 +192,7 @@ describe("llms.txt", () => {
     expect(text.startsWith("# ArdaNova\n")).toBe(true);
     expect(text).toContain("Escherbridge, LLC, Boise, Idaho");
     expect(text).toContain("contact@escherbridge.com");
+    expect(text).not.toContain("<!--");
     expect(text).toContain("https://ardanova.com/contact");
     expect(text).toContain("https://ardanova.com/feed.xml");
     expect(text).toContain("https://ardanova.com/sitemap.xml");
