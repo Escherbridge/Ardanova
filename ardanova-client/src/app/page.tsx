@@ -100,9 +100,9 @@ export default async function Home() {
   const signupHref = session
     ? "/dashboard"
     : "/auth/signin?mode=signup&callbackUrl=%2Fdashboard";
-  const projectsHref = session
-    ? "/projects"
-    : "/auth/signin?callbackUrl=%2Fprojects";
+  const projectsHref = "/projects";
+  const opportunitiesHref = session ? "/opportunities" : "/projects";
+  const governanceHref = session ? "/governance" : "/projects";
 
   return (
     <HydrateClient>
@@ -469,7 +469,12 @@ export default async function Home() {
           </section>
         </main>
 
-        <SiteFooter workspaceHref={workspaceHref} />
+        <SiteFooter
+          governanceHref={governanceHref}
+          opportunitiesHref={opportunitiesHref}
+          projectsHref={projectsHref}
+          workspaceHref={workspaceHref}
+        />
       </div>
     </HydrateClient>
   );

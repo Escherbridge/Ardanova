@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { PublicEmailAnchor } from "~/components/brand/public-email";
 import { ArdaNovaWordmark } from "~/components/brand/wordmark";
 import { Button } from "~/components/ui/button";
 import {
@@ -202,6 +203,12 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
               <ArrowRight aria-hidden="true" className="ml-auto" />
             </Button>
           </form>
+          <p className="mt-3 text-sm leading-relaxed text-[#bdb8b1]">
+            ArdaNova uses Google sign-in for now. If you don&apos;t have a
+            Google account, write to{" "}
+            <PublicEmailAnchor className="underline underline-offset-2 hover:text-[#f6f0eb]" />
+            .
+          </p>
           <p className="mt-3 text-xs leading-relaxed text-[#aaa59f]">
             {isSignUp ? "By creating an account" : "By continuing"} you agree to
             the{" "}

@@ -4,7 +4,17 @@ import { EscherbridgeProjects } from "~/components/brand/escherbridge-projects";
 import { ArdaNovaWordmark } from "~/components/brand/wordmark";
 
 /** Public-site footer. Legal links stay here so terms and privacy are reachable from every public page. */
-export function SiteFooter({ workspaceHref }: { workspaceHref: string }) {
+export function SiteFooter({
+  workspaceHref,
+  projectsHref = "/projects",
+  opportunitiesHref = "/opportunities",
+  governanceHref = "/governance",
+}: {
+  workspaceHref: string;
+  projectsHref?: string;
+  opportunitiesHref?: string;
+  governanceHref?: string;
+}) {
   return (
     <footer className="bg-brand-ink text-brand-paper border-t border-black/70">
       <div className="mx-auto grid max-w-[1440px] gap-10 px-4 py-10 md:grid-cols-[1fr_auto] md:px-8">
@@ -17,19 +27,19 @@ export function SiteFooter({ workspaceHref }: { workspaceHref: string }) {
         >
           <Link
             className="hover:text-brand-cyan inline-flex min-h-11 items-center"
-            href="/projects"
+            href={projectsHref}
           >
             Projects
           </Link>
           <Link
             className="hover:text-brand-cyan inline-flex min-h-11 items-center"
-            href="/opportunities"
+            href={opportunitiesHref}
           >
             Opportunities
           </Link>
           <Link
             className="hover:text-brand-cyan inline-flex min-h-11 items-center"
-            href="/governance"
+            href={governanceHref}
           >
             Governance
           </Link>

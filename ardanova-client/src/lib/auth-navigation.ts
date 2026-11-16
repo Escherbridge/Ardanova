@@ -1,6 +1,17 @@
 const DEFAULT_SIGNED_IN_DESTINATION = "/dashboard";
 export const ARDANOVA_REQUEST_PATH_HEADER = "x-ardanova-request-path";
 
+/** Set by middleware on signed-out-eligible GET /projects only. */
+export const PROJECTS_EXPLAINER_HEADER = "x-ardanova-projects-explainer";
+
+/** The public explainer is the exact projects index, and only for GET. */
+export function requestsProjectsExplainer(
+  method: string,
+  pathname: string,
+): boolean {
+  return method === "GET" && pathname === "/projects";
+}
+
 export function normalizeInternalCallbackUrl(
   value: string | string[] | undefined,
   fallback = DEFAULT_SIGNED_IN_DESTINATION,

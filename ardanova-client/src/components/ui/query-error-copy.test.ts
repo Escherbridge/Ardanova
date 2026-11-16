@@ -272,7 +272,7 @@ describe("money pages wire the honest copy", () => {
     ],
     ["swap/page.tsx", /\{holdings\.error\.message\}|whenever you\s+like/],
     [
-      "projects/page.tsx",
+      "projects/projects-browser.tsx",
       /value=\{(?:String\(currentViewStats|formatUSD\(currentViewStats)/,
     ],
   ])(
