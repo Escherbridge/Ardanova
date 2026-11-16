@@ -15,7 +15,7 @@ using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Domain.Policies;
 using ArdaNova.Domain.ValueObjects;
-using AutoMapper;
+using MapsterMapper;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 

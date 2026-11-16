@@ -10,7 +10,7 @@ using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Domain.Policies;
 using ArdaNova.Infrastructure.Outbox;
-using AutoMapper;
+using MapsterMapper;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

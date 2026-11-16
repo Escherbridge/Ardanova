@@ -7,7 +7,7 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
-using AutoMapper;
+using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>Who may act on a guild. One rule set for every guild service; rationale in <c>Services/AGENTS.md</c> §Guild authority.</summary>

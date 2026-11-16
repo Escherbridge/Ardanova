@@ -313,7 +313,7 @@ ardanova/
 │           │   ├── Common/             # Result<T>, PagedResult<T>
 │           │   ├── DTOs/               # DTO files
 │           │   ├── Azoa/               # Quest authoring DTOs (server-side only)
-│           │   ├── Mappings/           # AutoMapper profiles
+│           │   ├── Mappings/           # Mapster type maps
 │           │   └── Services/           # Business logic
 │           ├── ArdaNova.Infrastructure/# DbContext, Repositories, external gateways
 │           │   ├── Data/               # EF Core DbContext
@@ -818,7 +818,7 @@ The main platform is a Next.js 15 application using the App Router pattern.
 │                     ┌────────┴────────┐   ┌────┴────────┐      │
 │                     │ 28+ Services    │   │  DbContext  │      │
 │                     │ Result<T>       │   │  Repository │      │
-│                     │ AutoMapper      │   │  S3 Storage │      │
+│                     │ Mapster         │   │  S3 Storage │      │
 │                     └─────────────────┘   └─────────────┘      │
 │                                                  │               │
 │  ┌─────────────────────────────────────────────────────────┐    │

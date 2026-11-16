@@ -3,15 +3,15 @@ namespace ArdaNova.Application;
 using ArdaNova.Application.Mappings;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
+using MapsterMapper;
 using Microsoft.Extensions.DependencyInjection;
 
 public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        services.AddAutoMapper(
-            MappingSecurityPolicy.Apply,
-            typeof(MappingProfile).Assembly);
+        services.AddSingleton(MappingProfile.SharedConfig);
+        services.AddSingleton<IMapper>(MappingProfile.SharedMapper);
 
         // User services
         services.AddScoped<IUserService, UserService>();

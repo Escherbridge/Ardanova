@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Xunit;
 using FluentAssertions;
 using Moq;
-using AutoMapper;
+using MapsterMapper;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.Services.Implementations;
@@ -60,13 +60,8 @@ namespace ArdaNova.Application.Tests.Flows
 
         public TokenomicsFlowTests()
         {
-            // Setup AutoMapper with real MappingProfile
-            var mapperConfig = new MapperConfiguration(cfg =>
-            {
-                cfg.AddProfile<MappingProfile>();
-                MappingSecurityPolicy.Apply(cfg);
-            });
-            _mapper = mapperConfig.CreateMapper();
+            // Real mapper, the same registration the application uses.
+            _mapper = MappingProfile.CreateMapper();
 
             // Initialize repository mocks
             _configRepoMock = new Mock<IRepository<ProjectTokenConfig>>();

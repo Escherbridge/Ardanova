@@ -202,11 +202,12 @@ The frontend service must have `DATABASE_URL`, `API_URL`, `API_KEY`, `ADMIN_API_
 
 The .NET API service must use the same sealed `ADMIN_API_KEY` and
 `ACTOR_ASSERTION_HMAC_KEY` values. Keep both out of image layers and committed
-settings. AutoMapper is pinned to the MIT-licensed 14.x line, so the service has
-no mapping-library license secret or readiness requirement. The application
-globally forces `MaxDepth=64` for every registered map as the bounded mitigation
-for `GHSA-rvv3-g6hj-g44x`; the repository suppresses only that exact audit URL,
-and a regression test must continue proving complete map coverage.
+settings. Object mapping is Mapster (MIT), so the service has no
+mapping-library license secret or readiness requirement. The application still
+forces `MaxDepth=64` on every registered map so a cyclic entity graph cannot
+recurse without a limit. Do not reintroduce AutoMapper 14 (high-severity
+recursion advisories whose upstream patches require a commercial license) and
+do not suppress those advisories.
 
 AZOA is disabled-safe by default for this release: `Azoa__Mode=Simulated`,
 `Azoa__EnableFundingCheckout=false`, `Azoa__EnableSettlementOutboxWorker=false`,

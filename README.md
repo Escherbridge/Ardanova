@@ -610,13 +610,14 @@ Azoa__EnableCustodialAccounts="false"
 `ADMIN_API_KEY` and `ACTOR_ASSERTION_HMAC_KEY` are distinct server-only
 secrets. Each must be 32+ bytes and use the exact same respective value on the
 frontend BFF and .NET API services. Never prefix either with `NEXT_PUBLIC_` or
-print it in logs. The backend pins the MIT-licensed AutoMapper 14 line and does
-not require a runtime mapping license secret; upgrading beyond that line is an
-explicit dependency and licensing review. Its global `MaxDepth=64` policy is
-the reviewed mitigation for
-[`GHSA-rvv3-g6hj-g44x`](https://github.com/advisories/GHSA-rvv3-g6hj-g44x);
-the build suppresses that advisory URL only after the policy regression tests
-pass. See `.env.example` for the complete contract.
+print it in logs. The backend maps entities with Mapster (MIT) and does not
+require a mapping-library license secret. AutoMapper 15+ is not used: its
+patched releases need a commercial license, and 14.0.0 is covered by
+[`GHSA-rvv3-g6hj-g44x`](https://github.com/advisories/GHSA-rvv3-g6hj-g44x),
+[`GHSA-6vhm-j9h7-f9gh`](https://github.com/advisories/GHSA-6vhm-j9h7-f9gh), and
+[`GHSA-gpwp-5797-mjff`](https://github.com/advisories/GHSA-gpwp-5797-mjff).
+Mapster is still given a global `MaxDepth=64` so a cyclic entity graph cannot
+recurse without a limit. See `.env.example` for the complete contract.
 The Azoa keys are deliberately different: onboarding, value movement, credential
 issuance, and quest automation never inherit one another's authority. Quest
 authoring also requires the Azoa API-key owner to hold its persisted dApp

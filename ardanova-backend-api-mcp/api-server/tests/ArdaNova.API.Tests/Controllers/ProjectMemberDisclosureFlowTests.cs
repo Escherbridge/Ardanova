@@ -12,7 +12,6 @@ using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
-using AutoMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -35,11 +34,7 @@ public sealed class ProjectMemberDisclosureFlowTests
 
     public ProjectMemberDisclosureFlowTests()
     {
-        var mapper = new MapperConfiguration(cfg =>
-        {
-            cfg.AddProfile<MappingProfile>();
-            MappingSecurityPolicy.Apply(cfg);
-        }).CreateMapper();
+        var mapper = MappingProfile.CreateMapper();
 
         _users.Items.AddRange(
         [

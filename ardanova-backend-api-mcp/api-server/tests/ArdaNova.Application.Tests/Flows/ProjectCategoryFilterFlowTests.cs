@@ -10,7 +10,6 @@ using ArdaNova.Application.Mappings;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Tests.Support;
 using ArdaNova.Domain.Models.Entities;
-using AutoMapper;
 using FluentAssertions;
 using Moq;
 using Xunit;
@@ -29,11 +28,7 @@ public class ProjectCategoryFilterFlowTests
 
     public ProjectCategoryFilterFlowTests()
     {
-        var mapper = new MapperConfiguration(cfg =>
-        {
-            cfg.AddProfile<MappingProfile>();
-            MappingSecurityPolicy.Apply(cfg);
-        }).CreateMapper();
+        var mapper = MappingProfile.CreateMapper();
 
         _service = new ProjectService(
             ProjectTable(_projects),

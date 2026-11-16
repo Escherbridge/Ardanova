@@ -3,7 +3,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Domain.Models.Entities;
-using AutoMapper;
+using MapsterMapper;
 using FluentAssertions;
 using Moq;
 

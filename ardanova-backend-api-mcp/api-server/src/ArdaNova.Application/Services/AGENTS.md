@@ -87,7 +87,7 @@ only) from the user repository; the applicant's own reads do not need it.
   a real engagement before anyone may review is a product decision tracked in
   `conductor/tracks/guild-review-integrity_20261018`.
 - `VerifyAsync` (the verified badge) is gated on the admin API key in the controller.
-- Guild child DTOs are mapped by hand in the service (there are no AutoMapper maps for
+- Guild child DTOs are mapped by hand in the service (there are no mapper registrations for
   invitations, applications, updates or follows); member reads carry name/image, never email.
 
 ## Governance

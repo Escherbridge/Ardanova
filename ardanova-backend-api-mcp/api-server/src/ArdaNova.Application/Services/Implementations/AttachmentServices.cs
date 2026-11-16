@@ -1,6 +1,6 @@
 namespace ArdaNova.Application.Services.Implementations;
 
-using AutoMapper;
+using MapsterMapper;
 using ArdaNova.Application.Common.Interfaces;
 using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;

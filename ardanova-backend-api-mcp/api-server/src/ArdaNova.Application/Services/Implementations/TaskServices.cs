@@ -7,7 +7,7 @@ using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Application.Tasks;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
-using AutoMapper;
+using MapsterMapper;
 
 public class TaskService : ITaskService
 {

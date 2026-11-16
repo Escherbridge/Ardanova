@@ -7,7 +7,6 @@ using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Tests.Support;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
-using AutoMapper;
 using FluentAssertions;
 
 /// <summary>Guild flows driven through the services the controller calls, asserting on stored rows. Who acts is always the signed actor.</summary>
@@ -36,7 +35,7 @@ public class GuildAuthorityFlowTests
 
     public GuildAuthorityFlowTests()
     {
-        var mapper = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>()).CreateMapper();
+        var mapper = MappingProfile.CreateMapper();
         _guildService = new GuildService(_guilds, _members, _tasks, _unitOfWork, mapper);
         _memberService = new GuildMemberService(_members, _guilds, _users, _unitOfWork);
         _invitationService = new GuildInvitationService(_invitations, _members, _guilds, _users, _unitOfWork);
@@ -266,7 +265,7 @@ public class GuildAuthorityFlowTests
     public async Task A_guilds_project_count_is_the_projects_assigned_to_it_not_the_stored_counter()
     {
         var projects = new InMemoryRepository<Project>();
-        var mapper = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>()).CreateMapper();
+        var mapper = MappingProfile.CreateMapper();
         var guildService = new GuildService(_guilds, _members, _tasks, _unitOfWork, mapper, projects);
         var guild = LegacyGuild("alice");
         projects.Rows.Add(new Project { id = "p1", title = "Cool roofs", slug = "cool-roofs", assignedGuildId = guild.id });
@@ -284,7 +283,7 @@ public class GuildAuthorityFlowTests
     {
         _unitOfWork.Unique(_reviews, r => (r.guildId, r.userId));
         var projects = new InMemoryRepository<Project>();
-        var mapper = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>()).CreateMapper();
+        var mapper = MappingProfile.CreateMapper();
         var guildService = new GuildService(_guilds, _members, _tasks, _unitOfWork, mapper, projects, _reviews);
         var guild = await Found(Alice, "Roofers");
 

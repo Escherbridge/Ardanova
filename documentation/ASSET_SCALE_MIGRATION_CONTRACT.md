@@ -89,7 +89,7 @@ Before Stage 3 writes a scale:
 
 The first application release that can observe nullable scale must fail closed
 for a missing or invalid scale. It must not rely on CLR `int` default zero,
-AutoMapper construction, or a DTO default. The final non-null constraint is a
+object-mapper construction, or a DTO default. The final non-null constraint is a
 defense in depth, not the validation mechanism.
 
 ## Required implementation cutover map

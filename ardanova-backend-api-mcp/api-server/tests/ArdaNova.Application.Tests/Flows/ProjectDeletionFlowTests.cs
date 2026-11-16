@@ -9,7 +9,7 @@ using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Data;
 using ArdaNova.Infrastructure.Repositories;
-using AutoMapper;
+using MapsterMapper;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;

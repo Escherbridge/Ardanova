@@ -6,7 +6,7 @@ using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Infrastructure.Data;
 using ArdaNova.Infrastructure.Repositories;
 using ArdaNova.Infrastructure.Tasks;
-using AutoMapper;
+using MapsterMapper;
 using UnitOfWorkOverContext = ArdaNova.Infrastructure.UnitOfWork.UnitOfWork;
 
 /// <summary>

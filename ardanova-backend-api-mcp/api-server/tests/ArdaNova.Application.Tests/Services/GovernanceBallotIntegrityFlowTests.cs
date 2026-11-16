@@ -7,7 +7,6 @@ using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Tests.Support;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
-using AutoMapper;
 using FluentAssertions;
 
 /// <summary>A proposal's life from draft to tally, asserting on stored ballots and on what the read surface reports.</summary>
@@ -43,7 +42,7 @@ public class GovernanceBallotIntegrityFlowTests
             });
         }
 
-        var mapper = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>()).CreateMapper();
+        var mapper = MappingProfile.CreateMapper();
         _sut = new GovernanceService(_proposals, _votes, _executions, _users, _projects, _comments, _unitOfWork, mapper, _credentials);
     }
 

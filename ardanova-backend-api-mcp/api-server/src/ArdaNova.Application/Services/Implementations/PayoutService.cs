@@ -13,7 +13,7 @@ using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Domain.Policies;
 using ArdaNova.Domain.ValueObjects;
-using AutoMapper;
+using MapsterMapper;
 
 namespace ArdaNova.Application.Services.Interfaces
 {

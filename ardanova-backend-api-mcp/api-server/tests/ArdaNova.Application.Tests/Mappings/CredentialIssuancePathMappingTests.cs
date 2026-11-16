@@ -4,7 +4,6 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Mappings;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
-using AutoMapper;
 using FluentAssertions;
 
 /// <summary>
@@ -129,7 +128,6 @@ public sealed class CredentialIssuancePathMappingTests
 
     private static MembershipCredentialDto Map(MembershipCredential credential)
     {
-        var configuration = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>());
-        return configuration.CreateMapper().Map<MembershipCredentialDto>(credential);
+        return MappingProfile.CreateMapper().Map<MembershipCredentialDto>(credential);
     }
 }

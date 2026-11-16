@@ -11,27 +11,23 @@ delegated through the Infrastructure-owned ports (`ArdaNova.Infrastructure/Azoa/
 
 ## Object mapping
 
-AutoMapper is pinned to 14.x, the final MIT-licensed line that includes the
-Microsoft dependency-injection extensions and targets .NET 8. The application
-targets .NET 10 and consumes that compatible library surface without a runtime
-license key. Treat a major upgrade as an explicit API and licensing review.
+Object mapping uses Mapster 10 (MIT), not AutoMapper. AutoMapper 14.0.0 is
+covered by high-severity uncontrolled-recursion advisories
+([`GHSA-rvv3-g6hj-g44x`](https://github.com/advisories/GHSA-rvv3-g6hj-g44x),
+[`GHSA-6vhm-j9h7-f9gh`](https://github.com/advisories/GHSA-6vhm-j9h7-f9gh),
+[`GHSA-gpwp-5797-mjff`](https://github.com/advisories/GHSA-gpwp-5797-mjff)).
+The upstream patches are on the 15.1 and 16.3 lines, which require a commercial
+license key for commercial use, and `MaxDepth` does not close the later two
+advisories. Do not bring AutoMapper back, and do not suppress these advisories.
 
-AutoMapper 14 is covered by
-[`GHSA-rvv3-g6hj-g44x`](https://github.com/advisories/GHSA-rvv3-g6hj-g44x),
-an uncontrolled-recursion denial-of-service advisory. The patched upstream
-lines use a different commercial/dual-license contract, so this release keeps
-the MIT line and applies the advisory's explicit mitigation instead:
-`MappingSecurityPolicy` forces `MaxDepth=64` over every registered type map.
-`AddApplication` installs that global rule after profile discovery, and the
-mapping-policy regression tests prove both full coverage and that a profile's
-attempted unbounded depth is overwritten. Do not construct an application
-mapper without applying the policy.
-
-`api-server/Directory.Build.props` suppresses only that exact advisory URL
-after the runtime mitigation. Never replace it with a warning-code, severity,
-package-wide, or audit-wide suppression. Removing the policy requires either a
-non-vulnerable dependency under acceptable license terms or removing
-AutoMapper entirely.
+`MappingProfile` registers the maps on a Mapster `TypeAdapterConfig` with
+case-insensitive name matching. `MappingSecurityPolicy` still forces
+`MaxDepth=64` on the default settings and on every registered rule, because
+entity graphs contain cycles and Mapster will recurse until the stack dies
+unless a depth is set. `AddApplication` registers that config and its mapper.
+Do not construct an application mapper without applying the policy. The
+mapping-policy tests prove every registered rule is bounded, that a later
+unbounded depth is overwritten, and that a cyclic graph stops inside the limit.
 
 ## Generated secrets
 
