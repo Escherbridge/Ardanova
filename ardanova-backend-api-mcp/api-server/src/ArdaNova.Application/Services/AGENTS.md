@@ -49,7 +49,7 @@ Anyone can found a guild and so become a manager, so an invitation response that
 whether an email has an account is an account-enumeration oracle (QA confirmed it live: unknown
 email 400, registered email 409). `GuildInvitationService.CreateAsync` by email therefore:
 
-- refuses only a duplicate of the inviter's own still-pending invitation to the *same email* (409);
+- refuses only a duplicate of the inviter's own still-pending invitation to the _same email_ (409);
   nothing about the account decides the answer;
 - binds the row to the account when an account uses the email, is not already a member, and has no
   answerable invitation here; otherwise it stores an **unbound** row (no `invitedUserId`) that nobody
@@ -87,7 +87,7 @@ only) from the user repository; the applicant's own reads do not need it.
   a real engagement before anyone may review is a product decision tracked in
   `conductor/tracks/guild-review-integrity_20261018`.
 - `VerifyAsync` (the verified badge) is gated on the admin API key in the controller.
-- Guild child DTOs are mapped by hand in the service (there are no AutoMapper maps for
+- Guild child DTOs are mapped by hand in the service (there are no mapper registrations for
   invitations, applications, updates or follows); member reads carry name/image, never email.
 
 ## Governance

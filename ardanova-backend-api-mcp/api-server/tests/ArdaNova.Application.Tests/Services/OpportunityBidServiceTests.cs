@@ -7,7 +7,7 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
-using AutoMapper;
+using MapsterMapper;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;

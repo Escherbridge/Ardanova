@@ -7,7 +7,7 @@ using ArdaNova.Application.Common.Results;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
-using AutoMapper;
+using MapsterMapper;
 
 public sealed class WalletVerificationService : IWalletVerificationService
 {

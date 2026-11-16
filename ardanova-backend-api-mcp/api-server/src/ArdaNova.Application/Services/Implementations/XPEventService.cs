@@ -6,7 +6,7 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
-using AutoMapper;
+using MapsterMapper;
 
 /// <summary>
 /// XP, levels and the tier they earn. This service owns the tier derivation the rest of the

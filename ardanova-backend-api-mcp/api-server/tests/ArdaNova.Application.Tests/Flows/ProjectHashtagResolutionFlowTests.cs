@@ -9,7 +9,7 @@ using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Data;
 using ArdaNova.Infrastructure.Repositories;
-using AutoMapper;
+using MapsterMapper;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -33,11 +33,7 @@ public sealed class ProjectHashtagResolutionFlowTests : IAsyncLifetime
 {
     private const string Founder = "user-founder";
 
-    private static readonly IMapper Mapper = new MapperConfiguration(configuration =>
-    {
-        configuration.AddProfile<MappingProfile>();
-        MappingSecurityPolicy.Apply(configuration);
-    }).CreateMapper();
+    private static readonly IMapper Mapper = MappingProfile.CreateMapper();
 
     private DbContextOptions<ArdaNovaDbContext>? _options;
     private NpgsqlDataSource? _dataSource;

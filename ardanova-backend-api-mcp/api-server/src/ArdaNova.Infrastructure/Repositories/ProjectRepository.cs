@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 /// <remarks>
 /// Column contract for the presentation fields added to <see cref="Project"/> in the same wave:
 /// <c>summary</c> is part of the search index below; the media-path column(s) and the funding-goal
-/// columns need no repository code — EF maps them by convention and AutoMapper carries them to the
+/// columns need no repository code — EF maps them by convention and the object mapper carries them to the
 /// DTO — so nothing else here has to change when they land.
 /// </remarks>
 public class ProjectRepository : Repository<Project>, IProjectRepository

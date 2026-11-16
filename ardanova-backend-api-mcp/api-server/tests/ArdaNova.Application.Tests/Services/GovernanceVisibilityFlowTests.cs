@@ -8,7 +8,6 @@ using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Tests.Support;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
-using AutoMapper;
 using FluentAssertions;
 
 /// <summary>What the anonymous-readable governance surface shows to whom, and the discussion round trip the proposal page drives.</summary>
@@ -43,7 +42,7 @@ public class GovernanceVisibilityFlowTests
         AddProposal("hidden-project-vote", DraftProject, "stealth", ProposalStatus.ACTIVE);
         _votes.Rows.Add(new Vote { id = "v1", proposalId = "hidden-project-vote", voterId = "stealth", choice = 0, weight = 1m, reason = "private reasoning", createdAt = DateTime.UtcNow });
 
-        var mapper = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>()).CreateMapper();
+        var mapper = MappingProfile.CreateMapper();
         _sut = new GovernanceService(_proposals, _votes, _executions, _users, _projects, _comments, _unitOfWork, mapper, _credentials);
     }
 

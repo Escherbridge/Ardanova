@@ -6,7 +6,7 @@ using ArdaNova.Application.DTOs;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
-using AutoMapper;
+using MapsterMapper;
 
 /// <summary>
 /// Membership credentials, and the single place a credential's tier is written.

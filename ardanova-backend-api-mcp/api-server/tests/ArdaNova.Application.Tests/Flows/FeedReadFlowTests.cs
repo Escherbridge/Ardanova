@@ -12,7 +12,7 @@ using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Data;
 using ArdaNova.Infrastructure.Feed;
 using ArdaNova.Infrastructure.Repositories;
-using AutoMapper;
+using MapsterMapper;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -38,11 +38,7 @@ public sealed partial class FeedReadFlowTests : IAsyncLifetime
     private const string BarnTitle = "Barn raising";
     private const string DraftId = "project-draft";
 
-    private static readonly IMapper Mapper = new MapperConfiguration(configuration =>
-    {
-        configuration.AddProfile<MappingProfile>();
-        MappingSecurityPolicy.Apply(configuration);
-    }).CreateMapper();
+    private static readonly IMapper Mapper = MappingProfile.CreateMapper();
 
     /// <summary>The real clock: services stamp rows with wall time, and a page's asOf must not predate them.</summary>
     private readonly TimeProvider _clock = TimeProvider.System;

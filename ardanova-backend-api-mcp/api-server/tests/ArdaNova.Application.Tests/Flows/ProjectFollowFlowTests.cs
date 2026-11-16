@@ -12,7 +12,7 @@ using ArdaNova.Domain.Models.Enums;
 using ArdaNova.Infrastructure.Data;
 using ArdaNova.Infrastructure.Feed;
 using ArdaNova.Infrastructure.Repositories;
-using AutoMapper;
+using MapsterMapper;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -38,11 +38,7 @@ public sealed class ProjectFollowFlowTests : IAsyncLifetime
     private const string PublicProjectId = "project-public";
     private const string DraftProjectId = "project-draft";
 
-    private static readonly IMapper Mapper = new MapperConfiguration(configuration =>
-    {
-        configuration.AddProfile<MappingProfile>();
-        MappingSecurityPolicy.Apply(configuration);
-    }).CreateMapper();
+    private static readonly IMapper Mapper = MappingProfile.CreateMapper();
 
     private readonly TimeProvider _clock = TimeProvider.System;
     private DbContextOptions<ArdaNovaDbContext>? _options;

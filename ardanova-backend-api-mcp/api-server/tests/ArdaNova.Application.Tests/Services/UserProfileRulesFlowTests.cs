@@ -7,7 +7,6 @@ using ArdaNova.Application.Mappings;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Application.Tests.Support;
 using ArdaNova.Domain.Models.Entities;
-using AutoMapper;
 using FluentAssertions;
 using Moq;
 
@@ -25,11 +24,7 @@ public class UserProfileRulesFlowTests
 
     public UserProfileRulesFlowTests()
     {
-        var mapper = new MapperConfiguration(cfg =>
-        {
-            cfg.AddProfile<MappingProfile>();
-            MappingSecurityPolicy.Apply(cfg);
-        }).CreateMapper();
+        var mapper = MappingProfile.CreateMapper();
         var unitOfWork = new Mock<IUnitOfWork>().Object;
 
         _users.Rows.Add(new User { id = Owner, email = "owner@example.test", name = "Owner", website = "https://owner.example" });

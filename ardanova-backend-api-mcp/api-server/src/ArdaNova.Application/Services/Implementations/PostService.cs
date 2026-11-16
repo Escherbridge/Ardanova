@@ -7,7 +7,7 @@ using ArdaNova.Application.Feed;
 using ArdaNova.Application.Services.Interfaces;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
-using AutoMapper;
+using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
 using TaskStatus = ArdaNova.Domain.Models.Enums.TaskStatus;
 

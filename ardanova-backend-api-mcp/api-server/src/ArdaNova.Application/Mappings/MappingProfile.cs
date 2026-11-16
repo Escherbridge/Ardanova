@@ -1,447 +1,473 @@
-﻿namespace ArdaNova.Application.Mappings;
+namespace ArdaNova.Application.Mappings;
 
-using AutoMapper;
+using Mapster;
+using MapsterMapper;
 using ArdaNova.Application.DTOs;
 using ArdaNova.Domain.Models.Entities;
 
-public class MappingProfile : Profile
+/// <summary>
+/// Entity-to-DTO maps. Case-insensitive name matching covers the camelCase entity
+/// properties; every explicit member below is a conversion, a derived value, or an ignore.
+/// </summary>
+public static class MappingProfile
 {
-    public MappingProfile()
+    public static TypeAdapterConfig SharedConfig { get; } = Build(beforePolicy: null);
+
+    public static IMapper SharedMapper { get; } = new Mapper(SharedConfig);
+
+    public static TypeAdapterConfig CreateConfig(Action<TypeAdapterConfig>? beforePolicy = null)
+        => beforePolicy is null ? SharedConfig : Build(beforePolicy);
+
+    public static IMapper CreateMapper(Action<TypeAdapterConfig>? beforePolicy = null)
+        => beforePolicy is null ? SharedMapper : new Mapper(Build(beforePolicy));
+
+    private static TypeAdapterConfig Build(Action<TypeAdapterConfig>? beforePolicy)
     {
+        var config = new TypeAdapterConfig();
+        // Entities are camelCase and DTOs are PascalCase. IgnoreCase matches those names
+        // and does not fold underscores, so distinct names stay distinct.
+        config.Default.NameMatchingStrategy(NameMatchingStrategy.IgnoreCase);
+        Register(config);
+        beforePolicy?.Invoke(config);
+        MappingSecurityPolicy.Apply(config);
+        return config;
+    }
+
+    public static void Register(TypeAdapterConfig config)
+    {
+
         // User mappings
-        CreateMap<User, UserDto>();
-        CreateMap<Account, AccountDto>();
-        CreateMap<Session, SessionDto>();
-        CreateMap<VerificationToken, VerificationTokenDto>();
-        CreateMap<UserSkill, UserSkillDto>();
-        CreateMap<UserExperience, UserExperienceDto>();
+        config.NewConfig<User, UserDto>();
+        config.NewConfig<Account, AccountDto>();
+        config.NewConfig<Session, SessionDto>();
+        config.NewConfig<VerificationToken, VerificationTokenDto>();
+        config.NewConfig<UserSkill, UserSkillDto>();
+        config.NewConfig<UserExperience, UserExperienceDto>();
 
         // Project mappings
-        CreateMap<User, ProjectCreatorDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
-        CreateMap<Project, ProjectDto>()
-            .ForMember(dest => dest.CreatedBy, opt => opt.MapFrom(src => src.CreatedBy))
-            .ForMember(dest => dest.Categories, opt => opt.MapFrom(src =>
+        config.NewConfig<User, ProjectCreatorDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Image, src => src.image);
+        config.NewConfig<Project, ProjectDto>()
+            .Map(dest => dest.CreatedBy, src => src.CreatedBy)
+            .Map(dest => dest.Categories, src =>
                 string.IsNullOrEmpty(src.categories)
                     ? new List<string>()
-                    : src.categories.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList()))
+                    : src.categories.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList())
             // Lane L (SR-03 Phase 3 §3): the edit form's round-trip view of the derived fields, each
             // as a "#slug" chip via the same canonicalisation Hashtags.Extract uses for post copy.
             // Fully-qualified rather than a new `using`, so this append stays a one-line diff next
             // to K1's Post/Task blocks below (G0 §11: both lanes append to this file).
-            .ForMember(dest => dest.Hashtags, opt => opt.MapFrom(src =>
-                ArdaNova.Application.Services.Implementations.ProjectHashtagDisplay.From(src.categories, src.projectType)));
-        CreateMap<ProjectTask, ProjectTaskDto>();
-        CreateMap<ProjectTaskDependency, ProjectTaskDependencyDto>();
-        CreateMap<ProjectResource, ProjectResourceDto>();
-        CreateMap<ProjectMilestone, ProjectMilestoneDto>();
-        CreateMap<Epic, EpicDto>();
-        CreateMap<Sprint, SprintDto>();
-        CreateMap<ProductBacklogItem, ProductBacklogItemDto>();
-        CreateMap<Feature, FeatureDto>();
-        CreateMap<ProjectSupport, ProjectSupportDto>();
-        CreateMap<ProjectApplication, ProjectApplicationDto>();
-        CreateMap<ProjectComment, ProjectCommentDto>();
-        CreateMap<ProjectUpdate, ProjectUpdateDto>();
-        CreateMap<ProjectEquity, ProjectEquityDto>();
-        CreateMap<ProjectMember, ProjectMemberDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
-            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
-            .ForMember(dest => dest.Role, opt => opt.MapFrom(src => src.role))
-            .ForMember(dest => dest.ShareBalance, opt => opt.MapFrom(src => src.shareBalance))
-            .ForMember(dest => dest.VotingPower, opt => opt.MapFrom(src => src.votingPower))
-            .ForMember(dest => dest.JoinedAt, opt => opt.MapFrom(src => src.joinedAt))
-            .ForMember(dest => dest.InvitedById, opt => opt.MapFrom(src => src.invitedById))
-            .ForMember(dest => dest.User, opt => opt.Ignore());
-        CreateMap<User, ProjectMemberUserDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.email))
-            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
+            .Map(dest => dest.Hashtags, src =>
+                ArdaNova.Application.Services.Implementations.ProjectHashtagDisplay.From(src.categories, src.projectType));
+        config.NewConfig<ProjectTask, ProjectTaskDto>();
+        config.NewConfig<ProjectTaskDependency, ProjectTaskDependencyDto>();
+        config.NewConfig<ProjectResource, ProjectResourceDto>();
+        config.NewConfig<ProjectMilestone, ProjectMilestoneDto>();
+        config.NewConfig<Epic, EpicDto>();
+        config.NewConfig<Sprint, SprintDto>();
+        config.NewConfig<ProductBacklogItem, ProductBacklogItemDto>();
+        config.NewConfig<Feature, FeatureDto>();
+        config.NewConfig<ProjectSupport, ProjectSupportDto>();
+        config.NewConfig<ProjectApplication, ProjectApplicationDto>();
+        config.NewConfig<ProjectComment, ProjectCommentDto>();
+        config.NewConfig<ProjectUpdate, ProjectUpdateDto>();
+        config.NewConfig<ProjectEquity, ProjectEquityDto>();
+        config.NewConfig<ProjectMember, ProjectMemberDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.ProjectId, src => src.projectId)
+            .Map(dest => dest.UserId, src => src.userId)
+            .Map(dest => dest.Role, src => src.role)
+            .Map(dest => dest.ShareBalance, src => src.shareBalance)
+            .Map(dest => dest.VotingPower, src => src.votingPower)
+            .Map(dest => dest.JoinedAt, src => src.joinedAt)
+            .Map(dest => dest.InvitedById, src => src.invitedById)
+            .Ignore(dest => dest.User);
+        config.NewConfig<User, ProjectMemberUserDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Email, src => src.email)
+            .Map(dest => dest.Image, src => src.image);
 
         // Guild mappings (entity Guild -> DTO GuildDto)
-        CreateMap<Guild, GuildDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Slug, opt => opt.MapFrom(src => src.slug))
-            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.description))
-            .ForMember(dest => dest.Website, opt => opt.MapFrom(src => src.website))
-            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.email))
-            .ForMember(dest => dest.Phone, opt => opt.MapFrom(src => src.phone))
-            .ForMember(dest => dest.Address, opt => opt.MapFrom(src => src.address))
-            .ForMember(dest => dest.Logo, opt => opt.MapFrom(src => src.logo))
-            .ForMember(dest => dest.Portfolio, opt => opt.MapFrom(src => src.portfolio))
-            .ForMember(dest => dest.Specialties, opt => opt.MapFrom(src => src.specialties))
-            .ForMember(dest => dest.IsVerified, opt => opt.MapFrom(src => src.isVerified))
-            .ForMember(dest => dest.Rating, opt => opt.MapFrom(src => src.rating))
-            .ForMember(dest => dest.ReviewsCount, opt => opt.MapFrom(src => src.reviewsCount))
-            .ForMember(dest => dest.ProjectsCount, opt => opt.MapFrom(src => src.projectsCount))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt))
-            .ForMember(dest => dest.OwnerId, opt => opt.MapFrom(src => src.ownerId));
-        CreateMap<GuildMember, GuildMemberDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.GuildId, opt => opt.MapFrom(src => src.guildId))
-            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
-            .ForMember(dest => dest.Role, opt => opt.MapFrom(src => src.role))
-            .ForMember(dest => dest.JoinedAt, opt => opt.MapFrom(src => src.joinedAt));
-        CreateMap<GuildReview, GuildReviewDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.GuildId, opt => opt.MapFrom(src => src.guildId))
-            .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
-            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
-            .ForMember(dest => dest.Rating, opt => opt.MapFrom(src => src.rating))
-            .ForMember(dest => dest.Comment, opt => opt.MapFrom(src => src.comment))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt));
+        config.NewConfig<Guild, GuildDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Slug, src => src.slug)
+            .Map(dest => dest.Description, src => src.description)
+            .Map(dest => dest.Website, src => src.website)
+            .Map(dest => dest.Email, src => src.email)
+            .Map(dest => dest.Phone, src => src.phone)
+            .Map(dest => dest.Address, src => src.address)
+            .Map(dest => dest.Logo, src => src.logo)
+            .Map(dest => dest.Portfolio, src => src.portfolio)
+            .Map(dest => dest.Specialties, src => src.specialties)
+            .Map(dest => dest.IsVerified, src => src.isVerified)
+            .Map(dest => dest.Rating, src => src.rating)
+            .Map(dest => dest.ReviewsCount, src => src.reviewsCount)
+            .Map(dest => dest.ProjectsCount, src => src.projectsCount)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.UpdatedAt, src => src.updatedAt)
+            .Map(dest => dest.OwnerId, src => src.ownerId);
+        config.NewConfig<GuildMember, GuildMemberDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.GuildId, src => src.guildId)
+            .Map(dest => dest.UserId, src => src.userId)
+            .Map(dest => dest.Role, src => src.role)
+            .Map(dest => dest.JoinedAt, src => src.joinedAt);
+        config.NewConfig<GuildReview, GuildReviewDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.GuildId, src => src.guildId)
+            .Map(dest => dest.ProjectId, src => src.projectId)
+            .Map(dest => dest.UserId, src => src.userId)
+            .Map(dest => dest.Rating, src => src.rating)
+            .Map(dest => dest.Comment, src => src.comment)
+            .Map(dest => dest.CreatedAt, src => src.createdAt);
 
         // Post / feed
-        CreateMap<Post, PostDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.AuthorId, opt => opt.MapFrom(src => src.authorId))
-            .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
-            .ForMember(dest => dest.GuildId, opt => opt.MapFrom(src => src.guildId))
-            .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.type.ToString()))
-            .ForMember(dest => dest.Visibility, opt => opt.MapFrom(src => src.visibility.ToString()))
-            .ForMember(dest => dest.Title, opt => opt.MapFrom(src => src.title))
-            .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.content))
-            .ForMember(dest => dest.Metadata, opt => opt.MapFrom(src => src.metadata))
-            .ForMember(dest => dest.Hashtags, opt => opt.MapFrom(src => src.hashtags))
-            .ForMember(dest => dest.TaskId, opt => opt.MapFrom(src => src.taskId))
-            .ForMember(dest => dest.LikesCount, opt => opt.MapFrom(src => src.likesCount))
-            .ForMember(dest => dest.CommentsCount, opt => opt.MapFrom(src => src.commentsCount))
-            .ForMember(dest => dest.SharesCount, opt => opt.MapFrom(src => src.sharesCount))
-            .ForMember(dest => dest.ViewsCount, opt => opt.MapFrom(src => src.viewsCount))
-            .ForMember(dest => dest.IsPinned, opt => opt.MapFrom(src => src.isPinned))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt));
-        CreateMap<PostComment, PostCommentDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.PostId, opt => opt.MapFrom(src => src.postId))
-            .ForMember(dest => dest.AuthorId, opt => opt.MapFrom(src => src.authorId))
-            .ForMember(dest => dest.ParentId, opt => opt.MapFrom(src => src.parentId))
-            .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.content))
-            .ForMember(dest => dest.LikesCount, opt => opt.MapFrom(src => src.likesCount))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt));
+        config.NewConfig<Post, PostDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.AuthorId, src => src.authorId)
+            .Map(dest => dest.ProjectId, src => src.projectId)
+            .Map(dest => dest.GuildId, src => src.guildId)
+            .Map(dest => dest.Type, src => src.type.ToString())
+            .Map(dest => dest.Visibility, src => src.visibility.ToString())
+            .Map(dest => dest.Title, src => src.title)
+            .Map(dest => dest.Content, src => src.content)
+            .Map(dest => dest.Metadata, src => src.metadata)
+            .Map(dest => dest.Hashtags, src => src.hashtags)
+            .Map(dest => dest.TaskId, src => src.taskId)
+            .Map(dest => dest.LikesCount, src => src.likesCount)
+            .Map(dest => dest.CommentsCount, src => src.commentsCount)
+            .Map(dest => dest.SharesCount, src => src.sharesCount)
+            .Map(dest => dest.ViewsCount, src => src.viewsCount)
+            .Map(dest => dest.IsPinned, src => src.isPinned)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.UpdatedAt, src => src.updatedAt);
+        config.NewConfig<PostComment, PostCommentDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.PostId, src => src.postId)
+            .Map(dest => dest.AuthorId, src => src.authorId)
+            .Map(dest => dest.ParentId, src => src.parentId)
+            .Map(dest => dest.Content, src => src.content)
+            .Map(dest => dest.LikesCount, src => src.likesCount)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.UpdatedAt, src => src.updatedAt);
 
         // Product mappings (entity Product -> DTO ProductDto)
-        CreateMap<Product, ProductDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.description))
-            .ForMember(dest => dest.Sku, opt => opt.MapFrom(src => src.sku))
-            .ForMember(dest => dest.Price, opt => opt.MapFrom(src => src.price))
-            .ForMember(dest => dest.Cost, opt => opt.MapFrom(src => src.cost))
-            .ForMember(dest => dest.Category, opt => opt.MapFrom(src => src.category))
-            .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => src.isActive))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt))
-            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId));
+        config.NewConfig<Product, ProductDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.ProjectId, src => src.projectId)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Description, src => src.description)
+            .Map(dest => dest.Sku, src => src.sku)
+            .Map(dest => dest.Price, src => src.price)
+            .Map(dest => dest.Cost, src => src.cost)
+            .Map(dest => dest.Category, src => src.category)
+            .Map(dest => dest.IsActive, src => src.isActive)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.UpdatedAt, src => src.updatedAt)
+            .Map(dest => dest.UserId, src => src.userId);
 
         // Task mappings (entity ProjectTask -> DTO TaskDto)
-        CreateMap<ProjectTask, TaskDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
-            .ForMember(dest => dest.PbiId, opt => opt.MapFrom(src => src.pbiId))
-            .ForMember(dest => dest.Title, opt => opt.MapFrom(src => src.title))
-            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.description))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.status))
-            .ForMember(dest => dest.Priority, opt => opt.MapFrom(src => src.priority))
-            .ForMember(dest => dest.TaskType, opt => opt.MapFrom(src => src.taskType))
-            .ForMember(dest => dest.EstimatedHours, opt => opt.MapFrom(src => src.estimatedHours))
-            .ForMember(dest => dest.ActualHours, opt => opt.MapFrom(src => src.actualHours))
-            .ForMember(dest => dest.EquityReward, opt => opt.MapFrom(src => src.equityReward))
-            .ForMember(dest => dest.EscrowStatus, opt => opt.MapFrom(src => src.escrowStatus))
-            .ForMember(dest => dest.DueDate, opt => opt.MapFrom(src => src.dueDate))
-            .ForMember(dest => dest.CompletedAt, opt => opt.MapFrom(src => src.completedAt))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt))
-            .ForMember(dest => dest.AssignedToId, opt => opt.MapFrom(src => src.assignedToId))
-            .ForMember(dest => dest.AssignedTo, opt => opt.Ignore())
-            .ForMember(dest => dest.Project, opt => opt.Ignore())
-            .ForMember(dest => dest.HasAgreement, opt => opt.Ignore())
-            .ForMember(dest => dest.HelpWanted, opt => opt.Ignore());
-        CreateMap<User, TaskUserDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
-        CreateMap<Project, TaskProjectDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Title, opt => opt.MapFrom(src => src.title))
-            .ForMember(dest => dest.Slug, opt => opt.MapFrom(src => src.slug));
+        config.NewConfig<ProjectTask, TaskDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.ProjectId, src => src.projectId)
+            .Map(dest => dest.PbiId, src => src.pbiId)
+            .Map(dest => dest.Title, src => src.title)
+            .Map(dest => dest.Description, src => src.description)
+            .Map(dest => dest.Status, src => src.status)
+            .Map(dest => dest.Priority, src => src.priority)
+            .Map(dest => dest.TaskType, src => src.taskType)
+            .Map(dest => dest.EstimatedHours, src => src.estimatedHours)
+            .Map(dest => dest.ActualHours, src => src.actualHours)
+            .Map(dest => dest.EquityReward, src => src.equityReward)
+            .Map(dest => dest.EscrowStatus, src => src.escrowStatus)
+            .Map(dest => dest.DueDate, src => src.dueDate)
+            .Map(dest => dest.CompletedAt, src => src.completedAt)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.UpdatedAt, src => src.updatedAt)
+            .Map(dest => dest.AssignedToId, src => src.assignedToId)
+            .Ignore(dest => dest.AssignedTo)
+            .Ignore(dest => dest.Project)
+            .Ignore(dest => dest.HasAgreement)
+            .Ignore(dest => dest.HelpWanted);
+        config.NewConfig<User, TaskUserDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Image, src => src.image);
+        config.NewConfig<Project, TaskProjectDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Title, src => src.title)
+            .Map(dest => dest.Slug, src => src.slug);
 
         // Event mappings (entity Event -> DTO EventDto)
-        CreateMap<Event, EventDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Title, opt => opt.MapFrom(src => src.title))
-            .ForMember(dest => dest.Slug, opt => opt.MapFrom(src => src.slug))
-            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.description))
-            .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.type))
-            .ForMember(dest => dest.Visibility, opt => opt.MapFrom(src => src.visibility))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.status))
-            .ForMember(dest => dest.Location, opt => opt.MapFrom(src => src.location))
-            .ForMember(dest => dest.LocationUrl, opt => opt.MapFrom(src => src.locationUrl))
-            .ForMember(dest => dest.IsOnline, opt => opt.MapFrom(src => src.isOnline))
-            .ForMember(dest => dest.MeetingUrl, opt => opt.MapFrom(src => src.meetingUrl))
-            .ForMember(dest => dest.Timezone, opt => opt.MapFrom(src => src.timezone))
-            .ForMember(dest => dest.StartDate, opt => opt.MapFrom(src => src.startDate))
-            .ForMember(dest => dest.EndDate, opt => opt.MapFrom(src => src.endDate))
-            .ForMember(dest => dest.MaxAttendees, opt => opt.MapFrom(src => src.maxAttendees))
-            .ForMember(dest => dest.AttendeesCount, opt => opt.MapFrom(src => src.attendeesCount))
-            .ForMember(dest => dest.CoverImage, opt => opt.MapFrom(src => src.coverImage))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt))
-            .ForMember(dest => dest.OrganizerId, opt => opt.MapFrom(src => src.organizerId))
-            .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
-            .ForMember(dest => dest.GuildId, opt => opt.MapFrom(src => src.guildId))
-            .ForMember(dest => dest.Organizer, opt => opt.Ignore());
-        CreateMap<User, EventOrganizerDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
-        CreateMap<EventAttendee, EventAttendeeDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.EventId, opt => opt.MapFrom(src => src.eventId))
-            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.status))
-            .ForMember(dest => dest.RsvpAt, opt => opt.MapFrom(src => src.rsvpAt))
-            .ForMember(dest => dest.AttendedAt, opt => opt.MapFrom(src => src.attendedAt))
-            .ForMember(dest => dest.Notes, opt => opt.MapFrom(src => src.notes))
-            .ForMember(dest => dest.User, opt => opt.Ignore());
-        CreateMap<User, EventAttendeeUserDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
+        config.NewConfig<Event, EventDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Title, src => src.title)
+            .Map(dest => dest.Slug, src => src.slug)
+            .Map(dest => dest.Description, src => src.description)
+            .Map(dest => dest.Type, src => src.type)
+            .Map(dest => dest.Visibility, src => src.visibility)
+            .Map(dest => dest.Status, src => src.status)
+            .Map(dest => dest.Location, src => src.location)
+            .Map(dest => dest.LocationUrl, src => src.locationUrl)
+            .Map(dest => dest.IsOnline, src => src.isOnline)
+            .Map(dest => dest.MeetingUrl, src => src.meetingUrl)
+            .Map(dest => dest.Timezone, src => src.timezone)
+            .Map(dest => dest.StartDate, src => src.startDate)
+            .Map(dest => dest.EndDate, src => src.endDate)
+            .Map(dest => dest.MaxAttendees, src => src.maxAttendees)
+            .Map(dest => dest.AttendeesCount, src => src.attendeesCount)
+            .Map(dest => dest.CoverImage, src => src.coverImage)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.UpdatedAt, src => src.updatedAt)
+            .Map(dest => dest.OrganizerId, src => src.organizerId)
+            .Map(dest => dest.ProjectId, src => src.projectId)
+            .Map(dest => dest.GuildId, src => src.guildId)
+            .Ignore(dest => dest.Organizer);
+        config.NewConfig<User, EventOrganizerDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Image, src => src.image);
+        config.NewConfig<EventAttendee, EventAttendeeDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.EventId, src => src.eventId)
+            .Map(dest => dest.UserId, src => src.userId)
+            .Map(dest => dest.Status, src => src.status)
+            .Map(dest => dest.RsvpAt, src => src.rsvpAt)
+            .Map(dest => dest.AttendedAt, src => src.attendedAt)
+            .Map(dest => dest.Notes, src => src.notes)
+            .Ignore(dest => dest.User);
+        config.NewConfig<User, EventAttendeeUserDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Image, src => src.image);
 
         // Opportunity mappings (entity Opportunity -> DTO OpportunityDto)
-        CreateMap<Opportunity, OpportunityDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Title, opt => opt.MapFrom(src => src.title))
-            .ForMember(dest => dest.Slug, opt => opt.MapFrom(src => src.slug))
-            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.description))
-            .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.type))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.status))
-            .ForMember(dest => dest.ExperienceLevel, opt => opt.MapFrom(src => src.experienceLevel))
-            .ForMember(dest => dest.Requirements, opt => opt.MapFrom(src => src.requirements))
-            .ForMember(dest => dest.Skills, opt => opt.MapFrom(src => src.skills))
-            .ForMember(dest => dest.Benefits, opt => opt.MapFrom(src => src.benefits))
-            .ForMember(dest => dest.Location, opt => opt.MapFrom(src => src.location))
-            .ForMember(dest => dest.IsRemote, opt => opt.MapFrom(src => src.isRemote))
-            .ForMember(dest => dest.Compensation, opt => opt.MapFrom(src => src.compensation))
-            .ForMember(dest => dest.CompensationDetails, opt => opt.MapFrom(src => src.compensationDetails))
-            .ForMember(dest => dest.Deadline, opt => opt.MapFrom(src => src.deadline))
-            .ForMember(dest => dest.MaxApplications, opt => opt.MapFrom(src => src.maxApplications))
-            .ForMember(dest => dest.ApplicationsCount, opt => opt.MapFrom(src => src.applicationsCount))
-            .ForMember(dest => dest.CoverImage, opt => opt.MapFrom(src => src.coverImage))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt))
-            .ForMember(dest => dest.ClosedAt, opt => opt.MapFrom(src => src.closedAt))
-            .ForMember(dest => dest.PosterId, opt => opt.MapFrom(src => src.posterId))
-            .ForMember(dest => dest.GuildId, opt => opt.MapFrom(src => src.guildId))
-            .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
-            .ForMember(dest => dest.TaskId, opt => opt.MapFrom(src => src.taskId))
-            .ForMember(dest => dest.ProjectRole, opt => opt.MapFrom(src => src.projectRole))
-            .ForMember(dest => dest.Poster, opt => opt.Ignore());
-        CreateMap<User, OpportunityPosterDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
-        CreateMap<OpportunityApplication, OpportunityApplicationDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.OpportunityId, opt => opt.MapFrom(src => src.opportunityId))
-            .ForMember(dest => dest.ApplicantId, opt => opt.MapFrom(src => src.applicantId))
-            .ForMember(dest => dest.CoverLetter, opt => opt.MapFrom(src => src.coverLetter))
-            .ForMember(dest => dest.Portfolio, opt => opt.MapFrom(src => src.portfolio))
-            .ForMember(dest => dest.AdditionalInfo, opt => opt.MapFrom(src => src.additionalInfo))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.status))
-            .ForMember(dest => dest.ReviewNotes, opt => opt.MapFrom(src => src.reviewNotes))
-            .ForMember(dest => dest.AppliedAt, opt => opt.MapFrom(src => src.appliedAt))
-            .ForMember(dest => dest.ReviewedAt, opt => opt.MapFrom(src => src.reviewedAt))
-            .ForMember(dest => dest.Applicant, opt => opt.Ignore());
-        CreateMap<User, OpportunityApplicationApplicantDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image))
-            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.email));
+        config.NewConfig<Opportunity, OpportunityDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Title, src => src.title)
+            .Map(dest => dest.Slug, src => src.slug)
+            .Map(dest => dest.Description, src => src.description)
+            .Map(dest => dest.Type, src => src.type)
+            .Map(dest => dest.Status, src => src.status)
+            .Map(dest => dest.ExperienceLevel, src => src.experienceLevel)
+            .Map(dest => dest.Requirements, src => src.requirements)
+            .Map(dest => dest.Skills, src => src.skills)
+            .Map(dest => dest.Benefits, src => src.benefits)
+            .Map(dest => dest.Location, src => src.location)
+            .Map(dest => dest.IsRemote, src => src.isRemote)
+            .Map(dest => dest.Compensation, src => src.compensation)
+            .Map(dest => dest.CompensationDetails, src => src.compensationDetails)
+            .Map(dest => dest.Deadline, src => src.deadline)
+            .Map(dest => dest.MaxApplications, src => src.maxApplications)
+            .Map(dest => dest.ApplicationsCount, src => src.applicationsCount)
+            .Map(dest => dest.CoverImage, src => src.coverImage)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.UpdatedAt, src => src.updatedAt)
+            .Map(dest => dest.ClosedAt, src => src.closedAt)
+            .Map(dest => dest.PosterId, src => src.posterId)
+            .Map(dest => dest.GuildId, src => src.guildId)
+            .Map(dest => dest.ProjectId, src => src.projectId)
+            .Map(dest => dest.TaskId, src => src.taskId)
+            .Map(dest => dest.ProjectRole, src => src.projectRole)
+            .Ignore(dest => dest.Poster);
+        config.NewConfig<User, OpportunityPosterDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Image, src => src.image);
+        config.NewConfig<OpportunityApplication, OpportunityApplicationDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.OpportunityId, src => src.opportunityId)
+            .Map(dest => dest.ApplicantId, src => src.applicantId)
+            .Map(dest => dest.CoverLetter, src => src.coverLetter)
+            .Map(dest => dest.Portfolio, src => src.portfolio)
+            .Map(dest => dest.AdditionalInfo, src => src.additionalInfo)
+            .Map(dest => dest.Status, src => src.status)
+            .Map(dest => dest.ReviewNotes, src => src.reviewNotes)
+            .Map(dest => dest.AppliedAt, src => src.appliedAt)
+            .Map(dest => dest.ReviewedAt, src => src.reviewedAt)
+            .Ignore(dest => dest.Applicant);
+        config.NewConfig<User, OpportunityApplicationApplicantDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Image, src => src.image)
+            .Map(dest => dest.Email, src => src.email);
 
         // Opportunity Update mappings
-        CreateMap<OpportunityUpdate, OpportunityUpdateDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.OpportunityId, opt => opt.MapFrom(src => src.opportunityId))
-            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
-            .ForMember(dest => dest.Title, opt => opt.MapFrom(src => src.title))
-            .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.content))
-            .ForMember(dest => dest.Images, opt => opt.MapFrom(src => src.images))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.User, opt => opt.Ignore());
-        CreateMap<User, OpportunityUpdateAuthorDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
+        config.NewConfig<OpportunityUpdate, OpportunityUpdateDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.OpportunityId, src => src.opportunityId)
+            .Map(dest => dest.UserId, src => src.userId)
+            .Map(dest => dest.Title, src => src.title)
+            .Map(dest => dest.Content, src => src.content)
+            .Map(dest => dest.Images, src => src.images)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Ignore(dest => dest.User);
+        config.NewConfig<User, OpportunityUpdateAuthorDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Image, src => src.image);
 
         // Opportunity Comment mappings
-        CreateMap<OpportunityComment, OpportunityCommentDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.OpportunityId, opt => opt.MapFrom(src => src.opportunityId))
-            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
-            .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.content))
-            .ForMember(dest => dest.ParentId, opt => opt.MapFrom(src => src.parentId))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt))
-            .ForMember(dest => dest.Author, opt => opt.Ignore());
-        CreateMap<User, OpportunityCommentAuthorDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image))
-            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.email));
+        config.NewConfig<OpportunityComment, OpportunityCommentDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.OpportunityId, src => src.opportunityId)
+            .Map(dest => dest.UserId, src => src.userId)
+            .Map(dest => dest.Content, src => src.content)
+            .Map(dest => dest.ParentId, src => src.parentId)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.UpdatedAt, src => src.updatedAt)
+            .Ignore(dest => dest.Author);
+        config.NewConfig<User, OpportunityCommentAuthorDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Image, src => src.image)
+            .Map(dest => dest.Email, src => src.email);
 
         // Opportunity Bid mappings
-        CreateMap<OpportunityBid, OpportunityBidDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.OpportunityId, opt => opt.MapFrom(src => src.opportunityId))
-            .ForMember(dest => dest.BidderId, opt => opt.MapFrom(src => src.bidderId))
-            .ForMember(dest => dest.GuildId, opt => opt.MapFrom(src => src.guildId))
-            .ForMember(dest => dest.ProposedAmount, opt => opt.MapFrom(src => src.proposedAmount))
-            .ForMember(dest => dest.Proposal, opt => opt.MapFrom(src => src.proposal))
-            .ForMember(dest => dest.EstimatedHours, opt => opt.MapFrom(src => src.estimatedHours))
-            .ForMember(dest => dest.Timeline, opt => opt.MapFrom(src => src.timeline))
-            .ForMember(dest => dest.Deliverables, opt => opt.MapFrom(src => src.deliverables))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.status))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.ReviewedAt, opt => opt.MapFrom(src => src.reviewedAt))
-            .ForMember(dest => dest.Bidder, opt => opt.Ignore())
-            .ForMember(dest => dest.Guild, opt => opt.Ignore());
-        CreateMap<User, OpportunityBidBidderDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image))
-            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.email));
-        CreateMap<Guild, OpportunityBidGuildDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Logo, opt => opt.MapFrom(src => src.logo))
-            .ForMember(dest => dest.Slug, opt => opt.MapFrom(src => src.slug));
+        config.NewConfig<OpportunityBid, OpportunityBidDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.OpportunityId, src => src.opportunityId)
+            .Map(dest => dest.BidderId, src => src.bidderId)
+            .Map(dest => dest.GuildId, src => src.guildId)
+            .Map(dest => dest.ProposedAmount, src => src.proposedAmount)
+            .Map(dest => dest.Proposal, src => src.proposal)
+            .Map(dest => dest.EstimatedHours, src => src.estimatedHours)
+            .Map(dest => dest.Timeline, src => src.timeline)
+            .Map(dest => dest.Deliverables, src => src.deliverables)
+            .Map(dest => dest.Status, src => src.status)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.ReviewedAt, src => src.reviewedAt)
+            .Ignore(dest => dest.Bidder)
+            .Ignore(dest => dest.Guild);
+        config.NewConfig<User, OpportunityBidBidderDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Image, src => src.image)
+            .Map(dest => dest.Email, src => src.email);
+        config.NewConfig<Guild, OpportunityBidGuildDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Logo, src => src.logo)
+            .Map(dest => dest.Slug, src => src.slug);
 
         // Governance mappings (entity Proposal -> DTO ProposalDto)
-        CreateMap<Proposal, ProposalDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
-            .ForMember(dest => dest.CreatorId, opt => opt.MapFrom(src => src.creatorId))
-            .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.type))
-            .ForMember(dest => dest.Title, opt => opt.MapFrom(src => src.title))
-            .ForMember(dest => dest.Description, opt => opt.MapFrom(src => src.description))
-            .ForMember(dest => dest.Options, opt => opt.MapFrom(src => src.options))
-            .ForMember(dest => dest.Quorum, opt => opt.MapFrom(src => src.quorum))
-            .ForMember(dest => dest.Threshold, opt => opt.MapFrom(src => src.threshold))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.status))
-            .ForMember(dest => dest.VotingStart, opt => opt.MapFrom(src => src.votingStart))
-            .ForMember(dest => dest.VotingEnd, opt => opt.MapFrom(src => src.votingEnd))
-            .ForMember(dest => dest.ExecutionDelay, opt => opt.MapFrom(src => src.executionDelay))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt))
-            .ForMember(dest => dest.Creator, opt => opt.Ignore())
-            .ForMember(dest => dest.Project, opt => opt.Ignore())
-            .ForMember(dest => dest.VotesCount, opt => opt.Ignore())
-            .ForMember(dest => dest.TotalVotingPower, opt => opt.Ignore());
-        CreateMap<User, ProposalCreatorDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
-        CreateMap<Project, ProposalProjectDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Title, opt => opt.MapFrom(src => src.title))
-            .ForMember(dest => dest.Slug, opt => opt.MapFrom(src => src.slug));
-        CreateMap<Vote, VoteDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.ProposalId, opt => opt.MapFrom(src => src.proposalId))
-            .ForMember(dest => dest.VoterId, opt => opt.MapFrom(src => src.voterId))
-            .ForMember(dest => dest.Choice, opt => opt.MapFrom(src => src.choice))
-            .ForMember(dest => dest.Weight, opt => opt.MapFrom(src => src.weight))
-            .ForMember(dest => dest.Reason, opt => opt.MapFrom(src => src.reason))
-            .ForMember(dest => dest.TxHash, opt => opt.MapFrom(src => src.txHash))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.Voter, opt => opt.Ignore());
-        CreateMap<User, VoteUserDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
-        CreateMap<ProposalComment, ProposalCommentDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.ProposalId, opt => opt.MapFrom(src => src.proposalId))
-            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
-            .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.content))
-            .ForMember(dest => dest.ParentId, opt => opt.MapFrom(src => src.parentId))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt))
-            .ForMember(dest => dest.User, opt => opt.Ignore())
-            .ForMember(dest => dest.Replies, opt => opt.Ignore());
-        CreateMap<User, ProposalCommentUserDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.name))
-            .ForMember(dest => dest.Image, opt => opt.MapFrom(src => src.image));
+        config.NewConfig<Proposal, ProposalDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.ProjectId, src => src.projectId)
+            .Map(dest => dest.CreatorId, src => src.creatorId)
+            .Map(dest => dest.Type, src => src.type)
+            .Map(dest => dest.Title, src => src.title)
+            .Map(dest => dest.Description, src => src.description)
+            .Map(dest => dest.Options, src => src.options)
+            .Map(dest => dest.Quorum, src => src.quorum)
+            .Map(dest => dest.Threshold, src => src.threshold)
+            .Map(dest => dest.Status, src => src.status)
+            .Map(dest => dest.VotingStart, src => src.votingStart)
+            .Map(dest => dest.VotingEnd, src => src.votingEnd)
+            .Map(dest => dest.ExecutionDelay, src => src.executionDelay)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.UpdatedAt, src => src.updatedAt)
+            .Ignore(dest => dest.Creator)
+            .Ignore(dest => dest.Project)
+            .Ignore(dest => dest.VotesCount)
+            .Ignore(dest => dest.TotalVotingPower);
+        config.NewConfig<User, ProposalCreatorDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Image, src => src.image);
+        config.NewConfig<Project, ProposalProjectDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Title, src => src.title)
+            .Map(dest => dest.Slug, src => src.slug);
+        config.NewConfig<Vote, VoteDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.ProposalId, src => src.proposalId)
+            .Map(dest => dest.VoterId, src => src.voterId)
+            .Map(dest => dest.Choice, src => src.choice)
+            .Map(dest => dest.Weight, src => src.weight)
+            .Map(dest => dest.Reason, src => src.reason)
+            .Map(dest => dest.TxHash, src => src.txHash)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Ignore(dest => dest.Voter);
+        config.NewConfig<User, VoteUserDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Image, src => src.image);
+        config.NewConfig<ProposalComment, ProposalCommentDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.ProposalId, src => src.proposalId)
+            .Map(dest => dest.UserId, src => src.userId)
+            .Map(dest => dest.Content, src => src.content)
+            .Map(dest => dest.ParentId, src => src.parentId)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.UpdatedAt, src => src.updatedAt)
+            .Ignore(dest => dest.User)
+            .Ignore(dest => dest.Replies);
+        config.NewConfig<User, ProposalCommentUserDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.Name, src => src.name)
+            .Map(dest => dest.Image, src => src.image);
 
         // UserFollow mappings
-        CreateMap<UserFollow, UserFollowDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.FollowerId, opt => opt.MapFrom(src => src.followerId))
-            .ForMember(dest => dest.FollowingId, opt => opt.MapFrom(src => src.followingId))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt));
+        config.NewConfig<UserFollow, UserFollowDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.FollowerId, src => src.followerId)
+            .Map(dest => dest.FollowingId, src => src.followingId)
+            .Map(dest => dest.CreatedAt, src => src.createdAt);
 
         // Wallet mappings
-        CreateMap<Wallet, WalletDto>();
+        config.NewConfig<Wallet, WalletDto>();
 
         // Task Escrow mappings
-        CreateMap<TaskEscrow, TaskEscrowDto>();
+        config.NewConfig<TaskEscrow, TaskEscrowDto>();
 
         // Gamification extended mappings
-        CreateMap<UserStreak, UserStreakDto>();
-        CreateMap<Referral, ReferralDto>();
+        config.NewConfig<UserStreak, UserStreakDto>();
+        config.NewConfig<Referral, ReferralDto>();
 
         // Leaderboard mappings
-        CreateMap<Leaderboard, LeaderboardDto>();
-        CreateMap<LeaderboardEntry, LeaderboardEntryDto>();
+        config.NewConfig<Leaderboard, LeaderboardDto>();
+        config.NewConfig<LeaderboardEntry, LeaderboardEntryDto>();
 
         // XP Event mappings
-        CreateMap<XPEvent, XPEventDto>();
+        config.NewConfig<XPEvent, XPEventDto>();
 
         // Achievement mappings
-        CreateMap<Achievement, AchievementDto>();
-        CreateMap<UserAchievement, UserAchievementDto>();
+        config.NewConfig<Achievement, AchievementDto>();
+        config.NewConfig<UserAchievement, UserAchievementDto>();
 
         // Notification & Activity mappings
-        CreateMap<Notification, NotificationDto>();
-        CreateMap<Activity, ActivityDto>();
+        config.NewConfig<Notification, NotificationDto>();
+        config.NewConfig<Activity, ActivityDto>();
 
         // Membership Credential mappings
-        CreateMap<MembershipCredential, MembershipCredentialDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
-            .ForMember(dest => dest.GuildId, opt => opt.MapFrom(src => src.guildId))
-            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
-            .ForMember(dest => dest.AssetId, opt => opt.MapFrom(src => src.assetId))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.status.ToString()))
-            .ForMember(dest => dest.IsTransferable, opt => opt.MapFrom(src => src.isTransferable))
-            .ForMember(dest => dest.Tier, opt => opt.MapFrom(src => src.tier != null ? src.tier.ToString() : null))
-            .ForMember(dest => dest.GrantedVia, opt => opt.MapFrom(src => src.grantedVia.ToString()))
-            .ForMember(dest => dest.GrantedByProposalId, opt => opt.MapFrom(src => src.grantedByProposalId))
-            .ForMember(dest => dest.MetadataUri, opt => opt.MapFrom(src => src.metadataUri))
-            .ForMember(dest => dest.MintTxHash, opt => opt.MapFrom(src => src.mintTxHash))
-            .ForMember(dest => dest.RevokeTxHash, opt => opt.MapFrom(src => src.revokeTxHash))
-            .ForMember(dest => dest.MintedAt, opt => opt.MapFrom(src => src.mintedAt))
-            .ForMember(dest => dest.RevokedAt, opt => opt.MapFrom(src => src.revokedAt))
+        config.NewConfig<MembershipCredential, MembershipCredentialDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.ProjectId, src => src.projectId)
+            .Map(dest => dest.GuildId, src => src.guildId)
+            .Map(dest => dest.UserId, src => src.userId)
+            .Map(dest => dest.AssetId, src => src.assetId)
+            .Map(dest => dest.Status, src => src.status.ToString())
+            .Map(dest => dest.IsTransferable, src => src.isTransferable)
+            .Map(dest => dest.Tier, src => src.tier != null ? src.tier.ToString() : null)
+            .Map(dest => dest.GrantedVia, src => src.grantedVia.ToString())
+            .Map(dest => dest.GrantedByProposalId, src => src.grantedByProposalId)
+            .Map(dest => dest.MetadataUri, src => src.metadataUri)
+            .Map(dest => dest.MintTxHash, src => src.mintTxHash)
+            .Map(dest => dest.RevokeTxHash, src => src.revokeTxHash)
+            .Map(dest => dest.MintedAt, src => src.mintedAt)
+            .Map(dest => dest.RevokedAt, src => src.revokedAt)
             // The issuance-path flag the member-facing screens gate their proof copy on. Read off
             // issuedThroughNodeAt, which the node path alone stamps — NEVER off mintTxHash or
             // assetId, which the removed platform-held mint also wrote and the simulated provider
             // fabricated. See MembershipCredentialDto.IsIndependentlyVerifiable.
-            .ForMember(
-                dest => dest.IsIndependentlyVerifiable,
-                opt => opt.MapFrom(src => src.issuedThroughNodeAt != null))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt));
+            .Map(dest => dest.IsIndependentlyVerifiable, src => src.issuedThroughNodeAt != null)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.UpdatedAt, src => src.updatedAt);
 
         // Exchange mappings
         // TODO: LiquidityPool/LiquidityProvider DTOs not yet implemented
@@ -449,65 +475,66 @@ public class MappingProfile : Profile
         // CreateMap<LiquidityProvider, LiquidityProviderDto>();
 
         // Attachment mappings
-        CreateMap<Attachment, AttachmentDto>()
-            .ForMember(dest => dest.BucketPath, opt => opt.MapFrom(src => src.bucketPath))
-            .ForMember(dest => dest.UploadedById, opt => opt.MapFrom(src => src.uploadedById))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.LastUsedAt, opt => opt.MapFrom(src => src.lastUsedAt))
-            .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.type));
+        config.NewConfig<Attachment, AttachmentDto>()
+            .Map(dest => dest.BucketPath, src => src.bucketPath)
+            .Map(dest => dest.UploadedById, src => src.uploadedById)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.LastUsedAt, src => src.lastUsedAt)
+            .Map(dest => dest.Type, src => src.type);
 
         // KYC mappings
-        CreateMap<KycSubmission, KycSubmissionDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.userId))
-            .ForMember(dest => dest.Provider, opt => opt.MapFrom(src => src.provider))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.status))
-            .ForMember(dest => dest.ReviewerId, opt => opt.MapFrom(src => src.reviewerId))
-            .ForMember(dest => dest.ReviewNotes, opt => opt.MapFrom(src => src.reviewNotes))
-            .ForMember(dest => dest.RejectionReason, opt => opt.MapFrom(src => src.rejectionReason))
-            .ForMember(dest => dest.ProviderSessionId, opt => opt.MapFrom(src => src.providerSessionId))
-            .ForMember(dest => dest.SubmittedAt, opt => opt.MapFrom(src => src.submittedAt))
-            .ForMember(dest => dest.ReviewedAt, opt => opt.MapFrom(src => src.reviewedAt))
-            .ForMember(dest => dest.ExpiresAt, opt => opt.MapFrom(src => src.expiresAt))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => src.updatedAt))
-            .ForMember(dest => dest.Documents, opt => opt.Ignore());
-        CreateMap<KycDocument, KycDocumentDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.SubmissionId, opt => opt.MapFrom(src => src.submissionId))
-            .ForMember(dest => dest.Type, opt => opt.MapFrom(src => src.type))
-            .ForMember(dest => dest.FileUrl, opt => opt.MapFrom(src => src.fileUrl))
-            .ForMember(dest => dest.FileName, opt => opt.MapFrom(src => src.fileName))
-            .ForMember(dest => dest.MimeType, opt => opt.MapFrom(src => src.mimeType))
-            .ForMember(dest => dest.FileSizeBytes, opt => opt.MapFrom(src => src.fileSizeBytes))
-            .ForMember(dest => dest.Metadata, opt => opt.MapFrom(src => src.metadata))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt));
+        config.NewConfig<KycSubmission, KycSubmissionDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.UserId, src => src.userId)
+            .Map(dest => dest.Provider, src => src.provider)
+            .Map(dest => dest.Status, src => src.status)
+            .Map(dest => dest.ReviewerId, src => src.reviewerId)
+            .Map(dest => dest.ReviewNotes, src => src.reviewNotes)
+            .Map(dest => dest.RejectionReason, src => src.rejectionReason)
+            .Map(dest => dest.ProviderSessionId, src => src.providerSessionId)
+            .Map(dest => dest.SubmittedAt, src => src.submittedAt)
+            .Map(dest => dest.ReviewedAt, src => src.reviewedAt)
+            .Map(dest => dest.ExpiresAt, src => src.expiresAt)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.UpdatedAt, src => src.updatedAt)
+            .Ignore(dest => dest.Documents);
+        config.NewConfig<KycDocument, KycDocumentDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.SubmissionId, src => src.submissionId)
+            .Map(dest => dest.Type, src => src.type)
+            .Map(dest => dest.FileUrl, src => src.fileUrl)
+            .Map(dest => dest.FileName, src => src.fileName)
+            .Map(dest => dest.MimeType, src => src.mimeType)
+            .Map(dest => dest.FileSizeBytes, src => src.fileSizeBytes)
+            .Map(dest => dest.Metadata, src => src.metadata)
+            .Map(dest => dest.CreatedAt, src => src.createdAt);
 
         // Project Invitation mappings
-        CreateMap<ProjectInvitation, ProjectInvitationDto>()
-            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.id))
-            .ForMember(dest => dest.ProjectId, opt => opt.MapFrom(src => src.projectId))
-            .ForMember(dest => dest.InvitedById, opt => opt.MapFrom(src => src.invitedById))
-            .ForMember(dest => dest.InvitedUserId, opt => opt.MapFrom(src => src.invitedUserId))
-            .ForMember(dest => dest.InvitedEmail, opt => opt.MapFrom(src => src.invitedEmail))
-            .ForMember(dest => dest.Role, opt => opt.MapFrom(src => src.role.ToString()))
-            .ForMember(dest => dest.Message, opt => opt.MapFrom(src => src.message))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.status.ToString()))
-            .ForMember(dest => dest.Token, opt => opt.MapFrom(src => src.token))
-            .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.createdAt))
-            .ForMember(dest => dest.ExpiresAt, opt => opt.MapFrom(src => src.expiresAt))
-            .ForMember(dest => dest.RespondedAt, opt => opt.MapFrom(src => src.respondedAt))
-            .ForMember(dest => dest.InvitedUser, opt => opt.Ignore())
-            .ForMember(dest => dest.InvitedBy, opt => opt.Ignore())
-            .ForMember(dest => dest.Project, opt => opt.Ignore());
+        config.NewConfig<ProjectInvitation, ProjectInvitationDto>()
+            .Map(dest => dest.Id, src => src.id)
+            .Map(dest => dest.ProjectId, src => src.projectId)
+            .Map(dest => dest.InvitedById, src => src.invitedById)
+            .Map(dest => dest.InvitedUserId, src => src.invitedUserId)
+            .Map(dest => dest.InvitedEmail, src => src.invitedEmail)
+            .Map(dest => dest.Role, src => src.role.ToString())
+            .Map(dest => dest.Message, src => src.message)
+            .Map(dest => dest.Status, src => src.status.ToString())
+            .Map(dest => dest.Token, src => src.token)
+            .Map(dest => dest.CreatedAt, src => src.createdAt)
+            .Map(dest => dest.ExpiresAt, src => src.expiresAt)
+            .Map(dest => dest.RespondedAt, src => src.respondedAt)
+            .Ignore(dest => dest.InvitedUser)
+            .Ignore(dest => dest.InvitedBy)
+            .Ignore(dest => dest.Project);
 
         // Tokenomics mappings
-        CreateMap<ProjectTokenConfig, ProjectTokenConfigDto>();
-        CreateMap<TokenAllocation, TokenAllocationDto>();
-        CreateMap<TokenBalance, TokenBalanceDto>();
-        CreateMap<PayoutRequest, PayoutRequestDto>();
-        CreateMap<PlatformTreasury, TreasuryStatusDto>();
-        CreateMap<PlatformTreasuryTransaction, PlatformTreasuryTransactionDto>();
-        CreateMap<ProjectInvestment, ProjectInvestmentDto>();
+        config.NewConfig<ProjectTokenConfig, ProjectTokenConfigDto>();
+        config.NewConfig<TokenAllocation, TokenAllocationDto>();
+        config.NewConfig<TokenBalance, TokenBalanceDto>();
+        config.NewConfig<PayoutRequest, PayoutRequestDto>();
+        config.NewConfig<PlatformTreasury, TreasuryStatusDto>();
+        config.NewConfig<PlatformTreasuryTransaction, PlatformTreasuryTransactionDto>();
+        config.NewConfig<ProjectInvestment, ProjectInvestmentDto>();
+
     }
 }

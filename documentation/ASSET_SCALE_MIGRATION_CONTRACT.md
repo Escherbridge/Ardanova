@@ -28,13 +28,13 @@ apply, or hand-edit a Prisma migration from this document.
 Each stage is a separately reviewed release. Stop on any mismatch; do not fold
 the stages into one convenience migration.
 
-| Stage | Database shape / application behavior | Required proof to leave the stage |
-| --- | --- | --- |
-| 0. Freeze and inventory | Keep value-moving flows disabled; pin the baseline fingerprint. | Approved baseline report, duplicate-payment-intent resolution decision, and complete inventory of existing `ProjectTokenConfig` rows. |
-| 1. Introduce nullable evidence field | Add `assetScale integer NULL` with **no default**. Do not add `NOT NULL`, `DEFAULT 6`, a trigger, or application-side bulk update. New configs must require an explicit validated scale rather than fall back to six. | Reviewed additive SQL from a disposable clone; post-deploy catalog report proving `integer`, nullable, and no default. |
-| 2. Capture authoritative evidence | For every existing config, obtain and record the asset identity and decimal scale from the selected chain/network's canonical asset record. Configs without a minted/verified asset remain null and blocked. | Per-row signed/reviewed evidence manifest and read-only reconciliation report; all source reads are reproducible by a second operator. |
-| 3. Validate and reconcile | Backfill only rows whose manifest matches the current database row and authoritative chain response. Re-read after write; verify no null, out-of-range, or changed values and verify every historical agreement/settlement scale is consistent with its immutable snapshot. | Reviewed backfill code/SQL, before/after row counts and hashes, discrepancy log resolved or blocked, additive preflight with zero asset-scale findings, and concurrency/rollback evidence. |
-| 4. Harden | In a separate no-default migration, add `NOT NULL` only after Stage 3 is proven. Keep the no-default catalog assertion permanently. | New approved fingerprint, `NOT NULL`/no-default catalog proof, application contract tests, and release approval. |
+| Stage                                | Database shape / application behavior                                                                                                                                                                                                                                       | Required proof to leave the stage                                                                                                                                                          |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0. Freeze and inventory              | Keep value-moving flows disabled; pin the baseline fingerprint.                                                                                                                                                                                                             | Approved baseline report, duplicate-payment-intent resolution decision, and complete inventory of existing `ProjectTokenConfig` rows.                                                      |
+| 1. Introduce nullable evidence field | Add `assetScale integer NULL` with **no default**. Do not add `NOT NULL`, `DEFAULT 6`, a trigger, or application-side bulk update. New configs must require an explicit validated scale rather than fall back to six.                                                       | Reviewed additive SQL from a disposable clone; post-deploy catalog report proving `integer`, nullable, and no default.                                                                     |
+| 2. Capture authoritative evidence    | For every existing config, obtain and record the asset identity and decimal scale from the selected chain/network's canonical asset record. Configs without a minted/verified asset remain null and blocked.                                                                | Per-row signed/reviewed evidence manifest and read-only reconciliation report; all source reads are reproducible by a second operator.                                                     |
+| 3. Validate and reconcile            | Backfill only rows whose manifest matches the current database row and authoritative chain response. Re-read after write; verify no null, out-of-range, or changed values and verify every historical agreement/settlement scale is consistent with its immutable snapshot. | Reviewed backfill code/SQL, before/after row counts and hashes, discrepancy log resolved or blocked, additive preflight with zero asset-scale findings, and concurrency/rollback evidence. |
+| 4. Harden                            | In a separate no-default migration, add `NOT NULL` only after Stage 3 is proven. Keep the no-default catalog assertion permanently.                                                                                                                                         | New approved fingerprint, `NOT NULL`/no-default catalog proof, application contract tests, and release approval.                                                                           |
 
 The current DBML declaration (`NOT NULL DEFAULT 6`) is a desired-model conflict,
 not permission to infer historic decimals. A future schema change must first
@@ -89,7 +89,7 @@ Before Stage 3 writes a scale:
 
 The first application release that can observe nullable scale must fail closed
 for a missing or invalid scale. It must not rely on CLR `int` default zero,
-AutoMapper construction, or a DTO default. The final non-null constraint is a
+object-mapper construction, or a DTO default. The final non-null constraint is a
 defense in depth, not the validation mechanism.
 
 ## Required implementation cutover map
@@ -97,14 +97,14 @@ defense in depth, not the validation mechanism.
 No application change is made by this contract. The implementation slice must
 update and test all of the following as one reviewable change:
 
-| Surface | Current behavior | Required cutover |
-| --- | --- | --- |
-| `CreateProjectTokenConfigDto` and `ProjectTokenConfigDto` | Both default `AssetScale` to `6`. | Require an explicit scale for a newly created configuration; the response maps the persisted verified value and does not manufacture six. |
-| `ProjectTokenService.CreateConfigAsync` | Validates 0--19 then persists the caller value. | Validate 0--18 and bind the new config's scale to an authoritative asset-creation/lookup result before it can be commerce-eligible. |
-| `ProjectTokenConfig` persistence model | Required `int` conceals a nullable database transition. | Use a nullable transition representation or a dedicated verified-scale value so missing evidence cannot become zero; make final non-null representation only after Stage 4. |
-| `TaskCommerceService.AcceptBidAsync` | Checks 0--19 and freezes the config scale in an agreement and terms snapshot. | Require a verified 0--18 scale and matching asset identity before agreement creation; retain the frozen value thereafter. |
-| `FundingIntentService.CreateTermsSnapshot` | Copies `config.assetScale` into funding terms without validation. | Require verified 0--18 scale/asset evidence before checkout/intent construction and capture it with the funding terms. |
-| `FixedScaleAmount` / outbox | Supports scales 0--18. | Remains the canonical numeric bound; do not widen it independently of database precision and provider limits. |
+| Surface                                                   | Current behavior                                                              | Required cutover                                                                                                                                                            |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CreateProjectTokenConfigDto` and `ProjectTokenConfigDto` | Both default `AssetScale` to `6`.                                             | Require an explicit scale for a newly created configuration; the response maps the persisted verified value and does not manufacture six.                                   |
+| `ProjectTokenService.CreateConfigAsync`                   | Validates 0--19 then persists the caller value.                               | Validate 0--18 and bind the new config's scale to an authoritative asset-creation/lookup result before it can be commerce-eligible.                                         |
+| `ProjectTokenConfig` persistence model                    | Required `int` conceals a nullable database transition.                       | Use a nullable transition representation or a dedicated verified-scale value so missing evidence cannot become zero; make final non-null representation only after Stage 4. |
+| `TaskCommerceService.AcceptBidAsync`                      | Checks 0--19 and freezes the config scale in an agreement and terms snapshot. | Require a verified 0--18 scale and matching asset identity before agreement creation; retain the frozen value thereafter.                                                   |
+| `FundingIntentService.CreateTermsSnapshot`                | Copies `config.assetScale` into funding terms without validation.             | Require verified 0--18 scale/asset evidence before checkout/intent construction and capture it with the funding terms.                                                      |
+| `FixedScaleAmount` / outbox                               | Supports scales 0--18.                                                        | Remains the canonical numeric bound; do not widen it independently of database precision and provider limits.                                                               |
 
 The existing legacy allocation, balance, exchange, payout, and treasury paths
 still use integer/double contracts. They are not evidence that a historical

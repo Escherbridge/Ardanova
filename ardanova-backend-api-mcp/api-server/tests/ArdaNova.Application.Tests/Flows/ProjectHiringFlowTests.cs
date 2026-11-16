@@ -8,7 +8,7 @@ using ArdaNova.Application.Mappings;
 using ArdaNova.Application.Services.Implementations;
 using ArdaNova.Domain.Models.Entities;
 using ArdaNova.Domain.Models.Enums;
-using AutoMapper;
+using MapsterMapper;
 using FluentAssertions;
 using Moq;
 using TaskStatus = ArdaNova.Domain.Models.Enums.TaskStatus;
@@ -42,11 +42,7 @@ public class ProjectHiringFlowTests
 
     public ProjectHiringFlowTests()
     {
-        _mapper = new MapperConfiguration(cfg =>
-        {
-            cfg.AddProfile<MappingProfile>();
-            MappingSecurityPolicy.Apply(cfg);
-        }).CreateMapper();
+        _mapper = MappingProfile.CreateMapper();
 
         _projects.Add(NewProject(DraftProjectId, ProjectStatus.DRAFT));
         _projects.Add(NewProject(PublishedProjectId, ProjectStatus.PUBLISHED));
