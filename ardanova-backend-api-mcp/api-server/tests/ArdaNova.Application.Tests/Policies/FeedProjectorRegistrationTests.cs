@@ -1,6 +1,7 @@
 namespace ArdaNova.Application.Tests.Policies;
 
 using ArdaNova.Application.Feed;
+using ArdaNova.Application.Tests.Support;
 using ArdaNova.Infrastructure;
 using ArdaNova.Infrastructure.Feed;
 using FluentAssertions;
@@ -100,6 +101,8 @@ public class FeedProjectorRegistrationTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddInfrastructure(configuration, environment);
+        // Many composition tests build this same DI graph in one test run; see CompositionRootWarnings.
+        services.SuppressManyServiceProvidersCreatedWarning();
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
     }
 
