@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { GET as wellKnownLlms } from "~/app/.well-known/llms.txt/route";
+import { GET as publicLlms } from "~/app/llms.txt/route";
+
 import { buildFeedXml } from "./feed-xml";
 import { buildLlmsTxt } from "./llms-txt";
 import {
@@ -219,6 +222,20 @@ describe("llms.txt", () => {
     expect(text).not.toContain("railway.app");
     expect(text).not.toMatch(/\b(investment|token|tokens|returns?)\b/i);
     expect(text).not.toMatch(/\b\d{5}(?:-\d{4})?\b/);
+    expect(text).toContain(
+      "## Workspace\nThe workspace at /dashboard needs a Google sign-in. There is no public API for agents yet.",
+    );
+  });
+
+  it("is the same document at /.well-known/llms.txt", async () => {
+    const [page, wellKnown] = await Promise.all([
+      publicLlms(),
+      wellKnownLlms(),
+    ]);
+    expect(wellKnown.headers.get("content-type")).toBe(
+      page.headers.get("content-type"),
+    );
+    expect(await wellKnown.text()).toBe(await page.text());
   });
 });
 

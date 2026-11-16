@@ -18,6 +18,25 @@ const config = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  async redirects() {
+    return [
+      {
+        source: "/signin",
+        destination: "/auth/signin",
+        permanent: true,
+      },
+      {
+        source: "/sign-in",
+        destination: "/auth/signin",
+        permanent: true,
+      },
+      {
+        source: "/register",
+        destination: "/auth/signin?mode=signup",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default config;
