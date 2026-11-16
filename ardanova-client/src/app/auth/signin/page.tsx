@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { PublicEmailAnchor } from "~/components/brand/public-email";
 import { ArdaNovaWordmark } from "~/components/brand/wordmark";
 import { Button } from "~/components/ui/button";
 import {
@@ -13,11 +14,6 @@ import { providerAuth, signIn } from "~/server/auth";
 
 import { destinationLabel } from "./destination-label";
 
-export const metadata: Metadata = {
-  title: "Sign in",
-  description: "Sign in to ArdaNova.",
-};
-
 interface SignInPageProps {
   searchParams: Promise<{
     mode?: string | string[];
@@ -25,10 +21,32 @@ interface SignInPageProps {
   }>;
 }
 
+function isSignupMode(mode: string | string[] | undefined): boolean {
+  return mode === "signup";
+}
+
+export async function generateMetadata({
+  searchParams,
+}: SignInPageProps): Promise<Metadata> {
+  const { mode } = await searchParams;
+  if (!isSignupMode(mode)) {
+    return {
+      title: "Sign in",
+      description: "Sign in to ArdaNova.",
+    };
+  }
+
+  return {
+    title: "Create an account",
+    description:
+      "Create an ArdaNova account with Google. The economy on the deployed service is simulated.",
+  };
+}
+
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const session = await providerAuth();
   const { mode, callbackUrl: requestedCallbackUrl } = await searchParams;
-  const isSignUp = mode === "signup";
+  const isSignUp = isSignupMode(mode);
   const callbackUrl = normalizeInternalCallbackUrl(requestedCallbackUrl);
   const returnDestination = destinationLabel(callbackUrl);
 
@@ -69,7 +87,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
 
         <div className="max-w-3xl">
           <h1 className="text-7xl leading-[0.84] font-black tracking-[-0.07em] uppercase xl:text-8xl">
-            Back to the work.
+            {isSignUp ? "Start with a problem." : "Back to the work."}
           </h1>
         </div>
 
@@ -185,6 +203,12 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
               <ArrowRight aria-hidden="true" className="ml-auto" />
             </Button>
           </form>
+          <p className="mt-3 text-sm leading-relaxed text-[#bdb8b1]">
+            ArdaNova uses Google sign-in for now. If you don&apos;t have a
+            Google account, write to{" "}
+            <PublicEmailAnchor className="underline underline-offset-2 hover:text-[#f6f0eb]" />
+            .
+          </p>
           <p className="mt-3 text-xs leading-relaxed text-[#aaa59f]">
             {isSignUp ? "By creating an account" : "By continuing"} you agree to
             the{" "}

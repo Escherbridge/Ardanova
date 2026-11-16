@@ -4,6 +4,7 @@ import {
   buildSignInHref,
   normalizeInternalCallbackUrl,
   normalizeInternalReturnTo,
+  requestsProjectsExplainer,
 } from "./auth-navigation";
 
 describe("auth navigation", () => {
@@ -24,6 +25,15 @@ describe("auth navigation", () => {
     expect(buildSignInHref("/projects/create", { mode: "signup" })).toBe(
       "/auth/signin?mode=signup&callbackUrl=%2Fprojects%2Fcreate",
     );
+  });
+
+  it("marks only GET /projects for the public explainer", () => {
+    expect(requestsProjectsExplainer("GET", "/projects")).toBe(true);
+    expect(requestsProjectsExplainer("POST", "/projects")).toBe(false);
+    expect(requestsProjectsExplainer("GET", "/projects/")).toBe(false);
+    expect(requestsProjectsExplainer("GET", "/projects/create")).toBe(false);
+    expect(requestsProjectsExplainer("GET", "/opportunities")).toBe(false);
+    expect(requestsProjectsExplainer("GET", "/governance")).toBe(false);
   });
 
   it("accepts only a safe non-looping verification return destination", () => {

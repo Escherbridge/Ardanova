@@ -9,8 +9,21 @@ export const PUBLIC_OPERATOR_EMAIL = "contact@escherbridge.com";
  * reads the start tag. `email_on` is the closer this change emits;
  * `/email_off` is the closer in Cloudflare's email obfuscation docs.
  */
-const PUBLIC_EMAIL_HTML = `<!--email_off--><a class="underline" href="mailto:${PUBLIC_OPERATOR_EMAIL}">${PUBLIC_OPERATOR_EMAIL}</a><!--email_on--><!--/email_off-->`;
+export function publicEmailAnchorHtml(className = "underline"): string {
+  return `<!--email_off--><a class="${className}" href="mailto:${PUBLIC_OPERATOR_EMAIL}">${PUBLIC_OPERATOR_EMAIL}</a><!--email_on--><!--/email_off-->`;
+}
+
+const PUBLIC_EMAIL_HTML = publicEmailAnchorHtml();
 
 export function PublicEmailLine() {
   return <p dangerouslySetInnerHTML={{ __html: PUBLIC_EMAIL_HTML }} />;
+}
+
+/** Inline mailto. The Cloudflare markers stay on the anchor, as in `PublicEmailLine`. */
+export function PublicEmailAnchor({ className }: { className?: string }) {
+  return (
+    <span
+      dangerouslySetInnerHTML={{ __html: publicEmailAnchorHtml(className) }}
+    />
+  );
 }

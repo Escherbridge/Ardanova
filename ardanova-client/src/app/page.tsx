@@ -100,9 +100,9 @@ export default async function Home() {
   const signupHref = session
     ? "/dashboard"
     : "/auth/signin?mode=signup&callbackUrl=%2Fdashboard";
-  const projectsHref = session
-    ? "/projects"
-    : "/auth/signin?callbackUrl=%2Fprojects";
+  const projectsHref = "/projects";
+  const opportunitiesHref = session ? "/opportunities" : "/projects";
+  const governanceHref = session ? "/governance" : "/projects";
 
   return (
     <HydrateClient>
@@ -186,7 +186,7 @@ export default async function Home() {
         <main id="main-content" tabIndex={-1}>
           <section className="border-b border-black/70">
             <div className="mx-auto grid max-w-[1440px] lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
-              <div className="flex flex-col justify-between gap-14 px-4 py-16 md:px-8 md:py-24 lg:min-h-[calc(100svh-4rem)] lg:border-r lg:border-black/70 lg:py-16">
+              <div className="flex flex-col justify-between gap-14 px-4 py-16 md:px-8 md:py-24 lg:min-h-[calc(100svh-4rem)] lg:gap-4 lg:border-r lg:border-black/70 lg:py-8">
                 <div className="min-w-0">
                   <h1 className="display-type max-w-5xl uppercase">
                     Turn attention.{" "}
@@ -195,8 +195,8 @@ export default async function Home() {
                   </h1>
                 </div>
 
-                <div className="grid gap-8 border-t border-black/70 pt-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-                  <div className="max-w-2xl">
+                <div className="max-w-[34rem] border-t border-black/70 pt-6 lg:pt-4">
+                  <div>
                     <p className="text-brand-signal-deep font-mono text-xs font-semibold tracking-[0.16em] uppercase">
                       Solutionary Action · Shared Ownership · Social Ecology
                     </p>
@@ -205,6 +205,10 @@ export default async function Home() {
                       about a real-world problem bring together collaborators,
                       guilds, and community sponsors to fund it, build it,
                       govern it together, and share in what it becomes.
+                    </p>
+                    <p className="text-muted-foreground mt-4 text-base leading-relaxed">
+                      The economy on the deployed service is simulated. A record
+                      is not a promise of payment.
                     </p>
                     <p className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm leading-relaxed">
                       <Link
@@ -230,7 +234,7 @@ export default async function Home() {
                       </a>
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-3">
+                  <div className="mt-8 flex flex-wrap gap-3">
                     <Button asChild size="lg">
                       <Link href={session ? workspaceHref : signupHref}>
                         {session ? "Continue the work" : "Describe a problem"}
@@ -465,7 +469,12 @@ export default async function Home() {
           </section>
         </main>
 
-        <SiteFooter workspaceHref={workspaceHref} />
+        <SiteFooter
+          governanceHref={governanceHref}
+          opportunitiesHref={opportunitiesHref}
+          projectsHref={projectsHref}
+          workspaceHref={workspaceHref}
+        />
       </div>
     </HydrateClient>
   );

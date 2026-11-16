@@ -1,6 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { ARDANOVA_REQUEST_PATH_HEADER } from "~/lib/auth-navigation";
+import {
+  ARDANOVA_REQUEST_PATH_HEADER,
+  PROJECTS_EXPLAINER_HEADER,
+  requestsProjectsExplainer,
+} from "~/lib/auth-navigation";
 
 /** Browser hardening sent on every page and API response; see src/AGENTS.md §Security headers. */
 export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
@@ -14,19 +18,31 @@ export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
 /** HSTS only over production TLS, so local http development is never pinned to https. */
 const STRICT_TRANSPORT_SECURITY = "max-age=31536000; includeSubDomains";
 
-export function middleware(request: NextRequest) {
+/** Request headers the route guard reads. Security headers stay on the response. */
+export function ardanovaRequestHeaders(request: NextRequest): Headers {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(
     ARDANOVA_REQUEST_PATH_HEADER,
     `${request.nextUrl.pathname}${request.nextUrl.search}`,
   );
+  if (requestsProjectsExplainer(request.method, request.nextUrl.pathname)) {
+    requestHeaders.set(PROJECTS_EXPLAINER_HEADER, "1");
+  }
+  return requestHeaders;
+}
+
+export function middleware(request: NextRequest) {
+  const requestHeaders = ardanovaRequestHeaders(request);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(name, value);
   }
   if (process.env.NODE_ENV === "production") {
-    response.headers.set("Strict-Transport-Security", STRICT_TRANSPORT_SECURITY);
+    response.headers.set(
+      "Strict-Transport-Security",
+      STRICT_TRANSPORT_SECURITY,
+    );
   }
   return response;
 }
