@@ -11,12 +11,12 @@ node. The full creator → sponsor → worker loop ran end to end on 2026-10-25 
 node (`conductor/tracks/mvp-tandem-demo_20261024/plan.md` §C2, findings F1–F31). Remaining work
 is tracked row by row in `conductor/tracks/mvp-readiness-loop_20261026/DECISIONS-LEDGER.md`.
 
-| Tier | Repo / path | Runtime | Owns | Never does |
-|---|---|---|---|---|
-| 1. Client | `ardanova-client/` | Next.js 15, tRPC 11, NextAuth v5 | UX, session | business logic, value writes, AZOA credentials |
-| 2. BFF | `ardanova-backend-api-mcp/` | .NET 10, EF Core 10 on PostgreSQL, SignalR | business logic, records of truth, settlement outbox, the ONLY AZOA credentials | custody, KYC decisions, chain calls |
-| 3. AZOA node | `oasis-sleek` (separate repo) | .NET 10 WebAPI, SurrealDB 3.x | custody, KYC (Identomat), consent, genesis, reserve partitions, exchange, holds, receipts, fiat rail (Stripe) | economics: valuation, splits, prices are declared by the consumer |
-| 4. Chains | under AZOA | `Simulated` (first-class), Algorand, Solana, Ethereum | asset truth | — |
+| Tier         | Repo / path                   | Runtime                                               | Owns                                                                                                          | Never does                                                        |
+| ------------ | ----------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| 1. Client    | `ardanova-client/`            | Next.js 15, tRPC 11, NextAuth v5                      | UX, session                                                                                                   | business logic, value writes, AZOA credentials                    |
+| 2. BFF       | `ardanova-backend-api-mcp/`   | .NET 10, EF Core 10 on PostgreSQL, SignalR            | business logic, records of truth, settlement outbox, the ONLY AZOA credentials                                | custody, KYC decisions, chain calls                               |
+| 3. AZOA node | `oasis-sleek` (separate repo) | .NET 10 WebAPI, SurrealDB 3.x                         | custody, KYC (Identomat), consent, genesis, reserve partitions, exchange, holds, receipts, fiat rail (Stripe) | economics: valuation, splits, prices are declared by the consumer |
+| 4. Chains    | under AZOA                    | `Simulated` (first-class), Algorand, Solana, Ethereum | asset truth                                                                                                   | —                                                                 |
 
 **Side features, not on the value path.** Nova AI refines project ideas through the BFF to the
 OVERSEASGENAI partner API (`ArdaNova.Infrastructure/Ogai/AGENTS.md`); it cannot fund, publish,
@@ -88,15 +88,15 @@ client is a stub — `ardanova-ai-client/AGENTS.md`). The MCP host is discovery-
 
 ### The money loop (as shipped)
 
-| Step | ArdaNova (BFF) | AZOA node | Evidence |
-|---|---|---|---|
-| Fiat in | `AzoaFiatRailGateway` starts checkout; declares the genesis price once (`UnitsPerUsdMinorUnit="100"` = 1 ARDA per $0.01, ledger P3-02) | Stripe hosted checkout → webhook → on-ramp lot → `IssueUnits` from the platform `on-ramp` partition | plan.md Step-3 milestone, F19, F21 |
-| Project genesis | `ProjectTokenService` drives `fungible-mint` through the consent lifecycle, then treasury resolve and `investor` / `contributor` partitions | durable creation (`AwaitingConsent` → quote → accept → continue → `Completed`), reserve + project treasury | F13–F17; contract §12.3.1 |
-| Sponsorship | `FundingIntentService` → settlement → outbox → `AzoaSettlementGateway`; opening-offer price while the raise is open (`ExchangeService`) | atomic two-leg reserve exchange (ARDA → treasury, units → sponsor), receipt by idempotency key | STEP 3 SETTLED; contract §12.1 |
-| Award | bid accept → `AzoaHoldClient.OpenAsync` (`open:{holdId}`) | reserve-funded hold on the `contributor` partition | F20 |
-| Approve | `ReleaseIntoHold` (`release-into-hold:{holdId}:{nextHoldId}`), window instant persisted first | child hold = the worker's window; `ReplayConflict` on byte-different replay | F31; contract §12.2 |
-| Out | withdraw ARDA → bank (P5-02, IN, built-untested); sell units → ARDA (P5-03, IN, gated) | cash-out + Stripe Connect payouts; buy-back exchange | `oasis-sleek/Services/Fiat/OffRamp/AGENTS.md` |
-| Window matures | — | release mandate needed; **not built** (P4-04, due 2026-12-23) | F20 "step-5 boundary" |
+| Step            | ArdaNova (BFF)                                                                                                                              | AZOA node                                                                                                  | Evidence                                      |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Fiat in         | `AzoaFiatRailGateway` starts checkout; declares the genesis price once (`UnitsPerUsdMinorUnit="100"` = 1 ARDA per $0.01, ledger P3-02)      | Stripe hosted checkout → webhook → on-ramp lot → `IssueUnits` from the platform `on-ramp` partition        | plan.md Step-3 milestone, F19, F21            |
+| Project genesis | `ProjectTokenService` drives `fungible-mint` through the consent lifecycle, then treasury resolve and `investor` / `contributor` partitions | durable creation (`AwaitingConsent` → quote → accept → continue → `Completed`), reserve + project treasury | F13–F17; contract §12.3.1                     |
+| Sponsorship     | `FundingIntentService` → settlement → outbox → `AzoaSettlementGateway`; opening-offer price while the raise is open (`ExchangeService`)     | atomic two-leg reserve exchange (ARDA → treasury, units → sponsor), receipt by idempotency key             | STEP 3 SETTLED; contract §12.1                |
+| Award           | bid accept → `AzoaHoldClient.OpenAsync` (`open:{holdId}`)                                                                                   | reserve-funded hold on the `contributor` partition                                                         | F20                                           |
+| Approve         | `ReleaseIntoHold` (`release-into-hold:{holdId}:{nextHoldId}`), window instant persisted first                                               | child hold = the worker's window; `ReplayConflict` on byte-different replay                                | F31; contract §12.2                           |
+| Out             | withdraw ARDA → bank (P5-02, IN, built-untested); sell units → ARDA (P5-03, IN, gated)                                                      | cash-out + Stripe Connect payouts; buy-back exchange                                                       | `oasis-sleek/Services/Fiat/OffRamp/AGENTS.md` |
+| Window matures  | —                                                                                                                                           | release mandate needed; **not built** (P4-04, due 2026-12-23)                                              | F20 "step-5 boundary"                         |
 
 **Settlement outbox in one line:** settlement `PENDING_DISPATCH` → outbox `LEASED` (5-min lease)
 → `SUBMITTED`/`CONFIRMED` on a terminal receipt, or `AWAITING_RECONCILIATION` on any ambiguity →
@@ -106,13 +106,13 @@ machine: `conductor/ARDANOVA-AZOA-INTEGRATION-CONTRACT.md` §12.1.
 
 ### Released topology (Railway project `a876ca12`)
 
-| Service | Source | State (2026-10-26) |
-|---|---|---|
-| Ardanova-Client | `ardanova-client/` | Live at `e54e9c9`; `/api/health` reports `environment`, `commit`, `deploymentKey` (`src/app/api/health/route.ts`) |
-| Ardanova-BFF | `ardanova-backend-api-mcp/` | Staging label, `economy=disabled` until the value flags are set (ledger P7-08) |
-| ardanova-postgress | Railway Postgres | Prod migration is human-gated (P7-10) |
-| azoa-api · azoa-schema · SurrealDB · azoa-frontend | `oasis-sleek` | `azoa-schema` is the one-shot schema job deployed before `azoa-api` (`oasis-sleek/deploy/railway/DEPLOY.md`); deploy-from-`main` waits on P7-06 |
-| Aradnova-AI | `ardanova-ai-client/` | dormant |
+| Service                                            | Source                      | State (2026-10-26)                                                                                                                              |
+| -------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ardanova-Client                                    | `ardanova-client/`          | Live at `e54e9c9`; `/api/health` reports `environment`, `commit`, `deploymentKey` (`src/app/api/health/route.ts`)                               |
+| Ardanova-BFF                                       | `ardanova-backend-api-mcp/` | Staging label, `economy=disabled` until the value flags are set (ledger P7-08)                                                                  |
+| ardanova-postgress                                 | Railway Postgres            | Prod migration is human-gated (P7-10)                                                                                                           |
+| azoa-api · azoa-schema · SurrealDB · azoa-frontend | `oasis-sleek`               | `azoa-schema` is the one-shot schema job deployed before `azoa-api` (`oasis-sleek/deploy/railway/DEPLOY.md`); deploy-from-`main` waits on P7-06 |
+| Aradnova-AI                                        | `ardanova-ai-client/`       | dormant                                                                                                                                         |
 
 `azoa-sdk` 0.5.0 is published on npm (`ardanova-client/package.json:63`). The client Dockerfile
 (`node:20-alpine`) upgrades to npm 11 before `npm ci`; when the Windows-written lockfile drifts
@@ -135,18 +135,18 @@ and only for the seed-owned `@local.ardanova.test` namespace
 
 ### Component status (2026-10-26)
 
-| Component | Status | Notes |
-| --- | --- | --- |
-| `ardanova-client` | ✅ Live | tRPC thin proxies; read-only AZOA layer |
-| `ardanova-backend-api-mcp` | ✅ Live (Staging, economy disabled) | 42 controllers; MCP host discovery-only |
-| AZOA integration (.NET) | ✅ Golden path driven live (Simulated) | custody, KYC, genesis, exchange settlement, holds; see `ArdaNova.Infrastructure/Azoa/AGENTS.md` |
-| Custodial balance read | ⛔ Missing | holdings reads are fail-closed stubs (P5-01) |
-| Hold release mandate | ⛔ Missing | due 2026-12-23 (P4-04) |
-| Task escrow components | ⛔ Cut for MVP | the hold rail is the MVP escrow (P4-05) |
-| Live Identomat | ⏸ Vendor-gated | trial company cannot create configs (P1-02) |
-| Nova AI refinement | ⏸ Owner/lease-gated | via OGAI partner API (P2-11) |
-| `ardanova-ai-client` | 💤 Dormant | built, not wired |
-| Event bus · SignalR · storage · generator | ✅ Complete | unchanged |
+| Component                                 | Status                                 | Notes                                                                                           |
+| ----------------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `ardanova-client`                         | ✅ Live                                | tRPC thin proxies; read-only AZOA layer                                                         |
+| `ardanova-backend-api-mcp`                | ✅ Live (Staging, economy disabled)    | 42 controllers; MCP host discovery-only                                                         |
+| AZOA integration (.NET)                   | ✅ Golden path driven live (Simulated) | custody, KYC, genesis, exchange settlement, holds; see `ArdaNova.Infrastructure/Azoa/AGENTS.md` |
+| Custodial balance read                    | ⛔ Missing                             | holdings reads are fail-closed stubs (P5-01)                                                    |
+| Hold release mandate                      | ⛔ Missing                             | due 2026-12-23 (P4-04)                                                                          |
+| Task escrow components                    | ⛔ Cut for MVP                         | the hold rail is the MVP escrow (P4-05)                                                         |
+| Live Identomat                            | ⏸ Vendor-gated                        | trial company cannot create configs (P1-02)                                                     |
+| Nova AI refinement                        | ⏸ Owner/lease-gated                   | via OGAI partner API (P2-11)                                                                    |
+| `ardanova-ai-client`                      | 💤 Dormant                             | built, not wired                                                                                |
+| Event bus · SignalR · storage · generator | ✅ Complete                            | unchanged                                                                                       |
 
 Older narrative below this section predates the AZOA slot-in in places; where it disagrees,
 this section and the integration contract win.
@@ -1654,16 +1654,16 @@ every tool below is a read or a non-sensitive log/notification write — no valu
 credential-, or governance-mutating tool exists here. Tool files live in
 `ArdaNova.MCP/Tools/*.cs`:
 
-| Category                 | Tools (representative)                                                                                                                             |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User**                 | user_get_by_id, user_get_by_email, user_get_paged                                                                                                 |
-| **Project**              | project_get_by_id, project_get_by_slug, project_get_all, project_get_paged, project_get_by_user, project_get_by_category, project_get_featured    |
-| **Guild**                | guild_get_by_id, guild_get_by_slug, guild_get_paged, guild_get_by_owner, guild_get_verified                                                       |
-| **Wallet**               | wallet_get_by_id, wallet_get_by_user_id, wallet_get_by_address, wallet_get_primary                                                                |
-| **Notification**         | notification_get_by_id, notification_get_unread, notification_get_summary, notification_create, notification_mark_read, notification_mark_all_read |
-| **Activity**             | activity_get_by_id, activity_get_by_user_id, activity_get_by_project_id, activity_create                                                          |
-| **Gamification**        | streak_get_by_user_id, streak_record_activity, streak_reset, referral_get_by_id, referral_get_by_referrer, referral_get_by_code, referral_complete |
-| **Membership credential** | membership_credential_get_by_id, _get_by_project, _get_active_by_project, _get_by_user, _check                                                   |
+| Category                  | Tools (representative)                                                                                                                             |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User**                  | user_get_by_id, user_get_by_email, user_get_paged                                                                                                  |
+| **Project**               | project_get_by_id, project_get_by_slug, project_get_all, project_get_paged, project_get_by_user, project_get_by_category, project_get_featured     |
+| **Guild**                 | guild_get_by_id, guild_get_by_slug, guild_get_paged, guild_get_by_owner, guild_get_verified                                                        |
+| **Wallet**                | wallet_get_by_id, wallet_get_by_user_id, wallet_get_by_address, wallet_get_primary                                                                 |
+| **Notification**          | notification_get_by_id, notification_get_unread, notification_get_summary, notification_create, notification_mark_read, notification_mark_all_read |
+| **Activity**              | activity_get_by_id, activity_get_by_user_id, activity_get_by_project_id, activity_create                                                           |
+| **Gamification**          | streak_get_by_user_id, streak_record_activity, streak_reset, referral_get_by_id, referral_get_by_referrer, referral_get_by_code, referral_complete |
+| **Membership credential** | membership_credential_get_by_id, \_get_by_project, \_get_active_by_project, \_get_by_user, \_check                                                 |
 
 `MCP_TOOL_REGISTRY` in `ardanova-ai-client/src/core/tools/mcp_tool.py` additionally lists
 `escrow`, `exchange`, and delegation (`governance`) write tools — those have no matching
@@ -1879,10 +1879,10 @@ intentionally unreachable from this layer; it goes through the .NET API, per
 
 ### Subdomains
 
-| Subdomain        | Service                  | Description                  |
-| ---------------- | ------------------------ | ----------------------------- |
-| www.ardanova.com | ardanova-client          | Main platform (owns the UX)  |
-| api.ardanova.com | ardanova-backend-api-mcp | .NET 10 API + MCP + SignalR; only tier holding AZOA credentials |
+| Subdomain        | Service                  | Description                                                                              |
+| ---------------- | ------------------------ | ---------------------------------------------------------------------------------------- |
+| www.ardanova.com | ardanova-client          | Main platform (owns the UX)                                                              |
+| api.ardanova.com | ardanova-backend-api-mcp | .NET 10 API + MCP + SignalR; only tier holding AZOA credentials                          |
 | ai.ardanova.com  | ardanova-ai-client       | FastAPI orchestrator operating Nova AI (implemented, not yet wired to `ardanova-client`) |
 
 AZOA itself has no `ardanova.com` subdomain — it is an external, separately-hosted node called
@@ -1940,38 +1940,38 @@ exposes no explorer or AZOA-facing public endpoint of its own.
 
 ### Completed ✅
 
-| Feature                         | Status      | Location                                                      |
-| ------------------------------- | ----------- | ------------------------------------------------------------- |
-| .NET Backend API                | ✅ Complete | `ardanova-backend-api-mcp/`                                   |
-| 42 REST Controllers             | ✅ Complete | `ArdaNova.API/Controllers/`                                   |
-| 52+ Application Services        | ✅ Complete | `ArdaNova.Application/Services/`                              |
-| 42 MCP Tools (discovery-only)   | ✅ Complete | `ArdaNova.MCP/`                                               |
-| Event Bus                       | ✅ Complete | `ArdaNova.API/EventBus/`                                      |
-| SignalR WebSocket               | ✅ Complete | `ArdaNova.API/WebSocket/`                                     |
-| S3 File Storage                 | ✅ Complete | `ArdaNova.Infrastructure/Storage/`                            |
-| Env Var Config Binding          | ✅ Complete | `StorageServiceExtensions.cs`                                 |
-| Attachment Controller           | ✅ Complete | `ArdaNova.API/Controllers/AttachmentsController.cs`           |
-| C# Model Generator              | ✅ Complete | `ardanova-client/scripts/generate-csharp-models.ts`           |
-| EF Core Conventions             | ✅ Complete | `ArdaNova.Infrastructure/Conventions/`                        |
-| Dev Scripts (Bash/PS)           | ✅ Complete | `scripts/`                                                    |
-| Docker Compose (Dev)            | ✅ Complete | `docker-compose.dev.yml`                                      |
+| Feature                         | Status                    | Location                                                                                                                           |
+| ------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| .NET Backend API                | ✅ Complete               | `ardanova-backend-api-mcp/`                                                                                                        |
+| 42 REST Controllers             | ✅ Complete               | `ArdaNova.API/Controllers/`                                                                                                        |
+| 52+ Application Services        | ✅ Complete               | `ArdaNova.Application/Services/`                                                                                                   |
+| 42 MCP Tools (discovery-only)   | ✅ Complete               | `ArdaNova.MCP/`                                                                                                                    |
+| Event Bus                       | ✅ Complete               | `ArdaNova.API/EventBus/`                                                                                                           |
+| SignalR WebSocket               | ✅ Complete               | `ArdaNova.API/WebSocket/`                                                                                                          |
+| S3 File Storage                 | ✅ Complete               | `ArdaNova.Infrastructure/Storage/`                                                                                                 |
+| Env Var Config Binding          | ✅ Complete               | `StorageServiceExtensions.cs`                                                                                                      |
+| Attachment Controller           | ✅ Complete               | `ArdaNova.API/Controllers/AttachmentsController.cs`                                                                                |
+| C# Model Generator              | ✅ Complete               | `ardanova-client/scripts/generate-csharp-models.ts`                                                                                |
+| EF Core Conventions             | ✅ Complete               | `ArdaNova.Infrastructure/Conventions/`                                                                                             |
+| Dev Scripts (Bash/PS)           | ✅ Complete               | `scripts/`                                                                                                                         |
+| Docker Compose (Dev)            | ✅ Complete               | `docker-compose.dev.yml`                                                                                                           |
 | AI Client (FastAPI, Nova AI)    | 🔄 Implemented, not wired | `ardanova-ai-client/` — real routes + CrewAI/LangGraph built; MCP client is a stub and `ardanova-client` has no caller into it yet |
-| Smart Contracts Stub            | ✅ Stubbed  | `contracts/`                                                  |
-| **Project Invitations**         | ✅ Complete | `ArdaNova.Domain/Models/Entities/ProjectInvitation.cs`        |
-| **Project Membership Requests** | ✅ Complete | `ArdaNova.Domain/Models/Entities/ProjectMembershipRequest.cs` |
-| **Guild Invitations**           | ✅ Complete | `ArdaNova.Domain/Models/Entities/GuildInvitation.cs`          |
-| **Guild Applications**          | ✅ Complete | `ArdaNova.Domain/Models/Entities/GuildApplication.cs`         |
-| **Events System**               | ✅ Complete | `ArdaNova.Domain/Models/Entities/Event.cs`                    |
-| **Event Attendees**             | ✅ Complete | `ArdaNova.Domain/Models/Entities/EventAttendee.cs`            |
-| **Event Co-Hosts**              | ✅ Complete | `ArdaNova.Domain/Models/Entities/EventCoHost.cs`              |
-| **Event Reminders**             | ✅ Complete | `ArdaNova.Domain/Models/Entities/EventReminder.cs`            |
-| **User Following**              | ✅ Complete | `ArdaNova.Domain/Models/Entities/UserFollow.cs`               |
-| **Project Following**           | ✅ Complete | `ArdaNova.Domain/Models/Entities/ProjectFollow.cs`            |
-| **Guild Following**             | ✅ Complete | `ArdaNova.Domain/Models/Entities/GuildFollow.cs`              |
-| **Trending System**             | ✅ Complete | Added to Project, Guild, Post entities                        |
-| **MembershipCredential Entity** | ✅ Complete | `ArdaNova.Domain/Models/Entities/MembershipCredential.cs`     |
-| **MembershipCredential Enums**  | ✅ Complete | `MembershipCredentialStatus`, `MembershipGrantType`           |
-| **Dual-Asset Model Schema**     | ✅ Complete | DBML updated with governance/economic separation              |
+| Smart Contracts Stub            | ✅ Stubbed                | `contracts/`                                                                                                                       |
+| **Project Invitations**         | ✅ Complete               | `ArdaNova.Domain/Models/Entities/ProjectInvitation.cs`                                                                             |
+| **Project Membership Requests** | ✅ Complete               | `ArdaNova.Domain/Models/Entities/ProjectMembershipRequest.cs`                                                                      |
+| **Guild Invitations**           | ✅ Complete               | `ArdaNova.Domain/Models/Entities/GuildInvitation.cs`                                                                               |
+| **Guild Applications**          | ✅ Complete               | `ArdaNova.Domain/Models/Entities/GuildApplication.cs`                                                                              |
+| **Events System**               | ✅ Complete               | `ArdaNova.Domain/Models/Entities/Event.cs`                                                                                         |
+| **Event Attendees**             | ✅ Complete               | `ArdaNova.Domain/Models/Entities/EventAttendee.cs`                                                                                 |
+| **Event Co-Hosts**              | ✅ Complete               | `ArdaNova.Domain/Models/Entities/EventCoHost.cs`                                                                                   |
+| **Event Reminders**             | ✅ Complete               | `ArdaNova.Domain/Models/Entities/EventReminder.cs`                                                                                 |
+| **User Following**              | ✅ Complete               | `ArdaNova.Domain/Models/Entities/UserFollow.cs`                                                                                    |
+| **Project Following**           | ✅ Complete               | `ArdaNova.Domain/Models/Entities/ProjectFollow.cs`                                                                                 |
+| **Guild Following**             | ✅ Complete               | `ArdaNova.Domain/Models/Entities/GuildFollow.cs`                                                                                   |
+| **Trending System**             | ✅ Complete               | Added to Project, Guild, Post entities                                                                                             |
+| **MembershipCredential Entity** | ✅ Complete               | `ArdaNova.Domain/Models/Entities/MembershipCredential.cs`                                                                          |
+| **MembershipCredential Enums**  | ✅ Complete               | `MembershipCredentialStatus`, `MembershipGrantType`                                                                                |
+| **Dual-Asset Model Schema**     | ✅ Complete               | DBML updated with governance/economic separation                                                                                   |
 
 ### Database Schema Stats
 
@@ -1985,24 +1985,24 @@ exposes no explorer or AZOA-facing public endpoint of its own.
 
 ### In Progress 🔄
 
-| Feature                         | Status         | Notes                                                              |
-| ------------------------------- | -------------- | ------------------------------------------------------------------ |
-| **Credential Utility Service**  | 🔄 In Progress | Soulbound ASA minting, guild credentials, tier system              |
-| **Algorand Integration (.NET)** | 🔄 In Progress | `dotnet-algorand-sdk` for on-chain credential operations           |
-| **Guild Credentials**           | 🔄 In Progress | Extend MembershipCredential with guildId, XOR validation           |
-| **Credential Tier System**      | 🔄 In Progress | BRONZE → DIAMOND progression tracked on-chain                      |
-| **Azoa Identity & Custody**     | 🔄 In Progress | Tenant orchestration complete; production custody/provider pending |
-| **KYC Gate Service**            | ✅ Implemented | Fresh Azoa approval required by Project/Credential services        |
-| Membership Services             | 🔄 TODO        | CRUD services for invitations/applications                         |
-| Events Services                 | 🔄 TODO        | CRUD services for events system                                    |
-| Following Services              | 🔄 TODO        | CRUD services for social following                                 |
-| Trending Analytics Job          | 🔄 TODO        | Background job to calculate trending scores                        |
-| Governance UI (`app/governance/`) | 🔄 In Progress | Governance proposals, voting — real pages exist, not a stub        |
-| Studio UI (`app/studio/`)       | 🔄 In Progress | Gamma API integration — real pages exist, not a stub               |
-| Swap UI (`app/swap/`)           | 🔄 In Progress | Token swap — real pages exist, not a stub                          |
-| Explorer UI                     | ⛔ Retired     | Not planned — AZOA is the custody/chain boundary, not an ArdaNova-hosted surface   |
-| Member chat UI (`app/chats/`)   | ✅ Active      | Member-to-member messaging via the .NET chat endpoints; no Nova AI chat surface exists yet |
-| Game SDK                        | 🔄 TODO        | Unity & Godot SDKs                                                 |
+| Feature                           | Status         | Notes                                                                                      |
+| --------------------------------- | -------------- | ------------------------------------------------------------------------------------------ |
+| **Credential Utility Service**    | 🔄 In Progress | Soulbound ASA minting, guild credentials, tier system                                      |
+| **Algorand Integration (.NET)**   | 🔄 In Progress | `dotnet-algorand-sdk` for on-chain credential operations                                   |
+| **Guild Credentials**             | 🔄 In Progress | Extend MembershipCredential with guildId, XOR validation                                   |
+| **Credential Tier System**        | 🔄 In Progress | BRONZE → DIAMOND progression tracked on-chain                                              |
+| **Azoa Identity & Custody**       | 🔄 In Progress | Tenant orchestration complete; production custody/provider pending                         |
+| **KYC Gate Service**              | ✅ Implemented | Fresh Azoa approval required by Project/Credential services                                |
+| Membership Services               | 🔄 TODO        | CRUD services for invitations/applications                                                 |
+| Events Services                   | 🔄 TODO        | CRUD services for events system                                                            |
+| Following Services                | 🔄 TODO        | CRUD services for social following                                                         |
+| Trending Analytics Job            | 🔄 TODO        | Background job to calculate trending scores                                                |
+| Governance UI (`app/governance/`) | 🔄 In Progress | Governance proposals, voting — real pages exist, not a stub                                |
+| Studio UI (`app/studio/`)         | 🔄 In Progress | Gamma API integration — real pages exist, not a stub                                       |
+| Swap UI (`app/swap/`)             | 🔄 In Progress | Token swap — real pages exist, not a stub                                                  |
+| Explorer UI                       | ⛔ Retired     | Not planned — AZOA is the custody/chain boundary, not an ArdaNova-hosted surface           |
+| Member chat UI (`app/chats/`)     | ✅ Active      | Member-to-member messaging via the .NET chat endpoints; no Nova AI chat surface exists yet |
+| Game SDK                          | 🔄 TODO        | Unity & Godot SDKs                                                                         |
 
 ### Known Issues
 
